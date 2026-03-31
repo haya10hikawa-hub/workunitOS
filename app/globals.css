@@ -1,26 +1,129 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Theme tokens (default: dark) */
+  --ai-bg: #0a0a0a;
+  --ai-surface: #0d0d0d;
+  --ai-panel: #111111;
+  --ai-panel-2: #1a1a1a;
+
+  --ai-border: #1a1a1a;
+  --ai-border-2: #222222;
+  --ai-divider: #1e1e1e;
+
+  --ai-text: #d0d0d0;
+  --ai-text-strong: #ffffff;
+  --ai-text-muted: #555555;
+  --ai-text-faint: #444444;
+  --ai-text-subtle: #888888;
+
+  --ai-accent: #69ff47;
+  --ai-accent-border: #2a4a2a;
+  --ai-accent-surface: #1a2a1a;
+  --ai-accent-surface-border: #2a4a2a;
+
+  --ai-danger: #ff4545;
+  --ai-success-bg: #0d1a0d;
+  --ai-success-bg-2: #112011;
+
+  --background: var(--ai-bg);
+  --foreground: var(--ai-text);
+}
+
+:root[data-theme="light"] {
+  --ai-bg: #faf9f5;
+  --ai-surface: #ffffff;
+  --ai-panel: #ffffff;
+  --ai-panel-2: #f3f1ea;
+
+  --ai-border: #e6e4dc;
+  --ai-border-2: #d7d5cd;
+  --ai-divider: #e6e4dc;
+
+  --ai-text: #1f1f1f;
+  --ai-text-strong: #0b0b0b;
+  --ai-text-muted: #6a6a6a;
+  --ai-text-faint: #8a8a8a;
+  --ai-text-subtle: #444444;
+
+  --ai-accent: #0b6b53;
+  --ai-accent-border: #95d5c2;
+  --ai-accent-surface: #e8f5ee;
+  --ai-accent-surface-border: #95d5c2;
+
+  --ai-danger: #d92d20;
+  --ai-success-bg: #e8f5ee;
+  --ai-success-bg-2: #d3efe2;
+
+  --background: var(--ai-bg);
+  --foreground: var(--ai-text);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-geist-sans, "Trebuchet MS");
+  --font-mono: var(--font-geist-mono, "JetBrains Mono");
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
 }
 
 body {
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-mono, "JetBrains Mono"), "Fira Code", monospace;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+button {
+  appearance: none;
+  border-radius: 0;
+}
+
+.ai-editor-main {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  gap: 1px;
+}
+
+.ai-editor-main--studio-collapsed {
+  grid-template-columns: 280px minmax(0, 1fr) 36px;
+}
+
+.ai-editor-column {
+  min-width: 0;
+  min-height: 0;
+}
+
+@media (max-width: 1080px) {
+  .ai-editor-main {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-editor-main--studio-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-editor-column--inbox,
+  .ai-editor-column--studio {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
 }
