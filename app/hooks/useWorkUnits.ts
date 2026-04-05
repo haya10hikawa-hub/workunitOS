@@ -25,10 +25,43 @@ export function useWorkUnits(initial: WorkUnit[]) {
     )
   }
 
+  const createWorkUnit = (title: string) => {
+    const newId = `wu-${Date.now()}`
+
+    setWorkUnits((prev) => {
+      const maxRank = prev.reduce((max, wu) => Math.max(max, wu.rank), 0)
+
+      const nextWorkUnit: WorkUnit = {
+        id: newId,
+        rank: maxRank + 1,
+        title,
+        situation: "New intake captured from signal board.",
+        actors: ["Product"],
+        problem: "Scope and execution path are not defined yet.",
+        deadline: "To be scheduled",
+        impact: 5,
+        urgency: 5,
+        actorWeight: 5,
+        effort: 5,
+        sources: ["Manual intake"],
+        tasks: [
+          { id: `${newId}-task-1`, label: "Clarify expected outcome", done: false },
+          { id: `${newId}-task-2`, label: "Draft first action plan", done: false },
+        ],
+        status: "New",
+      }
+
+      return [...prev, nextWorkUnit]
+    })
+
+    return newId
+  }
+
   return {
     workUnits,
     setWorkUnits,
     toggleTask,
     updateStatus,
+    createWorkUnit,
   }
 }

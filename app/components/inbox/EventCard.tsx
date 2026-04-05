@@ -1,11 +1,13 @@
 import { styles } from "@/styles/layoutStyles"
 import { colors } from "@/styles/theme"
-import type { InboxEvent } from "@/types/inbox"
+import type { InboxEvent, InboxSeverity } from "@/types/inbox"
+import type { AppLanguage } from "@/types/ui"
 
 interface EventCardProps {
   event: InboxEvent
   selected: boolean
   onSelect: (id: string) => void
+  language: AppLanguage
 }
 
 const severityColorMap = {
@@ -14,16 +16,24 @@ const severityColorMap = {
   medium: colors.accent,
 } as const
 
-const severityLabelMap = {
-  critical: "Blocker",
-  high: "Risk",
-  medium: "Info",
-} as const
+const severityLabelMap: Record<AppLanguage, Record<InboxSeverity, string>> = {
+  en: {
+    critical: "Blocker",
+    high: "Risk",
+    medium: "Info",
+  },
+  ja: {
+    critical: "重要",
+    high: "注意",
+    medium: "情報",
+  },
+}
 
 export default function EventCard({
   event,
   selected,
   onSelect,
+  language,
 }: EventCardProps) {
   const badgeColor = severityColorMap[event.severity]
 
@@ -44,7 +54,7 @@ export default function EventCard({
           background: `color-mix(in srgb, ${badgeColor} 12%, transparent)`,
         }}
       >
-        {severityLabelMap[event.severity]}
+        {severityLabelMap[language][event.severity]}
       </span>
 
       <div style={styles.eventBody}>

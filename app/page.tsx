@@ -1,200 +1,154 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import Header from "@/components/common/Header"
-import InboxColumn from "@/components/inbox/InboxColumn"
-import StudioColumn from "@/components/studio/StudioColumn"
-import WorkUnitColumn from "@/components/workunit/WorkUnitColumn"
 import { mockInbox } from "@/data/mockInbox"
-import { mockStudioDocuments } from "@/data/mockStudio"
 import { mockWorkUnits } from "@/data/mockWorkUnits"
 import { calcROI } from "@/lib/roi"
-import { useStudio } from "@/hooks/useStudio"
-import { useDecisionLogs } from "@/hooks/useDecisionLogs"
 import { useWorkUnits } from "@/hooks/useWorkUnits"
 import { styles } from "@/styles/layoutStyles"
+import type { AppLanguage } from "@/types/ui"
+import type { WorkUnit } from "@/types/workunit"
+import { FeedbackModal } from "@/components/workunit-os/FeedbackModal"
+import { WorkUnitCard } from "@/components/workunit-os/WorkUnitCard"
+import { WorkUnitDetail } from "@/components/workunit-os/WorkUnitDetail"
 
 export default function Page() {
-  const [selectedEventId, setSelectedEventId] = useState(mockInbox[0]?.id ?? "")
-  const [selectedWorkUnitId, setSelectedWorkUnitId] = useState(
-    mockInbox[0]?.workUnitId ?? mockWorkUnits[0]?.id ?? ""
+  const [language, setLanguage] = useState<AppLanguage>("ja")
+  const { workUnits, setWorkUnits, updateStatus } = useWorkUnits(mockWorkUnits)
+  const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | null>(
+    workUnits[0]?.id ?? null
   )
-  const [requestedDocumentId, setRequestedDocumentId] = useState("")
-  const [studioCollapsed, setStudioCollapsed] = useState(false)
-  const studioCollapsedRef = useRef(studioCollapsed)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackLogs, setFeedbackLogs] = useState<
+    Array<{
+      workUnitId: string
+      roi: number
+      reason: string
+      details: string
+      createdAt: string
+    }>
+  >([])
 
-  const { workUnits, toggleTask, updateStatus } = useWorkUnits(mockWorkUnits)
-  const { documents, updateDocumentContent, createDocument } =
-    useStudio(mockStudioDocuments)
-  const { logDecision } = useDecisionLogs()
+  const selectedWorkUnit: WorkUnit | null =
+    workUnits.find((wu) => wu.id === selectedWorkUnitId) ?? null
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.metaKey && !event.ctrlKey) {
-        return
-      }
-
-      if (event.key.toLowerCase() !== "k") {
-        return
-      }
-
-      event.preventDefault()
-      setStudioCollapsed((prev) => !prev)
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [])
-
-  useEffect(() => {
-    const wasCollapsed = studioCollapsedRef.current
-    studioCollapsedRef.current = studioCollapsed
-
-    if (!wasCollapsed || studioCollapsed) {
-      return
-    }
-
-    const timer = window.setTimeout(() => {
-      document.querySelector<HTMLTextAreaElement>("[data-studio-textarea]")?.focus()
-    }, 0)
-
-    return () => window.clearTimeout(timer)
-  }, [studioCollapsed])
-
-  const selectedWorkUnit = workUnits.find((wu) => wu.id === selectedWorkUnitId)
-  const studioDocuments = documents.filter(
-    (document) => document.workUnitId === selectedWorkUnitId
+  const inboxWorkUnits = useMemo(
+    () => workUnits.filter((wu) => wu.status === "New"),
+    [workUnits]
   )
-  const selectedDocumentId = studioDocuments.some(
-    (document) => document.id === requestedDocumentId
+
+  const queueWorkUnits = useMemo(
+    () =>
+      workUnits
+        .filter((wu) => wu.status !== "Archived")
+        .slice()
+        .sort((a, b) => calcROI(b) - calcROI(a) || a.rank - b.rank),
+    [workUnits]
   )
-    ? requestedDocumentId
-    : (studioDocuments[0]?.id ?? "")
 
-  const handleSelectEvent = (eventId: string) => {
-    setSelectedEventId(eventId)
-
-    const event = mockInbox.find((item) => item.id === eventId)
-
-    if (event) {
-      setSelectedWorkUnitId(event.workUnitId)
-    }
-  }
-
-  const handleSelectWorkUnit = (workUnitId: string) => {
-    setSelectedWorkUnitId(workUnitId)
-
-    const linkedEvent = mockInbox.find((event) => event.workUnitId === workUnitId)
-
-    if (linkedEvent) {
-      setSelectedEventId(linkedEvent.id)
-    }
-  }
-
-  const handleCreateDocument = () => {
-    if (!selectedWorkUnit) {
-      return
-    }
-
-    const nextId = createDocument({
-      workUnitId: selectedWorkUnit.id,
-      title: `${selectedWorkUnit.title} notes`,
-      mode: "Draft",
-      content: `# ${selectedWorkUnit.title}
-
-## Goal
-- capture the next best action for this WorkUnit
-`,
-    })
-
-    setRequestedDocumentId(nextId)
-  }
-
-  const handleInsertTasks = () => {
-    if (!selectedWorkUnit || !selectedDocumentId) {
-      return
-    }
-
-    const checklist = selectedWorkUnit.tasks
-      .map((task) => `- [${task.done ? "x" : " "}] ${task.label}`)
-      .join("\n")
-
-    const currentDocument = documents.find(
-      (document) => document.id === selectedDocumentId
-    )
-
-    if (!currentDocument) {
-      return
-    }
-
-    updateDocumentContent(
-      selectedDocumentId,
-      `${currentDocument.content}\n\n## Task checklist\n${checklist}`
-    )
-  }
-
-  const handleInsertSummary = () => {
-    if (!selectedWorkUnit || !selectedDocumentId) {
-      return
-    }
-
-    const roi = calcROI(selectedWorkUnit).toFixed(1)
-    const currentDocument = documents.find(
-      (document) => document.id === selectedDocumentId
-    )
-
-    if (!currentDocument) {
-      return
-    }
-
-    updateDocumentContent(
-      selectedDocumentId,
-      `${currentDocument.content}
-
-## ROI note
-- score: ${roi}
-- problem: ${selectedWorkUnit.problem}
-- deadline: ${selectedWorkUnit.deadline}`
-    )
+  const handleUpdateWorkUnit = (id: string, patch: Partial<WorkUnit>) => {
+    setWorkUnits((prev) => prev.map((wu) => (wu.id === id ? { ...wu, ...patch } : wu)))
   }
 
   return (
     <div style={styles.root}>
       <div style={styles.noise} />
-      <Header />
+      <Header language={language} onLanguageChange={setLanguage} />
 
-      <main
-        style={styles.main}
-        className={`ai-editor-main${studioCollapsed ? " ai-editor-main--studio-collapsed" : ""}`}
-      >
-        <InboxColumn
-          events={mockInbox}
-          selectedEventId={selectedEventId}
-          onSelectEvent={handleSelectEvent}
-        />
+      <main className="grid min-h-[calc(100vh-48px)] grid-cols-[minmax(260px,320px)_minmax(0,1fr)_minmax(260px,360px)] gap-px bg-[var(--ai-divider)]">
+        <section className="min-w-0 min-h-0 bg-[var(--ai-bg)] flex flex-col">
+          <div className="sticky top-0 z-10 border-b border-[var(--ai-divider)] bg-[var(--ai-surface)] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[11px] tracking-[0.22em] text-[var(--ai-text-strong)]">
+                  INBOX
+                </div>
+                <div className="mt-1 text-[10px] tracking-[0.18em] text-[var(--ai-text-muted)]">
+                  NEW WORKUNITS
+                </div>
+              </div>
+              <div className="text-[10px] tracking-[0.18em] text-[var(--ai-text-faint)]">
+                {inboxWorkUnits.length}
+              </div>
+            </div>
+          </div>
 
-        <WorkUnitColumn
-          workUnits={workUnits}
-          selectedWorkUnitId={selectedWorkUnitId}
-          onSelectWorkUnit={handleSelectWorkUnit}
-          onToggleTask={toggleTask}
-          onUpdateStatus={updateStatus}
-          onLogDecision={logDecision}
-        />
+          <div className="flex-1 overflow-auto p-3 space-y-2">
+            {inboxWorkUnits.length === 0 ? (
+              <div className="border border-[var(--ai-border)] bg-[var(--ai-panel)] p-3 text-[12px] text-[var(--ai-text-muted)]">
+                No new WorkUnits.
+              </div>
+            ) : (
+              inboxWorkUnits.map((wu) => (
+                <WorkUnitCard
+                  key={wu.id}
+                  workUnit={wu}
+                  selected={wu.id === selectedWorkUnitId}
+                  onSelect={setSelectedWorkUnitId}
+                  variant="inbox"
+                />
+              ))
+            )}
+          </div>
+        </section>
 
-        <StudioColumn
+        <WorkUnitDetail
           workUnit={selectedWorkUnit}
-          documents={studioDocuments}
-          selectedDocumentId={selectedDocumentId}
-          onSelectDocument={setRequestedDocumentId}
-          onChangeDocumentContent={updateDocumentContent}
-          onCreateDocument={handleCreateDocument}
-          onInsertTasks={handleInsertTasks}
-          onInsertSummary={handleInsertSummary}
-          collapsed={studioCollapsed}
-          onToggleCollapsed={() => setStudioCollapsed((prev) => !prev)}
+          onUpdate={handleUpdateWorkUnit}
+          onThisIsWrong={() => setFeedbackOpen(true)}
+          onMarkDone={(id) => updateStatus(id, "Done")}
+          onDefer={(id) => updateStatus(id, "Waiting")}
         />
+
+        <section className="min-w-0 min-h-0 bg-[var(--ai-bg)] flex flex-col">
+          <div className="sticky top-0 z-10 border-b border-[var(--ai-divider)] bg-[var(--ai-surface)] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[11px] tracking-[0.22em] text-[var(--ai-text-strong)]">
+                  QUEUE
+                </div>
+                <div className="mt-1 text-[10px] tracking-[0.18em] text-[var(--ai-text-muted)]">
+                  PRIORITIZED BY ROI
+                </div>
+              </div>
+              <div className="text-[10px] tracking-[0.18em] text-[var(--ai-text-faint)]">
+                {queueWorkUnits.length}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-auto p-3 space-y-2">
+            {queueWorkUnits.map((wu) => (
+              <WorkUnitCard
+                key={wu.id}
+                workUnit={wu}
+                selected={wu.id === selectedWorkUnitId}
+                onSelect={setSelectedWorkUnitId}
+                variant="queue"
+              />
+            ))}
+          </div>
+        </section>
       </main>
+
+      <FeedbackModal
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        onSubmit={({ reason, details }) => {
+          if (!selectedWorkUnit) return
+          setFeedbackLogs((prev) => [
+            ...prev,
+            {
+              workUnitId: selectedWorkUnit.id,
+              roi: calcROI(selectedWorkUnit),
+              reason,
+              details,
+              createdAt: new Date().toISOString(),
+            },
+          ])
+        }}
+      />
     </div>
   )
 }

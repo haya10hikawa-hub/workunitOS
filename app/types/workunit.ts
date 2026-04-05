@@ -5,6 +5,8 @@ export type WorkUnitStatus =
   | "Done"
   | "Archived"
 
+export type WorkUnitPriority = "Critical" | "High" | "Normal"
+
 export interface Task {
   id: string
   label: string
@@ -19,6 +21,9 @@ export interface WorkUnit {
   actors: string[]
   problem: string
   deadline: string
+  inboxSource?: string
+  receivedAt?: string
+  priority?: WorkUnitPriority
   impact: number
   urgency: number
   actorWeight: number

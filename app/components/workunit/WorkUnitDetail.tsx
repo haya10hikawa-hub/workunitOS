@@ -203,7 +203,7 @@ export default function WorkUnitDetail({
                 type="text"
                 value={customReason}
                 onChange={(event) => setCustomReason(event.target.value)}
-                placeholder="Additional notes"
+                placeholder="Additional notest"
                 style={styles.modalInput}
               />
             </div>
