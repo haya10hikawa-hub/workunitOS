@@ -92,6 +92,14 @@ button {
   border-radius: 0;
 }
 
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .ai-editor-main {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr) 320px;

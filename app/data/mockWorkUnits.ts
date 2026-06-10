@@ -1,4 +1,11 @@
 import type { WorkUnit } from "@/types/workunit"
+import { mockSourceHopperEvents } from "./mockSourceHopperResults"
+import { sanitizeSourceEvents } from "../lib/sourceHoppers"
+import { candidateToWorkUnitDraft, draftToWorkUnit } from "../lib/workUnitDrafts"
+
+const hopperDraftWorkUnits = sanitizeSourceEvents(mockSourceHopperEvents)
+  .map((candidate) => candidateToWorkUnitDraft(candidate, "2026-06-08T10:30:00+09:00"))
+  .map((draft, index) => draftToWorkUnit(draft, index + 10))
 
 export const mockWorkUnits: WorkUnit[] = [
   {
@@ -93,4 +100,5 @@ export const mockWorkUnits: WorkUnit[] = [
     ],
     status: "Waiting",
   },
+  ...hopperDraftWorkUnits,
 ]
