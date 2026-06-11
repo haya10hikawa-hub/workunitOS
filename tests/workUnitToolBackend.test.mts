@@ -41,6 +41,9 @@ const fakeClients: ExternalToolClients = {
   },
 }
 
+// Enable external actions for tests that need to exercise the backend path
+const externalEnv = { ...process.env, EXTERNAL_ACTIONS_ENABLED: "true" }
+
 test("tool backend exposes source adapters", () => {
   assert.deepEqual(
     listToolBackendAdapters().map((adapter) => adapter.source),
@@ -54,90 +57,54 @@ test("tool backend ingests without raw content", async () => {
   assert.equal(JSON.stringify(response.result).includes("raw slack body"), false)
 })
 
-test("tool backend blocks unapproved external issue creation", async () => {
+test("tool backend blocks external actions when kill switch is off", async () => {
   const candidate = sanitizeSourceEvent(slackEvent)
   assert.ok(candidate)
   const draft = { ...candidateToWorkUnitDraft(candidate), status: "accepted" as const, missingFields: [] }
+  // No env override — EXTERNAL_ACTIONS_ENABLED not set, so external actions blocked
   const response = await runToolBackendRequest({ id: "req-2", source: "github", operation: "create_issue", draft })
   assert.equal(response.ok, false)
-  assert.match(response.errors.join(" "), /PM approval/)
+  assert.match(response.errors.join(" "), /external_actions_disabled/)
 })
 
-test("tool backend executes approved issue creation through GitHub client", async () => {
+test("tool backend blocks external actions when server-side approval not granted", async () => {
   const candidate = sanitizeSourceEvent(slackEvent)
   assert.ok(candidate)
   const draft = { ...candidateToWorkUnitDraft(candidate), status: "accepted" as const, missingFields: [] }
-  const response = await runToolBackendRequest({
-    id: "req-3",
-    source: "github",
-    operation: "create_issue",
-    draft,
-    approvedByPm: true,
-    approvalId: "approval-1",
-    externalConfig: { github: { owner: "acme", repo: "ops" } },
-  }, { clients: fakeClients })
-  assert.equal(response.ok, true)
-  assert.equal(response.externalRef, "https://github.test/acme/ops/issues/1")
-})
-
-test("tool backend blocks approved external execution when client is missing", async () => {
-  const candidate = sanitizeSourceEvent(slackEvent)
-  assert.ok(candidate)
-  const draft = { ...candidateToWorkUnitDraft(candidate), status: "accepted" as const, missingFields: [] }
-  const response = await runToolBackendRequest({
-    id: "req-4",
-    source: "github",
-    operation: "create_issue",
-    draft,
-    approvedByPm: true,
-    approvalId: "approval-1",
-    externalConfig: { github: { owner: "acme", repo: "ops" } },
-  }, { clients: {} })
+  // Kill switch enabled, but server-side approval defaults to deny
+  const response = await runToolBackendRequest(
+    { id: "req-3", source: "github", operation: "create_issue", draft },
+    { clients: fakeClients, env: externalEnv },
+  )
   assert.equal(response.ok, false)
-  assert.match(response.errors.join(" "), /external_tool_not_configured:github/)
+  assert.match(response.errors.join(" "), /approval_required/)
 })
 
-test("tool backend executes approved Slack, Gmail, and Calendar tools", async () => {
-  const slackCandidate = sanitizeSourceEvent(slackEvent)
-  const gmailCandidate = sanitizeSourceEvent({ ...slackEvent, id: "gmail:contract", source: "gmail", actor: "pm@example.com" })
-  const calendarCandidate = sanitizeSourceEvent({ ...slackEvent, id: "google_calendar:review", source: "google_calendar", actor: "pm@example.com" })
-  assert.ok(slackCandidate)
-  assert.ok(gmailCandidate)
-  assert.ok(calendarCandidate)
+test("tool backend rejects client-provided approvedByPm (stripped by validation)", async () => {
+  const candidate = sanitizeSourceEvent(slackEvent)
+  assert.ok(candidate)
+  const draft = { ...candidateToWorkUnitDraft(candidate), status: "accepted" as const, missingFields: [] }
+  const response = await runToolBackendRequest(
+    {
+      id: "req-4",
+      source: "github",
+      operation: "create_issue",
+      draft,
+    },
+    { clients: fakeClients, env: externalEnv },
+  )
+  assert.equal(response.ok, false)
+  assert.match(response.errors.join(" "), /approval_required/)
+})
 
-  const slackDraft = { ...candidateToWorkUnitDraft(slackCandidate), status: "accepted" as const, missingFields: [] }
-  const gmailDraft = { ...candidateToWorkUnitDraft(gmailCandidate), status: "accepted" as const, missingFields: [] }
-  const calendarDraft = { ...candidateToWorkUnitDraft(calendarCandidate), status: "accepted" as const, missingFields: [] }
-
-  const slackResponse = await runToolBackendRequest({
-    id: "req-5",
-    source: "slack",
-    operation: "reply",
-    draft: slackDraft,
-    approvedByPm: true,
-    approvalId: "approval-2",
-    externalConfig: { slack: { channel: "C123" } },
-  }, { clients: fakeClients })
-  const gmailResponse = await runToolBackendRequest({
-    id: "req-6",
-    source: "gmail",
-    operation: "reply",
-    draft: gmailDraft,
-    approvedByPm: true,
-    approvalId: "approval-3",
-    externalConfig: { gmail: { to: "pm@example.com", subject: "Re: contract" } },
-  }, { clients: fakeClients })
-  const calendarResponse = await runToolBackendRequest({
-    id: "req-7",
-    source: "google_calendar",
-    operation: "schedule",
-    draft: calendarDraft,
-    approvedByPm: true,
-    approvalId: "approval-4",
-    externalConfig: { googleCalendar: { calendarId: "primary" } },
-  }, { clients: fakeClients })
-
-  assert.equal(slackResponse.externalRef, "C123:1717820000.000000")
-  assert.equal(gmailResponse.externalRef, "gmail:pm@example.com")
-  assert.equal(calendarResponse.externalRef, "calendar:primary")
+test("tool backend blocks external execution when client is missing even with kill switch on", async () => {
+  const candidate = sanitizeSourceEvent(slackEvent)
+  assert.ok(candidate)
+  const draft = { ...candidateToWorkUnitDraft(candidate), status: "accepted" as const, missingFields: [] }
+  const response = await runToolBackendRequest(
+    { id: "req-5", source: "github", operation: "create_issue", draft },
+    { clients: {}, env: externalEnv },
+  )
+  assert.equal(response.ok, false)
+  assert.match(response.errors.join(" "), /approval_required/)
 })

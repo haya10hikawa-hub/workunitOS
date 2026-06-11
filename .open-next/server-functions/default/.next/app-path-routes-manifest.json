@@ -1,0 +1,9 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/api/workunit/[id]/action-preview/route": "/api/workunit/[id]/action-preview",
+  "/api/workunit/[id]/approval/route": "/api/workunit/[id]/approval",
+  "/api/workunit/tools/route": "/api/workunit/tools",
+  "/favicon.ico/route": "/favicon.ico",
+  "/page": "/"
+}

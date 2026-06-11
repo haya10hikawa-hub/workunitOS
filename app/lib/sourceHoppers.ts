@@ -2,7 +2,11 @@ import type {
   SanitizedWorkUnitCandidate,
   SourceHopperEvent,
   SourceKind,
-} from "../types/sourceHopper"
+} from "../types/sourceHopper.ts"
+import type {
+  ExternalSignal,
+  SourceCandidate,
+} from "./domain/types.ts"
 
 export function sanitizeSourceEvent(
   event: SourceHopperEvent,
@@ -48,6 +52,43 @@ export function allowedHopperFields(source: SourceKind): string[] {
   if (source === "google_drive") return [...shared, "owner", "modified_at", "mime_type"]
   if (source === "google_calendar") return [...shared, "attendees", "busy", "time_range"]
   return [...shared, "sender", "subject", "has_attachment"]
+}
+
+export function externalSignalToCandidate(signal: ExternalSignal): SourceCandidate | null {
+  if (!signal?.id || !signal?.tenantId || !signal?.sourceType || !signal?.sourceRef) {
+    return null
+  }
+
+  const meta = signal.metadata ?? {}
+
+  const title = typeof meta.title === "string" ? meta.title : ""
+  const actors = Array.isArray(meta.actors)
+    ? meta.actors.filter((a): a is string => typeof a === "string")
+    : typeof meta.actors === "string"
+      ? [meta.actors]
+      : []
+  const problem = typeof meta.problem === "string" ? meta.problem : undefined
+  const deadline = typeof meta.deadline === "string" ? meta.deadline : undefined
+
+  if (!title && actors.length === 0) return null
+
+  const tags = Array.isArray(meta.labels) ? meta.labels.filter((l): l is string => typeof l === "string").length : 0
+  const confidence = Math.min(1, Math.max(0, 0.55 + tags * 0.05))
+
+  return {
+    id: `candidate:${signal.id}`,
+    tenantId: signal.tenantId,
+    sourceSignalIds: [signal.id],
+    sourceType: signal.sourceType,
+    extractedSummary: title,
+    detectedActors: actors,
+    detectedProblem: problem,
+    detectedDeadline: deadline,
+    detectedIntent: typeof meta.intent === "string" ? meta.intent : undefined,
+    confidence,
+    trustLevel: "sanitized_candidate",
+    createdAt: new Date().toISOString(),
+  }
 }
 
 function normalizeActors(event: SourceHopperEvent): string[] {

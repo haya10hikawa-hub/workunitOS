@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react"
 import { HopperMobileTui, type HopperQueueItem } from "@/components/hopper/HopperMobileTui"
 import { WorkUnitOSDashboard } from "@/components/workunit-os/WorkUnitOSDashboard"
+import { WorkUnitInbox } from "@/components/workunitInbox/WorkUnitInbox"
+import { WorkUnitDetail } from "@/components/workunitInbox/WorkUnitDetail"
+import { WorkUnitActionField } from "@/components/workunitInbox/WorkUnitActionField"
 import { mockHopperInputs } from "@/data/mockHopperInputs"
 import {
   getHopperConnectionPreview,
@@ -12,9 +15,11 @@ import {
 import { HopperEngine } from "@/lib/hopperEngine"
 import { styles } from "@/styles/layoutStyles"
 import type { AppLanguage } from "@/types/ui"
+import type { InboxWorkUnit } from "@/app/lib/workunitInbox/types"
 
 export default function Page() {
   const [language, setLanguage] = useState<AppLanguage>("ja")
+  const [selectedWu, setSelectedWu] = useState<InboxWorkUnit | null>(null)
   const [, setHopperLogs] = useState<
     Array<{
       itemId: string
@@ -76,6 +81,35 @@ export default function Page() {
 
   return (
     <div style={styles.root}>
+      {/* ── WorkUnit Inbox ─────────────────────────────── */}
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: "#ccc", marginBottom: 12 }}>
+          📥 WorkUnit Inbox
+        </h2>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 320px", maxWidth: 480 }}>
+            <WorkUnitInbox
+              onSelect={(wu) => setSelectedWu(wu)}
+              selectedId={selectedWu?.id}
+            />
+          </div>
+          <div style={{ flex: "1 0 260px", maxWidth: 340 }}>
+            <WorkUnitDetail
+              wu={selectedWu}
+              onFeedback={(status) => {
+                if (selectedWu) {
+                  setSelectedWu({ ...selectedWu, status })
+                }
+              }}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: 16, maxWidth: 480 }}>
+          <WorkUnitActionField wu={selectedWu} key={selectedWu?.id ?? "empty"} />
+        </div>
+      </section>
+
+      {/* ── Hopper ──────────────────────────────────────── */}
       <div className="md:hidden">
         <HopperMobileTui
           items={hopperQueueItems}

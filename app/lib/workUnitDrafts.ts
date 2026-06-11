@@ -1,10 +1,15 @@
-import type { WorkUnit } from "../types/workunit"
+import type { WorkUnit } from "../types/workunit.ts"
 import type {
   SanitizedWorkUnitCandidate,
   WorkUnitDraft,
   WorkUnitJudgmentLog,
-} from "../types/sourceHopper"
-
+} from "../types/sourceHopper.ts"
+import type {
+  WorkUnitDraft as DomainWorkUnitDraft,
+  SourceCandidate,
+  ReviewedWorkUnit,
+} from "./domain/types.ts"
+import type { UserId } from "./tenant/types.ts"
 export function candidateToWorkUnitDraft(
   candidate: SanitizedWorkUnitCandidate,
   now = new Date().toISOString(),
@@ -91,4 +96,61 @@ export function missingWorkUnitFields(draft: WorkUnitDraft): string[] {
   if (!draft.deadline || draft.deadline === "unspecified") missing.push("Deadline")
   if (!draft.nextAction) missing.push("Next Action")
   return missing
+}
+
+export function candidateToWorkUnitDraftV2(
+  candidate: SourceCandidate,
+  createdBy: "system" | "ai" | "user" = "system",
+): DomainWorkUnitDraft {
+  const now = new Date().toISOString()
+  const draft: DomainWorkUnitDraft = {
+    id: `draft:${candidate.id}`,
+    tenantId: candidate.tenantId,
+    sourceCandidateIds: [candidate.id],
+    title: candidate.extractedSummary || `Signal from ${candidate.sourceType}`,
+    situation: `Signal from ${candidate.sourceType} source`,
+    problem: candidate.detectedProblem ?? "",
+    actors: candidate.detectedActors,
+    urgency: 5,
+    impact: 5,
+    effort: 5,
+    priorityScore: 50,
+    nextAction: `Clarify execution path for ${candidate.extractedSummary || "this signal"}`,
+    tasks: ["Verify source", "Confirm owner", "Decide accept / reject / defer"],
+    missingFields: [],
+    status: "draft",
+    trustLevel: "draft",
+    createdBy,
+    createdAt: now,
+    updatedAt: now,
+  }
+  return draft
+}
+
+export function draftToReviewedWorkUnit(
+  draft: DomainWorkUnitDraft,
+  reviewerUserId: UserId,
+): ReviewedWorkUnit {
+  const now = new Date().toISOString()
+  return {
+    id: draft.id.replace(/^draft:/, "reviewed:"),
+    tenantId: draft.tenantId,
+    sourceCandidateIds: draft.sourceCandidateIds,
+    title: draft.title,
+    situation: draft.situation,
+    problem: draft.problem,
+    actors: draft.actors,
+    urgency: draft.urgency,
+    impact: draft.impact,
+    effort: draft.effort,
+    priorityScore: draft.priorityScore,
+    nextAction: draft.nextAction,
+    tasks: draft.tasks,
+    missingFields: draft.missingFields,
+    status: "reviewed",
+    trustLevel: "reviewed",
+    reviewedByUserId: reviewerUserId,
+    reviewedAt: now,
+    updatedAt: now,
+  }
 }

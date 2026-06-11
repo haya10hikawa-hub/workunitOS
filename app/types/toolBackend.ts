@@ -31,6 +31,7 @@ export type ToolBackendRequest = {
   draft?: WorkUnitDraft
   approvedByPm?: boolean
   approvalId?: string
+  actionPreviewId?: string
   externalConfig?: ToolBackendExternalConfig
 }
 

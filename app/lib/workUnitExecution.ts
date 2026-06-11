@@ -1,5 +1,17 @@
 import type { WorkUnitDraft } from "../types/sourceHopper"
 import { missingWorkUnitFields } from "./workUnitDrafts.ts"
+import type { TenantId } from "./tenant/types.ts"
+import type {
+  ActionPreview,
+  ActionPreviewActionType,
+  ActionTargetPreview,
+  ActionPayloadPreview,
+  ResolvedExternalTarget,
+  ResolvedExternalPayload,
+  ActionApprovalRecord,
+  ExecutionCommand,
+} from "./domain/types.ts"
+import { hashField } from "./security/hash.ts"
 
 export type ExecutionTarget = "github_issue" | "task" | "calendar" | "slack_reply" | "gmail_reply"
 export type ExecutionStatus = "pending_approval" | "approved" | "rejected" | "succeeded" | "failed"
@@ -177,6 +189,87 @@ export function createCompletionCriteria(
   const isComplete = blockers.length === 0 && draft.tasks.length > 0 && logs.some((log) => log.status === "succeeded")
   return { workUnitDraftId: draft.id, doneWhen, blockers, isComplete }
 }
+
+// ─── Domain Model Factory Helpers ────────────────────────────────
+
+export function getExternalActionType(provider: string): ActionPreviewActionType {
+  const map: Record<string, ActionPreviewActionType> = {
+    slack: "slack_reply",
+    gmail: "gmail_reply",
+    github: "github_issue",
+    google_calendar: "calendar_event",
+  }
+  return map[provider] ?? "internal_task"
+}
+
+export function createActionPreview(params: {
+  tenantId: TenantId
+  workUnitId: string
+  actionType: ActionPreviewActionType
+  targetLabel: string
+  targetDestination: string
+  bodySnippet: string
+  detailFields: Record<string, string>
+  provider: string
+}): ActionPreview {
+  const isExternal = params.actionType !== "internal_task"
+
+  const targetPreview: ActionTargetPreview = {
+    provider: params.provider,
+    destination: params.targetDestination,
+    label: params.targetLabel,
+  }
+
+  const payloadPreview: ActionPayloadPreview = {
+    bodySnippet: params.bodySnippet,
+    detailFields: params.detailFields,
+  }
+
+  const targetHash = hashField(targetPreview)
+  const payloadHash = hashField(payloadPreview)
+
+  const now = new Date().toISOString()
+
+  return {
+    id: `preview:${params.workUnitId}:${params.actionType}:${now}`,
+    tenantId: params.tenantId,
+    workUnitId: params.workUnitId,
+    actionType: params.actionType,
+    targetPreview,
+    payloadPreview,
+    requiresApproval: isExternal,
+    status: "preview",
+    payloadHash,
+    targetHash,
+    createdAt: now,
+  }
+}
+
+export function buildExecutionCommand(params: {
+  tenantId: TenantId
+  workUnitId: string
+  approvalRecord: ActionApprovalRecord
+  resolvedTarget: ResolvedExternalTarget
+  resolvedPayload: ResolvedExternalPayload
+}): ExecutionCommand {
+  const { tenantId, workUnitId, approvalRecord, resolvedTarget, resolvedPayload } = params
+
+  const idempotencyKey = `${workUnitId}:${approvalRecord.actionType}:${approvalRecord.payloadHash}`
+
+  return {
+    id: `exec:${workUnitId}:${approvalRecord.actionType}:${Date.now()}`,
+    tenantId,
+    workUnitId,
+    approvalId: approvalRecord.id,
+    actionType: approvalRecord.actionType,
+    resolvedTarget,
+    resolvedPayload,
+    idempotencyKey,
+    createdAt: new Date().toISOString(),
+  }
+}
+
+// ─── Private Helpers ─────────────────────────────────────────────
 
 function isExecutableDraft(draft: WorkUnitDraft): boolean {
   return draft.status === "accepted" && missingWorkUnitFields(draft).length === 0
