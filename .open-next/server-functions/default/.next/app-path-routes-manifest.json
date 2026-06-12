@@ -1,8 +1,11 @@
 {
-  "/_global-error/page": "/_global-error",
   "/_not-found/page": "/_not-found",
+  "/_global-error/page": "/_global-error",
+  "/api/integrations/status/route": "/api/integrations/status",
   "/api/workunit/[id]/action-preview/route": "/api/workunit/[id]/action-preview",
   "/api/workunit/[id]/approval/route": "/api/workunit/[id]/approval",
+  "/api/workunit/[id]/feedback/route": "/api/workunit/[id]/feedback",
+  "/api/workunit/inbox/route": "/api/workunit/inbox",
   "/api/workunit/tools/route": "/api/workunit/tools",
   "/favicon.ico/route": "/favicon.ico",
   "/page": "/"

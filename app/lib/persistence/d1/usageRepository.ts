@@ -1,0 +1,54 @@
+/**
+ * D1 Usage Repository
+ */
+
+import type { TenantDbContext, UsageEventRow, UsageDailySummaryRow } from "../types.ts"
+import type { UsageRepository } from "../repositories.ts"
+import type { D1DatabaseLike } from "./types.ts"
+import { nowISO } from "./rowHelpers.ts"
+
+export class D1UsageRepository implements UsageRepository {
+  private db: D1DatabaseLike
+  constructor(db: D1DatabaseLike) { this.db = db }
+
+  async recordEvent(_ctx: TenantDbContext, row: UsageEventRow): Promise<UsageEventRow> {
+    await this.db.prepare(
+      "INSERT INTO usage_events (id,tenant_id,event_type,quantity,resource_type,resource_id,metadata_json,created_at) VALUES (?,?,?,?,?,?,?,?)",
+    ).bind(row.id, row.tenantId, row.eventType, row.quantity, row.resourceType ?? null, row.resourceId ?? null, row.metadataJson ?? null, row.createdAt).run()
+
+    // Upsert daily summary
+    const date = row.createdAt.slice(0, 10)
+    const now = nowISO()
+    await this.db.prepare(
+      `INSERT INTO usage_daily_summary (tenant_id,date,event_type,quantity,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(tenant_id,date,event_type) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at`,
+    ).bind(row.tenantId, date, row.eventType, row.quantity, now).run()
+
+    return row
+  }
+
+  async getDailySummary(_ctx: TenantDbContext, _tenantId: string, date: string): Promise<UsageDailySummaryRow[]> {
+    const rows = await this.db.prepare(
+      "SELECT * FROM usage_daily_summary WHERE date = ?",
+    ).bind(date).all<Record<string, unknown>>()
+    return (rows.results ?? []).map(mapSummary).filter((row) => row.tenantId === _tenantId)
+  }
+
+  async getCurrentUsage(_ctx: TenantDbContext, tenantId: string, eventType: string): Promise<number> {
+    const rows = await this.db.prepare(
+      "SELECT * FROM usage_events WHERE tenant_id = ?",
+    ).bind(tenantId).all<Record<string, unknown>>()
+    return (rows.results ?? [])
+      .filter((row) => String(row.event_type) === eventType)
+      .reduce((total, row) => total + Number(row.quantity ?? 0), 0)
+  }
+}
+
+function mapSummary(row: Record<string, unknown>): UsageDailySummaryRow {
+  return {
+    tenantId: row.tenant_id as UsageDailySummaryRow["tenantId"],
+    date: row.date as string,
+    eventType: row.event_type as string,
+    quantity: row.quantity as number,
+    updatedAt: row.updated_at as string,
+  }
+}

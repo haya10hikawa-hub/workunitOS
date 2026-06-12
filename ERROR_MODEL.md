@@ -326,19 +326,19 @@ type ApiFailureWithClientHint = {
 | Error Code                    | Audit Event (current)              | Notes                               |
 | ----------------------------- | ---------------------------------- | ----------------------------------- |
 | `invalid_request`             | `tool_request_rejected`           | Already in `auditLog.ts`            |
-| `unauthorized`                | TODO: `auth_required`             | Not yet in audit event vocabulary   |
+| `unauthorized`                | `auth_required`                   | Already in `auditLog.ts`            |
 | `forbidden`                   | `rbac_denied`                     | Already in `auditLog.ts`            |
 | `tenant_boundary_violation`   | `tenant_boundary_violation`       | Already in `auditLog.ts`            |
 | `external_actions_disabled`   | `external_action_blocked`         | Already in `auditLog.ts`            |
 | `approval_required`           | `external_action_approval_required`| Already in `auditLog.ts`            |
-| `approval_expired`            | TODO: `approval_expired`          | Add to `AuditEventKind`             |
-| `approval_used`               | TODO: `approval_used`             | Add to `AuditEventKind`             |
-| `approval_payload_mismatch`   | TODO: `approval_payload_mismatch` | Add to `AuditEventKind`             |
-| `approval_target_mismatch`    | TODO: `approval_target_mismatch`  | Add to `AuditEventKind`             |
-| `integration_missing`         | TODO: `integration_missing`       | Add to `AuditEventKind`             |
-| `conflict`                    | TODO: `conflict`                  | Add to `AuditEventKind`             |
-| `rate_limited`                | TODO: `rate_limited`              | Add to `AuditEventKind`             |
-| `internal_error`              | TODO: `internal_error`            | Add to `AuditEventKind`             |
+| `approval_expired`            | `approval_expired`                | Already in `auditLog.ts`            |
+| `approval_used`               | `approval_used`                   | Already in `auditLog.ts`            |
+| `approval_payload_mismatch`   | `approval_payload_mismatch`       | Already in `auditLog.ts`            |
+| `approval_target_mismatch`    | `approval_target_mismatch`        | Already in `auditLog.ts`            |
+| `integration_missing`         | `integration_missing`             | Already in `auditLog.ts`            |
+| `conflict`                    | `conflict`                        | Already in `auditLog.ts`            |
+| `rate_limited`                | `rate_limited`                    | Already in `auditLog.ts`            |
+| `internal_error`              | `internal_error`                  | Already in `auditLog.ts`            |
 
 ---
 
@@ -573,26 +573,26 @@ Always map to one of the 14 safe error codes.
 
 | Gap                                        | Current State                              | Action Required                              |
 | ------------------------------------------ | ------------------------------------------ | -------------------------------------------- |
-| `approval_payload_mismatch` in safeErrors  | Not present                                | Add to `SAFE_ERROR_CODES` (409)             |
-| `approval_target_mismatch` in safeErrors   | Not present                                | Add to `SAFE_ERROR_CODES` (409)             |
-| `conflict` in safeErrors                   | Not present                                | Add to `SAFE_ERROR_CODES` (409)             |
-| Route uses raw error strings               | `{ error: "invalid_request" }` direct     | Replace with `safeError("invalid_request")`  |
-| toolBackend `fail()` uses internal strings | `"external_tool_not_configured:github"`    | Map to safe codes before response           |
-| Audit events for error codes               | 5 of 14 audit events exist                 | Add 9 missing `AuditEventKind` entries      |
-| Action Field error-to-UI mapping           | No mapping; errors pass through            | Implement Section 9 mappings                |
+| `approval_payload_mismatch` in safeErrors  | Present in `SAFE_ERROR_CODES` (409)        | Keep route responses canonical               |
+| `approval_target_mismatch` in safeErrors   | Present in `SAFE_ERROR_CODES` (409)        | Keep route responses canonical               |
+| `conflict` in safeErrors                   | Present in `SAFE_ERROR_CODES` (409)        | Keep route responses canonical               |
+| Route error envelope                       | Uses `safeError()` in current routes       | Continue avoiding raw internals              |
+| toolBackend `fail()` uses internal strings | Mapped through `toSafeErrorCode()` at route boundary | Keep provider details out of responses |
+| Audit events for error codes               | Audit vocabulary includes dedicated or mapped events | Normalize route event names and persist later |
+| Action Field error-to-UI mapping           | Implemented in `app/lib/actionField/errorState.ts` | Wire mapping into visible UI paths       |
 | `clientHint` extension                     | Not implemented                            | Future: add after core codes are stable     |
 
 ---
 
 ## 15. Implementation Checklist
 
-- [ ] Add `approval_payload_mismatch` to `SAFE_ERROR_CODES` (409)
-- [ ] Add `approval_target_mismatch` to `SAFE_ERROR_CODES` (409)
-- [ ] Add `conflict` to `SAFE_ERROR_CODES` (409)
-- [ ] Add 9 missing audit event kinds to `AuditEventKind`
-- [ ] Replace raw error strings in `route.ts` with `safeError()` calls
-- [ ] Map internal error strings in `toolBackend.ts` to safe codes
-- [ ] Wire `verifyServerSideApproval` reasons to safe error codes
+- [x] Add `approval_payload_mismatch` to `SAFE_ERROR_CODES` (409)
+- [x] Add `approval_target_mismatch` to `SAFE_ERROR_CODES` (409)
+- [x] Add `conflict` to `SAFE_ERROR_CODES` (409)
+- [x] Add missing audit event kinds to `AuditEventKind`
+- [x] Replace route responses with `safeError()` envelope
+- [x] Map internal error strings at the route boundary with `toSafeErrorCode()`
+- [x] Wire `verifyApproval` reasons to safe error codes
 - [ ] Add tests for all 14 code/status mappings
 - [ ] Add integration tests for approval mismatch flows
 - [ ] Add integration tests for idempotency conflict

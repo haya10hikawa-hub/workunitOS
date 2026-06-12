@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server"
-import { requireSession } from "../../../../lib/security/session.ts"
-import { hasPermission } from "../../../../lib/security/rbac.ts"
+import { NextResponse } from "next/server.js"
+import { getSessionErrorStatus, requireSession } from "../../../../lib/security/session.ts"
 import { safeError } from "../../../../lib/security/safeErrors.ts"
 import { writeAuditLog, type AuditEventKind } from "../../../../lib/security/auditLog.ts"
 import { resolveRouteRepositories } from "../../../../lib/persistence/routeRepositories.ts"
 import type { TenantId } from "../../../../lib/tenant/types.ts"
+import { canApprovePreview, canCreatePreview } from "../../../../lib/security/tenantAccess.ts"
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -38,10 +38,14 @@ export async function POST(
   audit("approval_create_requested", requestId, { workUnitId })
 
   // ── Session ──────────────────────────────────────────────────
-  const sessionResult = requireSession(request)
+  const sessionResult = await requireSession(request)
   if (!sessionResult.ok) {
     audit("approval_create_failed", requestId, { reason: "unauthorized" })
-    return errorResponse(requestId, "unauthorized", 401)
+    return errorResponse(
+      requestId,
+      (sessionResult.reason === "forbidden" || sessionResult.reason === "invalid_tenant") ? "forbidden" : "unauthorized",
+      getSessionErrorStatus(sessionResult.reason),
+    )
   }
   const session = sessionResult.session
 
@@ -69,13 +73,13 @@ export async function POST(
     return errorResponse(requestId, "invalid_request", 400)
   }
 
-  if (body.tenantId || body.userId || body.approvedByPm) {
+  if (hasClientOwnedFields(body)) {
     audit("approval_create_failed", requestId, { reason: "client_provided_context" })
     return errorResponse(requestId, "invalid_request", 400)
   }
 
   // ── RBAC ─────────────────────────────────────────────────────
-  if (!hasPermission(session, "workunit.approve_external_action")) {
+  if (!canApprovePreview(session)) {
     audit("approval_create_failed", requestId, { reason: "rbac_denied" })
     return errorResponse(requestId, "forbidden", 403)
   }
@@ -141,12 +145,15 @@ export async function GET(
 ): Promise<NextResponse> {
   const { id: workUnitId } = await params
 
-  const sessionResult = requireSession(request)
+  const sessionResult = await requireSession(request)
   if (!sessionResult.ok) {
-    return NextResponse.json(safeError("na", "unauthorized" as Parameters<typeof safeError>[1]), { status: 401 })
+    return NextResponse.json(
+      safeError("na", (sessionResult.reason === "forbidden" || sessionResult.reason === "invalid_tenant") ? "forbidden" : "unauthorized"),
+      { status: getSessionErrorStatus(sessionResult.reason) },
+    )
   }
 
-  if (!hasPermission(sessionResult.session, "workunit.create_action_preview")) {
+  if (!canCreatePreview(sessionResult.session)) {
     return NextResponse.json(safeError("na", "forbidden" as Parameters<typeof safeError>[1]), { status: 403 })
   }
 
@@ -158,4 +165,17 @@ export async function GET(
   const rows = await previewRepo.findByWorkUnitId(ctx, workUnitId)
 
   return NextResponse.json({ ok: true, previews: rows })
+}
+
+function hasClientOwnedFields(body: Record<string, unknown>): boolean {
+  return [
+    "targetHash",
+    "payloadHash",
+    "tenantId",
+    "userId",
+    "approvedByUserId",
+    "approvedByPm",
+    "status",
+    "usedAt",
+  ].some((key) => key in body)
 }

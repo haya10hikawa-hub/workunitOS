@@ -2,16 +2,33 @@
 
 ## Layered Architecture
 
+## Dependency ownership rule
+
+The canonical dependency direction is:
+
+```txt
+UI
+→ API Routes
+→ Application Services
+→ Domain
+→ Repository Interfaces / External Client Interfaces
+→ Infrastructure Implementations
+→ D1 / External APIs
 ```
+
+This refactor keeps behavior unchanged and documents the boundary for future phases.
 ┌─────────────────────────────────────────┐
 │              Frontend (React)            │
-│  WorkUnitOSDashboard, HopperMobileTui   │
-│  Hooks: useWorkUnits, useStudio          │
-│  Data: mockWorkUnits, mockHopperInputs   │
+│  WorkUnitOSDashboard                    │
+│  Inbox review + Action Field drawer     │
 ├─────────────────────────────────────────┤
 │              API Layer (Next.js)          │
+│  /api/workunit/inbox                     │
+│  /api/workunit/:id/feedback              │
+│  /api/integrations/status                │
+│  /api/workunit/:id/action-preview        │
+│  /api/workunit/:id/approval              │
 │  /api/workunit/tools                     │
-│  Validation, kill switch, safe errors    │
 ├─────────────────────────────────────────┤
 │           Security Boundary              │
 │  Session, RBAC, Tenant, Audit, Approval  │
@@ -28,12 +45,23 @@
 │  externalToolClients, integrations/types │
 ├─────────────────────────────────────────┤
 │         Persistence Layer (D1)           │
-│  Control DB (users, tenants, memberships)│
-│  Tenant DBs (work units, approvals, etc) │
-│  Object Storage (raw bodies, exports)    │
+│  Control DB (tenant routing)             │
+│  Tenant DBs (work units, feedback,       │
+│  previews, approvals, audit, usage)      │
 │  app/lib/persistence/                    │
 └─────────────────────────────────────────┘
 ```
+
+## Current auth foundation state
+
+- The adopted main UI path is `WorkUnitOSDashboard`.
+- The inbox route can persist sanitized generated WorkUnits when repositories are available.
+- Feedback writes persist feedback, update WorkUnit status, append audit, and record usage.
+- Integration status reads persisted connection metadata and records usage.
+- Action Preview / Approval remains wired through existing APIs.
+- Control DB auth/workspace schema and repositories now exist.
+- SessionContext and route-side role helpers now derive `tenantId` and `actorUserId` from the server session only.
+- Real authentication provider wiring is still deferred.
 
 ## Module Map
 
@@ -44,7 +72,8 @@
 | `externalActions.ts` | Kill switch, external op detection |
 | `policy.ts` | Role/permission vocabulary |
 | `rbac.ts` | Permission enforcement, policy functions |
-| `session.ts` | Session resolution (dev placeholder) |
+| `tenantAccess.ts` | Route-facing view/mutation role helpers |
+| `session.ts` | Session resolution with explicit dev-session gate and production deny-by-default |
 | `actionApproval.ts` | Server-side approval model |
 | `auditLog.ts` | Audit event types + no-op logger |
 | `safeErrors.ts` | Safe error response helpers |
@@ -67,12 +96,43 @@
 | `externalToolClients.ts` | HTTP clients for external APIs |
 | `trustBoundaries.ts` | Trust level types and assertions |
 
+### Application Layer (`app/lib/application/`)
+
+| Module | Responsibility |
+|--------|---------------|
+| `application/actionField/dashboardPreviewClient.ts` | Canonical client-safe Preview / Approval flow helper |
+| `application/actionField/errorState.ts` | Canonical Action Field error-state mapping |
+| `application/auth/authAdapter.ts` | Verified identity interface |
+| `application/auth/resolveAuthAdapter.ts` | Adapter selection |
+| `application/auth/devAuthAdapter.ts` | Explicit dev identity adapter |
+| `application/auth/jwtAuthAdapter.ts` | HS256 Bearer JWT identity verification |
+| `application/auth/noopProductionAuthAdapter.ts` | Safe-failing production adapter |
+| `application/auth/sessionResolver.ts` | Verified identity → SessionContext |
+| `application/workunitInbox/*` | Canonical inbox-facing read models, transforms, and persistence mapping |
+
+### Control DB Infrastructure (`app/lib/infrastructure/persistence/control/`)
+
+| Module | Responsibility |
+|--------|---------------|
+| `types.ts` | Control DB row types for users, tenants, memberships, identities |
+| `userRepository.ts` | User create/findById/findByEmail |
+| `tenantRepository.ts` | Tenant create/findById/findBySlug |
+| `membershipRepository.ts` | Membership create/find/list/updateStatus |
+| `authIdentityRepository.ts` | Auth identity create/find |
+| `controlRepositoryResolver.ts` | Control DB binding resolution |
+
 ### Persistence Layer (`app/lib/persistence/`)
 
 | Module | Responsibility |
 |--------|---------------|
 | `types.ts` | Row types, TenantDbContext, ControlDbContext, TenantDatabaseRef |
 | `repositories.ts` | Repository interfaces (WorkUnit, SourceCandidate, Approval, Audit, etc.) |
+| `repositoryResolver.ts` | Resolve repository bundle by tenant + runtime mode |
+| `d1/workUnitRepository.ts` | Tenant-scoped WorkUnit upsert/read/update |
+| `d1/workUnitFeedbackRepository.ts` | Feedback persistence |
+| `d1/auditLogRepository.ts` | Audit persistence/read path |
+| `d1/integrationConnectionRepository.ts` | Integration connection metadata |
+| `d1/usageRepository.ts` | Usage event persistence/read path |
 
 See `DATA_MODEL.md` for full D1 schema design.
 
@@ -123,6 +183,19 @@ See `DATA_MODEL.md` for full D1 schema design.
    │  Logged, auditable
 ```
 
+### Current inbox persistence flow
+
+```
+Normalized source event
+  → application/workunitInbox/transform.ts
+  → InboxWorkUnit
+  → application/workunitInbox/persistenceMapping.ts
+  → workUnits.upsert()
+  → UI response { workUnits }
+```
+
+The route response remains UI-shaped even when persistence is enabled.
+
 ## Key Design Decisions
 
 1. **D1-first storage** — tenant-database isolation, structured data in D1, raw content in R2
@@ -135,9 +208,28 @@ See `DATA_MODEL.md` for full D1 schema design.
 
 ## Extensibility Points
 
-- **Add auth**: wire `requireSession()` to real token validation
+- **Add auth**: extend the current JWT adapter with a real cookie or OIDC adapter on top of the same control-DB-backed membership resolution
 - **Add database**: implement `writeAuditLog()` and `verifyServerSideApproval()` with real storage
 - **Add tenant**: brand real tenant IDs and enforce in middleware
 - **Add rate limiting**: hook into middleware or API routes
 - **Add OAuth**: implement per-tenant token vault in `integrations/types.ts`
 - **New integrations**: add to `IntegrationProvider` union, implement client
+
+## Out of Scope in this phase
+
+- GitHub OAuth / Slack OAuth / Calendar OAuth
+- Provider token storage
+- Real external provider connections
+- External execution enablement
+- Full cookie or OIDC authentication adapter
+
+## Next phase
+
+- Real cookie or OIDC auth adapter
+- Connection Status UI hardening
+- Audit UI read path for authorized roles
+
+## Transitional modules
+
+- `app/lib/actionField/*.ts` are now compatibility exports only.
+- `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` is the physical legacy UI; `app/components/workunitInbox/*` remains compatibility exports only.

@@ -110,9 +110,9 @@ type ApiFailure = {
 | external_actions_disabled   | 403         |
 | approval_required           | 403         |
 | approval_expired            | 403         |
-| approval_used               | 403         |
-| approval_payload_mismatch   | 403         |
-| approval_target_mismatch    | 403         |
+| approval_used               | 409         |
+| approval_payload_mismatch   | 409         |
+| approval_target_mismatch    | 409         |
 | rate_limited                | 429         |
 | conflict                    | 409         |
 | integration_missing         | 503         |
@@ -144,24 +144,24 @@ type SafeErrorCode =
   | "internal_error"
 ```
 
-Error codes `approval_payload_mismatch` and `approval_target_mismatch` must be added to `safeErrors.ts` when the approval store is implemented.
+All codes above are currently defined in `app/lib/security/safeErrors.ts`.
 
 ---
 
 ## 6. Endpoint Overview
 
-| Method | Path                                      | Purpose                            |
-| ------ | ----------------------------------------- | ---------------------------------- |
-| POST   | `/api/workunit/signals/ingest`            | Ingest external signal             |
-| POST   | `/api/workunit/candidates`                | Create source candidate            |
-| POST   | `/api/workunit/drafts`                    | Create WorkUnit draft              |
-| PATCH  | `/api/workunit/drafts/:id`                | Edit WorkUnit draft                |
-| POST   | `/api/workunit/drafts/:id/review`         | Review draft → ReviewedWorkUnit    |
-| POST   | `/api/workunit/:id/action-preview`        | Generate action preview            |
-| POST   | `/api/workunit/:id/approval`              | Request server-side approval       |
-| POST   | `/api/workunit/:id/execute`               | Execute approved action            |
-| GET    | `/api/workunit/:id/executions/:eid`       | Fetch execution result             |
-| POST   | `/api/workunit/tools`                     | Compatibility endpoint (legacy)    |
+| Method | Path                                      | Purpose                            | Current status |
+| ------ | ----------------------------------------- | ---------------------------------- | -------------- |
+| POST   | `/api/workunit/signals/ingest`            | Ingest external signal             | Planned        |
+| POST   | `/api/workunit/candidates`                | Create source candidate            | Planned        |
+| POST   | `/api/workunit/drafts`                    | Create WorkUnit draft              | Planned        |
+| PATCH  | `/api/workunit/drafts/:id`                | Edit WorkUnit draft                | Planned        |
+| POST   | `/api/workunit/drafts/:id/review`         | Review draft → ReviewedWorkUnit    | Planned        |
+| POST   | `/api/workunit/:id/action-preview`        | Generate action preview            | Implemented    |
+| POST   | `/api/workunit/:id/approval`              | Request server-side approval       | Implemented    |
+| POST   | `/api/workunit/:id/execute`               | Execute approved action            | Planned        |
+| GET    | `/api/workunit/:id/executions/:eid`       | Fetch execution result             | Planned        |
+| POST   | `/api/workunit/tools`                     | Compatibility endpoint (legacy)    | Implemented    |
 
 ---
 
@@ -172,12 +172,13 @@ Error codes `approval_payload_mismatch` and `approval_target_mismatch` must be a
 | Attribute          | Value                                                  |
 | ------------------ | ------------------------------------------------------ |
 | Purpose            | Multi-operation compatibility endpoint                 |
-| Auth               | TODO: requireSession                                   |
-| Permissions        | TODO: RBAC (varies by operation)                       |
+| Auth               | `requireSession` enforced                             |
+| Permissions        | RBAC enforced by operation                             |
 | Kill switch        | Checked for external operations                        |
 | Validation         | Runtime via `validateToolBackendRequest`               |
 | Approval stripping | Strips `approvedByPm`, `externalConfig`               |
-| Audit              | TODO: writeAuditLog                                    |
+| Audit              | `writeAuditLog` called for request and rejection paths |
+| Execution dispatch | Approval-gated; real external dispatch not fully wired |
 
 **Request body (current):**
 
@@ -861,12 +862,10 @@ Breaking changes require versioning. Additive changes (new fields, new endpoints
 | Lifecycle endpoints                  | Not implemented                   | Split from `/api/workunit/tools`         |
 | Auth                                 | Dev placeholder only              | Real session management                  |
 | Tenant persistence                   | Dev placeholder only              | Real tenant isolation                    |
-| Approval persistence                 | `serverApproved = false` hardcode | Database-backed ActionApprovalRecord     |
+| Approval persistence                 | D1 schema/API foundation exists; execution-time store resolution not fully unified | Database-backed ActionApprovalRecord |
 | Audit persistence                    | No-op console log                 | Database or SIEM                         |
 | Idempotency persistence              | Not implemented                   | Database-backed key storage              |
 | Integration config resolution        | Pass-through from env vars        | Tenant-owned integration settings store  |
 | Rate limiting                        | Not implemented                   | Per-user + per-tenant middleware         |
 | CSRF hardening                       | Not implemented                   | Token validation on mutating endpoints   |
-| `approval_payload_mismatch` code     | Not in safeErrors.ts              | Add to SAFE_ERROR_CODES                  |
-| `approval_target_mismatch` code      | Not in safeErrors.ts              | Add to SAFE_ERROR_CODES                  |
-| `conflict` code                      | Not in safeErrors.ts              | Add to SAFE_ERROR_CODES                  |
+| Safe error codes                     | All 14 codes defined in safeErrors.ts | Keep API routes using canonical statuses |

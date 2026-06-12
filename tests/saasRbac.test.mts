@@ -9,6 +9,8 @@ import {
 import {
   hasPermission,
   assertPermission,
+  hasRole,
+  requireRole,
   roleAtLeast,
   canReadWorkUnit,
   canCreateWorkUnit,
@@ -17,6 +19,14 @@ import {
   canManageIntegration,
   canReadAuditLog,
 } from "../app/lib/security/rbac.ts"
+import {
+  canApprovePreview,
+  canCreateFeedback,
+  canCreatePreview,
+  canManageIntegrations,
+  canViewAudit,
+  canViewIntegrationStatus,
+} from "../app/lib/security/tenantAccess.ts"
 import type { Session } from "../app/lib/security/session.ts"
 import type { TenantId, UserId } from "../app/lib/tenant/types.ts"
 
@@ -25,6 +35,8 @@ function session(role: WorkUnitRole): Session {
     userId: "test-user" as UserId,
     tenantId: "test-tenant" as TenantId,
     role,
+    email: "test@example.local",
+    isDevSession: false,
     sessionId: "test-session",
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3600_000).toISOString(),
@@ -39,14 +51,13 @@ const allPermissions: WorkUnitPermission[] = [
 ]
 
 test("role hierarchy is ordered correctly", () => {
-  assert.ok(ROLE_HIERARCHY.owner > ROLE_HIERARCHY.admin)
-  assert.ok(ROLE_HIERARCHY.admin > ROLE_HIERARCHY.pm)
-  assert.ok(ROLE_HIERARCHY.pm > ROLE_HIERARCHY.member)
-  assert.ok(ROLE_HIERARCHY.member > ROLE_HIERARCHY.viewer)
+  assert.ok(ROLE_HIERARCHY.owner > ROLE_HIERARCHY.manager)
+  assert.ok(ROLE_HIERARCHY.manager > ROLE_HIERARCHY.editor)
+  assert.ok(ROLE_HIERARCHY.editor > ROLE_HIERARCHY.viewer)
 })
 
 test("every role has a non-empty permission set", () => {
-  const roles: WorkUnitRole[] = ["owner", "admin", "pm", "member", "viewer"]
+  const roles: WorkUnitRole[] = ["owner", "manager", "editor", "viewer"]
   for (const role of roles) {
     assert.ok(DEFAULT_ROLE_PERMISSIONS[role].size > 0, `${role} has no permissions`)
   }
@@ -62,8 +73,8 @@ test("viewer can only read", () => {
   assert.equal(hasPermission(s, "audit.read"), false)
 })
 
-test("pm can approve external actions but not execute them", () => {
-  const s = session("pm")
+test("editor can approve external actions but not execute them", () => {
+  const s = session("editor")
   assert.equal(hasPermission(s, "workunit.approve_external_action"), true)
   assert.equal(hasPermission(s, "workunit.execute_external_action"), false)
 })
@@ -83,25 +94,53 @@ test("assertPermission returns error when permission missing", () => {
 })
 
 test("assertPermission returns undefined when permission held", () => {
-  const err = assertPermission(session("pm"), "workunit.approve_external_action")
+  const err = assertPermission(session("editor"), "workunit.approve_external_action")
   assert.equal(err, undefined)
 })
 
 test("roleAtLeast checks hierarchical role ordering", () => {
-  assert.equal(roleAtLeast("admin", "pm"), true)
-  assert.equal(roleAtLeast("pm", "admin"), false)
+  assert.equal(roleAtLeast("manager", "editor"), true)
+  assert.equal(roleAtLeast("editor", "manager"), false)
   assert.equal(roleAtLeast("owner", "owner"), true)
-  assert.equal(roleAtLeast("viewer", "pm"), false)
+  assert.equal(roleAtLeast("viewer", "editor"), false)
 })
 
 test("policy functions return correct access decisions", () => {
-  const pm = session("pm")
+  const editor = session("editor")
   const viewer = session("viewer")
 
   assert.equal(canReadWorkUnit(viewer), true)
   assert.equal(canCreateWorkUnit(viewer), false)
-  assert.equal(canApproveExternalAction(pm), true)
-  assert.equal(canExecuteExternalAction(pm), false)
-  assert.equal(canManageIntegration(pm), false)
-  assert.equal(canReadAuditLog(pm), false)
+  assert.equal(canApproveExternalAction(editor), true)
+  assert.equal(canExecuteExternalAction(editor), false)
+  assert.equal(canManageIntegration(editor), false)
+  assert.equal(canReadAuditLog(editor), false)
+})
+
+test("role helpers enforce allowed role sets", () => {
+  const manager = session("manager")
+  assert.equal(hasRole(manager, ["owner", "manager"]), true)
+  const denied = requireRole(session("viewer"), ["owner", "manager"])
+  assert.equal(denied?.kind, "rbac_denied")
+  assert.equal(denied?.reason, "insufficient_role")
+})
+
+test("tenant access helpers match the production role model", () => {
+  const owner = session("owner")
+  const manager = session("manager")
+  const editor = session("editor")
+  const viewer = session("viewer")
+
+  assert.equal(canCreateFeedback(owner), true)
+  assert.equal(canCreateFeedback(manager), true)
+  assert.equal(canCreateFeedback(editor), true)
+  assert.equal(canCreateFeedback(viewer), false)
+
+  assert.equal(canCreatePreview(manager), true)
+  assert.equal(canApprovePreview(editor), true)
+  assert.equal(canManageIntegrations(manager), true)
+  assert.equal(canManageIntegrations(editor), false)
+  assert.equal(canViewIntegrationStatus(viewer), true)
+  assert.equal(canViewAudit(manager), true)
+  assert.equal(canViewAudit(viewer), false)
 })

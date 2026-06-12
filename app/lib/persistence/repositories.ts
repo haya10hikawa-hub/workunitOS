@@ -13,7 +13,7 @@ import type {
   TenantDbContext,
   ControlDbContext,
   TenantDatabaseRef,
-  WorkUnitRow,
+  InboxWorkUnitRow,
   SourceCandidateRow,
   ExternalSignalRow,
   ActionPreviewRow,
@@ -23,6 +23,10 @@ import type {
   LlmProcessingRunRow,
   IntegrationMetadataRow,
   UserRow,
+  WorkUnitFeedbackRow,
+  IntegrationConnectionRow,
+  UsageEventRow,
+  UsageDailySummaryRow,
   TenantRow,
   MembershipRow,
 } from "./types.ts"
@@ -48,10 +52,11 @@ export interface TenantDbResolver {
 // ─── WorkUnit Repository ────────────────────────────────────────
 
 export interface WorkUnitRepository {
-  create(ctx: TenantDbContext, row: WorkUnitRow): Promise<WorkUnitRow>
-  findById(ctx: TenantDbContext, id: string): Promise<WorkUnitRow | null>
-  updateStatus(ctx: TenantDbContext, id: string, status: WorkUnitRow["status"]): Promise<WorkUnitRow | null>
-  listRecent(ctx: TenantDbContext, limit?: number): Promise<WorkUnitRow[]>
+  create(ctx: TenantDbContext, row: InboxWorkUnitRow): Promise<InboxWorkUnitRow>
+  upsert(ctx: TenantDbContext, row: InboxWorkUnitRow): Promise<InboxWorkUnitRow>
+  findById(ctx: TenantDbContext, id: string): Promise<InboxWorkUnitRow | null>
+  updateStatus(ctx: TenantDbContext, id: string, status: InboxWorkUnitRow["status"]): Promise<InboxWorkUnitRow | null>
+  listRecent(ctx: TenantDbContext, limit?: number): Promise<InboxWorkUnitRow[]>
 }
 
 // ─── Source Candidate Repository ────────────────────────────────
@@ -118,7 +123,25 @@ export interface IntegrationMetadataRepository {
   updateStatus(ctx: TenantDbContext, provider: string, status: IntegrationMetadataRow["status"]): Promise<IntegrationMetadataRow | null>
 }
 
-// ─── Control DB Repositories ────────────────────────────────────
+// ─── Phase 2: New repositories ──────────────────────────────────
+
+export interface WorkUnitFeedbackRepository {
+  create(ctx: TenantDbContext, row: WorkUnitFeedbackRow): Promise<WorkUnitFeedbackRow>
+  findByWorkUnitId(ctx: TenantDbContext, workUnitId: string): Promise<WorkUnitFeedbackRow[]>
+}
+
+export interface IntegrationConnectionRepository {
+  upsert(ctx: TenantDbContext, row: IntegrationConnectionRow): Promise<IntegrationConnectionRow>
+  findByProvider(ctx: TenantDbContext, provider: string): Promise<IntegrationConnectionRow | null>
+  listByTenant(ctx: TenantDbContext): Promise<IntegrationConnectionRow[]>
+  updateStatus(ctx: TenantDbContext, provider: string, status: string, error?: { code?: string; message?: string }): Promise<IntegrationConnectionRow | null>
+}
+
+export interface UsageRepository {
+  recordEvent(ctx: TenantDbContext, row: UsageEventRow): Promise<UsageEventRow>
+  getDailySummary(ctx: TenantDbContext, tenantId: string, date: string): Promise<UsageDailySummaryRow[]>
+  getCurrentUsage(ctx: TenantDbContext, tenantId: string, eventType: string): Promise<number>
+}
 
 export interface TenantRegistryRepository {
   findTenantById(db: ControlDbContext, tenantId: TenantId): Promise<TenantRow | null>

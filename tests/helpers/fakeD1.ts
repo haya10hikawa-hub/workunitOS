@@ -43,11 +43,11 @@ class FakeD1Statement implements D1PreparedStatementLike {
     const table = this.store.get(this.tableName)
     if (!table) return null
     if (this.values.length > 0) {
-      const whereCol = this.extractWhereColumn()
-      if (whereCol && whereCol !== "id") {
+      const whereCols = this.extractWhereColumns()
+      if (whereCols.length > 0 && !(whereCols.length === 1 && whereCols[0] === "id")) {
         // Scan table for matching column value
         for (const row of table.values()) {
-          if (String(row[whereCol]) === String(this.values[0])) {
+          if (whereCols.every((col, index) => String(row[col]) === String(this.values[index]))) {
             return row as unknown as T
           }
         }
@@ -64,10 +64,10 @@ class FakeD1Statement implements D1PreparedStatementLike {
     if (!table) return { results: [] }
 
     // Filter by WHERE column if present
-    const whereCol = this.extractWhereColumn()
-    if (whereCol && this.values.length > 0) {
+    const whereCols = this.extractWhereColumns()
+    if (whereCols.length > 0 && this.values.length > 0) {
       const filtered = Array.from(table.values()).filter(
-        (row) => String(row[whereCol]) === String(this.values[0])
+        (row) => whereCols.every((col, index) => String(row[col]) === String(this.values[index]))
       )
       return { results: filtered as unknown as T[] }
     }
@@ -101,6 +101,9 @@ class FakeD1Statement implements D1PreparedStatementLike {
           if (lower.includes("status") && lower.includes("used_at")) {
             updated["status"] = "used"
             updated["used_at"] = this.values[0]
+          } else if (lower.includes("status") && lower.includes("updated_at")) {
+            updated["status"] = this.values[0]
+            updated["updated_at"] = this.values[1]
           } else if (lower.includes("status")) {
             updated["status"] = this.values[0]
           }
@@ -124,9 +127,14 @@ class FakeD1Statement implements D1PreparedStatementLike {
     return row
   }
 
-  private extractWhereColumn(): string | null {
-    const match = this.sql.match(/where\s+(\w+)\s*=/i)
-    return match?.[1] ?? null
+  private extractWhereColumns(): string[] {
+    const normalizedSql = this.sql.replace(/\s+/g, " ")
+    const match = normalizedSql.match(/where\s+(.+?)(?:\s+order\s+by|\s+limit|$)/i)
+    if (!match) return []
+    return match[1]
+      .split(/\s+and\s+/i)
+      .map((part) => part.match(/(\w+)\s*=/i)?.[1] ?? null)
+      .filter((value): value is string => value !== null)
   }
 
   private extractColumns(): string[] {
@@ -151,5 +159,9 @@ export class FakeD1Database implements D1DatabaseLike {
 
   reset(): void {
     this.store.clear()
+  }
+
+  debugTable(tableName: string): Record<string, unknown>[] {
+    return Array.from(this.store.get(tableName)?.values() ?? []).map((row) => ({ ...row }))
   }
 }

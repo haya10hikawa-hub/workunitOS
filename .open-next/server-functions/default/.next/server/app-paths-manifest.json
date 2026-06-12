@@ -1,8 +1,11 @@
 {
-  "/_global-error/page": "app/_global-error/page.js",
   "/_not-found/page": "app/_not-found/page.js",
+  "/_global-error/page": "app/_global-error/page.js",
+  "/api/integrations/status/route": "app/api/integrations/status/route.js",
   "/api/workunit/[id]/action-preview/route": "app/api/workunit/[id]/action-preview/route.js",
   "/api/workunit/[id]/approval/route": "app/api/workunit/[id]/approval/route.js",
+  "/api/workunit/[id]/feedback/route": "app/api/workunit/[id]/feedback/route.js",
+  "/api/workunit/inbox/route": "app/api/workunit/inbox/route.js",
   "/api/workunit/tools/route": "app/api/workunit/tools/route.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
   "/page": "app/page.js"

@@ -6,7 +6,29 @@
 
 WorkUnit OS uses Cloudflare D1 (SQLite-compatible) as its primary database layer.
 
-The architecture follows a **tenant-database isolation** model: each tenant gets their own D1 database for WorkUnit data, while a single **control database** manages global tenant and user registry.
+### Current MVP persisted subset
+
+The current SaaS foundation persists the following tenant-database subset:
+
+- `work_units`
+- `workunit_feedback`
+- `action_previews`
+- `approval_records`
+- `audit_logs`
+- `integration_connections`
+- `usage_events`
+
+Current route coverage:
+
+- `GET /api/workunit/inbox` persists generated WorkUnits when repositories are available.
+- Repeated inbox fetches upsert by stable WorkUnit ID and do not duplicate rows.
+- `POST /api/workunit/:id/feedback` persists feedback and updates WorkUnit status for `later` / `done`.
+- `GET /api/integrations/status` reads persisted integration connection metadata.
+- Usage events are recorded for inbox fetch, feedback create, and integration status reads.
+
+This phase does not add OAuth, token storage, or external execution persistence.
+
+The architecture follows a **tenant-database isolation** model: each tenant gets their own D1 database for WorkUnit data, while a single **control database** manages global tenant, user, membership, and auth identity registry.
 
 This design provides:
 
@@ -15,13 +37,18 @@ This design provides:
 - **Simpler deletion/export**: removing or exporting all data for a tenant is a database-level operation.
 - **Independent scaling**: high-activity tenants can be moved to larger databases without affecting others.
 
+## Architecture ownership note
+
+This document defines persisted data structures only. Repository resolution, route orchestration, and UI ownership are documented separately in `docs/DEPENDENCY_MAP.md` and `docs/DIRECTORY_STRUCTURE.md`.
+
 ### Database Groups
 
 ```
 Control DB (global)
   ├── users
   ├── tenants
-  ├── memberships
+  ├── tenant_memberships
+  ├── auth_identities
   ├── tenant_databases
   ├── usage_daily_summary
   └── global_audit_index
@@ -35,7 +62,7 @@ Tenant DB (per-tenant)
   ├── execution_results
   ├── audit_logs
   ├── llm_processing_runs
-  ├── integration_metadata
+  ├── integration_connections
   └── schema_migrations
 
 Object Storage (R2)
@@ -75,10 +102,10 @@ The control database manages global identity and routing. It tracks which users 
 CREATE TABLE users (
   id          TEXT PRIMARY KEY,
   email       TEXT NOT NULL UNIQUE,
-  name        TEXT NOT NULL DEFAULT '',
+  display_name TEXT,
   avatar_url  TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
 );
 ```
 
@@ -95,15 +122,33 @@ CREATE TABLE tenants (
 );
 ```
 
-#### memberships
+#### tenant_memberships
 
 ```sql
-CREATE TABLE memberships (
-  user_id     TEXT NOT NULL REFERENCES users(id),
+CREATE TABLE tenant_memberships (
+  id          TEXT PRIMARY KEY,
   tenant_id   TEXT NOT NULL REFERENCES tenants(id),
-  role        TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner','admin','pm','member','viewer')),
-  joined_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  PRIMARY KEY (user_id, tenant_id)
+  user_id     TEXT NOT NULL REFERENCES users(id),
+  role        TEXT NOT NULL CHECK (role IN ('owner','manager','editor','viewer')),
+  status      TEXT NOT NULL CHECK (status IN ('active','invited','suspended')),
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL,
+  UNIQUE(tenant_id, user_id)
+);
+```
+
+#### auth_identities
+
+```sql
+CREATE TABLE auth_identities (
+  id                TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL REFERENCES users(id),
+  provider          TEXT NOT NULL,
+  provider_subject  TEXT NOT NULL,
+  email             TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  UNIQUE(provider, provider_subject)
 );
 ```
 
@@ -162,26 +207,31 @@ Each tenant database stores all WorkUnit domain objects, approvals, audit logs, 
 ```sql
 CREATE TABLE work_units (
   id               TEXT PRIMARY KEY,
-  tenant_id         TEXT NOT NULL,
+  tenant_id        TEXT NOT NULL,
+  source_signal_id TEXT NOT NULL,
   title            TEXT NOT NULL,
-  situation        TEXT NOT NULL DEFAULT '',
-  problem          TEXT NOT NULL DEFAULT '',
-  actors           TEXT NOT NULL DEFAULT '[]',       -- JSON array
-  urgency          INTEGER NOT NULL DEFAULT 3 CHECK (urgency BETWEEN 1 AND 5),
-  impact           INTEGER NOT NULL DEFAULT 3 CHECK (impact BETWEEN 1 AND 5),
-  effort           INTEGER NOT NULL DEFAULT 3 CHECK (effort BETWEEN 1 AND 5),
-  priority_score   INTEGER NOT NULL DEFAULT 0,
+  kind             TEXT NOT NULL,
+  priority         TEXT NOT NULL,
+  source_provider  TEXT NOT NULL,
+  reason           TEXT NOT NULL,
+  evidence         TEXT NOT NULL,
   next_action      TEXT NOT NULL DEFAULT '',
-  tasks            TEXT NOT NULL DEFAULT '[]',       -- JSON array
-  missing_fields   TEXT NOT NULL DEFAULT '[]',       -- JSON array
-  status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','reviewed')),
-  trust_level      TEXT NOT NULL DEFAULT 'draft' CHECK (trust_level IN ('draft','reviewed','approved','executed')),
-  source_candidate_ids TEXT NOT NULL DEFAULT '[]',   -- JSON array
-  created_by       TEXT NOT NULL DEFAULT 'system',
+  source_url       TEXT,
+  actor            TEXT,
+  assignee         TEXT,
+  repository       TEXT,
+  due_at           TEXT,
+  status           TEXT NOT NULL DEFAULT 'open',
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
+
+Notes:
+
+- Stable WorkUnit IDs are generated before persistence and reused for upsert.
+- Repeated inbox fetches update the existing row rather than creating duplicates.
+- Persistence writes sanitized WorkUnit fields only. Raw external payloads are not stored here.
 
 #### Source Candidates
 
@@ -256,6 +306,68 @@ CREATE TABLE approval_records (
 );
 ```
 
+#### WorkUnit Feedback
+
+```sql
+CREATE TABLE workunit_feedback (
+  id          TEXT PRIMARY KEY,
+  tenant_id   TEXT NOT NULL,
+  work_unit_id TEXT NOT NULL REFERENCES work_units(id),
+  feedback    TEXT NOT NULL,
+  created_by  TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+#### Audit Logs
+
+```sql
+CREATE TABLE audit_logs (
+  id          TEXT PRIMARY KEY,
+  tenant_id   TEXT NOT NULL,
+  actor_id    TEXT NOT NULL,
+  event_kind  TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id   TEXT NOT NULL,
+  reason      TEXT,
+  metadata    TEXT NOT NULL DEFAULT '{}',
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+#### Integration Connections
+
+```sql
+CREATE TABLE integration_connections (
+  id           TEXT PRIMARY KEY,
+  tenant_id    TEXT NOT NULL,
+  provider     TEXT NOT NULL,
+  status       TEXT NOT NULL,
+  external_ref TEXT,
+  scopes_json  TEXT NOT NULL DEFAULT '[]',
+  connected_at TEXT,
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  error_code   TEXT,
+  error_detail TEXT
+);
+```
+
+#### Usage Events
+
+```sql
+CREATE TABLE usage_events (
+  id            TEXT PRIMARY KEY,
+  tenant_id     TEXT NOT NULL,
+  actor_user_id TEXT,
+  event_type    TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id   TEXT,
+  quantity      INTEGER NOT NULL DEFAULT 1,
+  metadata_json TEXT NOT NULL DEFAULT '{}',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
 #### Execution Results
 
 ```sql
@@ -312,19 +424,23 @@ CREATE TABLE llm_processing_runs (
 );
 ```
 
-#### Integration Metadata
+#### Integration Connections
 
 ```sql
-CREATE TABLE integration_metadata (
+CREATE TABLE integration_connections (
   id               TEXT PRIMARY KEY,
   tenant_id         TEXT NOT NULL,
-  provider         TEXT NOT NULL CHECK (provider IN ('slack','gmail','github','google_calendar','notion','google_drive')),
-  status           TEXT NOT NULL DEFAULT 'inactive' CHECK (status IN ('active','inactive','error','pending_oauth')),
+  provider         TEXT NOT NULL CHECK (provider IN ('slack','calendar','github','email','notion','jira','database')),
+  status           TEXT NOT NULL,
+  mode             TEXT NOT NULL DEFAULT 'fake',
   external_account_id TEXT,
-  scopes           TEXT,                               -- JSON array
-  connected_at     TEXT,
-  token_expires_at TEXT,
-  config           TEXT NOT NULL DEFAULT '{}',         -- JSON object; NEVER stores plain tokens
+  scopes_json      TEXT,                               -- JSON array
+  config_json      TEXT NOT NULL DEFAULT '{}',         -- JSON object; NEVER stores plain tokens
+  last_sync_at     TEXT,
+  last_error_code  TEXT,
+  last_error_message TEXT,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL,
   UNIQUE (tenant_id, provider)
 );
 ```
@@ -368,9 +484,9 @@ Content hashes should be stored in D1 alongside object references for integrity 
 | Provider credentials | Encrypted credential store | Not in D1 |
 | JWT signing keys | Secrets manager | Not in D1 |
 | Encryption keys | Secrets manager | Not in D1 |
-| `integration_metadata.config` | D1 | Provider settings only (default channel, calendar ID) — no tokens |
+| `integration_connections.config_json` | D1 | Provider settings only (default channel, calendar ID) — no tokens |
 
-`integration_metadata.config` stores provider-specific configuration (default channel, repository, calendar ID, sender address) but MUST NOT store tokens, API keys, or secrets.
+`integration_connections.config_json` stores provider-specific configuration (default channel, repository, calendar ID, sender address) but MUST NOT store tokens, API keys, or secrets.
 
 ---
 

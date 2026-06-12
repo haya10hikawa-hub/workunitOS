@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server"
-import { requireSession } from "../../../../lib/security/session.ts"
-import { hasPermission } from "../../../../lib/security/rbac.ts"
+import { NextResponse } from "next/server.js"
+import { getSessionErrorStatus, requireSession } from "../../../../lib/security/session.ts"
 import { safeError } from "../../../../lib/security/safeErrors.ts"
 import { writeAuditLog, type AuditEventKind } from "../../../../lib/security/auditLog.ts"
 import { hashActionTarget, hashActionPayload } from "../../../../lib/security/hash.ts"
 import { resolveRouteRepositories } from "../../../../lib/persistence/routeRepositories.ts"
 import type { TenantId } from "../../../../lib/tenant/types.ts"
 import type { ApprovalActionType } from "../../../../lib/domain/types.ts"
+import { canCreatePreview } from "../../../../lib/security/tenantAccess.ts"
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -40,10 +40,14 @@ export async function POST(
   audit("action_preview_create_requested", requestId, { workUnitId })
 
   // ── Session ──────────────────────────────────────────────────
-  const sessionResult = requireSession(request)
+  const sessionResult = await requireSession(request)
   if (!sessionResult.ok) {
     audit("action_preview_create_failed", requestId, { reason: "unauthorized" })
-    return errorResponse(requestId, "unauthorized", 401)
+    return errorResponse(
+      requestId,
+      (sessionResult.reason === "forbidden" || sessionResult.reason === "invalid_tenant") ? "forbidden" : "unauthorized",
+      getSessionErrorStatus(sessionResult.reason),
+    )
   }
   const session = sessionResult.session
 
@@ -68,8 +72,8 @@ export async function POST(
     return errorResponse(requestId, "invalid_request", 400)
   }
 
-  if (body.targetHash || body.payloadHash) {
-    audit("action_preview_create_failed", requestId, { reason: "client_provided_hashes" })
+  if (hasClientOwnedFields(body)) {
+    audit("action_preview_create_failed", requestId, { reason: "client_provided_context" })
     return errorResponse(requestId, "invalid_request", 400)
   }
 
@@ -77,7 +81,7 @@ export async function POST(
   const payloadPreview = (body.payload ?? body.payloadPreview ?? {}) as Record<string, unknown>
 
   // ── RBAC ─────────────────────────────────────────────────────
-  if (!hasPermission(session, "workunit.create_action_preview")) {
+  if (!canCreatePreview(session)) {
     audit("action_preview_create_failed", requestId, { reason: "rbac_denied" })
     return errorResponse(requestId, "forbidden", 403)
   }
@@ -121,4 +125,8 @@ export async function POST(
       expiresAt: previewRow.expiresAt,
     },
   }, 201)
+}
+
+function hasClientOwnedFields(body: Record<string, unknown>): boolean {
+  return ["targetHash", "payloadHash", "tenantId", "approvedByUserId", "status", "usedAt"].some((key) => key in body)
 }

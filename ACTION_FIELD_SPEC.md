@@ -531,9 +531,11 @@ The current UI (`app/components/workunit-os/WorkUnitOSDashboard.tsx`) implements
 * `ActionFieldDrawer` — right-side panel with action group tabs (lines 899-1004)
 * Per-action-type sections: Slack, Email, GitHub, Calendar, Database (lines 1100-1252)
 * Editable text fields + text editor with toolbar (lines 1336-1428)
-* Draft save, approve, cancel buttons (lines 1254-1311)
+* Draft save, preview, approve/reject, cancel buttons (lines 1254-1311)
 * Safety check panel (lines 1499-1513)
 * Status badges (draft_ready, draft_saved, approved) (lines 1445-1457)
+
+The older `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` also exists. It is retained as a migration reference, but it is not the adopted desktop UI path. The adopted MVP UI path is `WorkUnitOSDashboard`; the dashboard drawer now creates ActionPreviews and submits approve/reject decisions through existing APIs.
 
 ### Gaps vs This Spec
 
@@ -541,11 +543,12 @@ The current UI (`app/components/workunit-os/WorkUnitOSDashboard.tsx`) implements
 | --- | ------------- | ------------ |
 | Status values | `draft_ready`, `draft_saved`, `approved` (UI-only) | Domain-aligned: `draft_workspace`, `preview_ready`, `approval_required`, `approved`, `executing`, `executed` |
 | Action type names | `email_send`, `calendar_block`, `database_update` | `gmail_reply`, `calendar_event`; remove `database_update` |
-| Approval flow | Client-side `handleApprove` sets status locally | Server-side `verifyServerSideApproval` |
+| Approval flow | Dashboard drawer calls Preview / Approval APIs; execution remains disabled | Server-side `verifyServerSideApproval` before execution |
 | Payload hash binding | Not implemented | `targetHash` + `payloadHash` in `ActionApprovalRecord` |
 | Edit invalidates approval | No invalidation logic | Hash comparison triggers invalidation |
 | Workspace vs payload separation | All in same editable drawer | Section-based model (4.1-4.9) |
-| Execution | `console.log` mock | `ExecutionCommand` + `ExecutionResult` |
+| Execution | Disabled from the drawer | `ExecutionCommand` + `ExecutionResult` after approval |
+| UI path integration | Adopted drawer owns Preview / Approval API flow; old component remains as reference | Remove deprecated component after migration is complete |
 | Data source | Hardcoded `actionGroups` mock array | API-driven from domain objects |
 
 ### Migration Path

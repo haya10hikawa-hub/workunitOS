@@ -1,0 +1,123 @@
+import type { SessionContext } from "../../domain/auth/types.ts"
+import type { TenantId, UserId } from "../../tenant/types.ts"
+import { normalizeRoleInput } from "../../security/policy.ts"
+import { resolveControlRepositories, type ControlRepositoryBundle } from "../../infrastructure/persistence/control/controlRepositoryResolver.ts"
+import type { AppEnv } from "../../../types/cloudflare-env.ts"
+import type { D1DatabaseLike } from "../../persistence/d1/types.ts"
+import type { VerifiedAuthIdentity, AuthAdapter } from "./authAdapter.ts"
+import { resolveAuthAdapter } from "./resolveAuthAdapter.ts"
+
+export type SessionResolutionFailureReason = "unauthorized" | "forbidden" | "expired" | "invalid_tenant" | "internal_error"
+
+export type SessionResolutionResult =
+  | { ok: true; session: SessionContext }
+  | { ok: false; reason: SessionResolutionFailureReason }
+
+export async function resolveSession(
+  request: Request,
+  options: { adapter?: AuthAdapter; runtimeEnv?: AppEnv; controlDbBinding?: D1DatabaseLike } = {},
+): Promise<SessionResolutionResult> {
+  try {
+    const auth = await (options.adapter ?? resolveAuthAdapter()).verify(request)
+    if (!auth.ok) return { ok: false, reason: "unauthorized" }
+
+    const repos = resolveControlRepositories({ runtimeEnv: options.runtimeEnv, d1Binding: options.controlDbBinding })
+    if (!repos.ok) return { ok: false, reason: "unauthorized" }
+    if (shouldBootstrapDevWorkspace(auth.identity)) await bootstrapDevWorkspace(repos.bundle, auth.identity)
+
+    const identityRow = await repos.bundle.authIdentities.findByProviderSubject(
+      repos.bundle.ctx,
+      auth.identity.provider,
+      auth.identity.providerSubject,
+    )
+    if (!identityRow) return { ok: false, reason: "unauthorized" }
+
+    const user = await repos.bundle.users.findById(repos.bundle.ctx, identityRow.userId)
+    if (!user) return { ok: false, reason: "unauthorized" }
+
+    const membership = (await repos.bundle.memberships.listByUser(repos.bundle.ctx, user.id))
+      .find((row) => row.status === "active")
+    if (!membership) return { ok: false, reason: "forbidden" }
+
+    const tenant = await repos.bundle.tenants.findById(repos.bundle.ctx, membership.tenantId)
+    if (!tenant) return { ok: false, reason: "invalid_tenant" }
+
+    return {
+      ok: true,
+      session: {
+        userId: user.id,
+        tenantId: membership.tenantId,
+        role: normalizeRoleInput(membership.role),
+        email: auth.identity.email || user.email,
+        isDevSession: auth.identity.provider === "dev",
+        sessionId: `${auth.identity.provider}:${auth.identity.providerSubject}:${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      },
+    }
+  } catch {
+    return { ok: false, reason: "internal_error" }
+  }
+}
+
+function shouldBootstrapDevWorkspace(identity: VerifiedAuthIdentity): boolean {
+  return process.env.NODE_ENV !== "production"
+    && process.env.ALLOW_DEV_SESSION === "true"
+    && process.env.ALLOW_DEV_WORKSPACE_BOOTSTRAP === "true"
+    && identity.provider === "dev"
+}
+
+async function bootstrapDevWorkspace(repos: ControlRepositoryBundle, identity: VerifiedAuthIdentity): Promise<void> {
+  const now = new Date().toISOString()
+  const userId = identity.providerSubject as UserId
+  const tenantId = "dev-tenant" as TenantId
+
+  const user = await repos.users.findById(repos.ctx, userId)
+  if (!user) {
+    await repos.users.create(repos.ctx, {
+      id: userId,
+      email: identity.email,
+      displayName: identity.displayName,
+      avatarUrl: identity.avatarUrl,
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  const tenant = await repos.tenants.findById(repos.ctx, tenantId)
+  if (!tenant) {
+    await repos.tenants.create(repos.ctx, {
+      id: tenantId,
+      name: "Development Tenant",
+      slug: "dev-tenant",
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  const membership = await repos.memberships.findByUserAndTenant(repos.ctx, userId, tenantId)
+  if (!membership) {
+    await repos.memberships.create(repos.ctx, {
+      id: "membership:dev-user:dev-tenant",
+      tenantId,
+      userId,
+      role: normalizeRoleInput(process.env.DEV_SESSION_ROLE as "owner" | "manager" | "editor" | "viewer" | "admin" | "pm" | "member" | undefined),
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  const existingIdentity = await repos.authIdentities.findByProviderSubject(repos.ctx, identity.provider, identity.providerSubject)
+  if (!existingIdentity) {
+    await repos.authIdentities.create(repos.ctx, {
+      id: `identity:${identity.provider}:${identity.providerSubject}`,
+      userId,
+      provider: identity.provider,
+      providerSubject: identity.providerSubject,
+      email: identity.email,
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+}

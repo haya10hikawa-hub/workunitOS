@@ -1,14 +1,11 @@
 /**
- * Tenant boundary types for WorkUnit OS.
- *
- * These branded types enforce tenant isolation at the type level.
- * Using branded types (intersection with {__brand}) prevents accidentally
- * mixing tenant IDs, user IDs, and work unit IDs across boundaries.
+ * Compatibility layer.
+ * Canonical tenant identity types now live in app/lib/domain/tenant/types.ts
  */
 
-export type TenantId = string & { readonly __brand: "TenantId" }
-export type UserId = string & { readonly __brand: "UserId" }
-export type WorkUnitId = string & { readonly __brand: "WorkUnitId" }
+export type { Tenant, TenantId, UserId, WorkUnitId } from "../domain/tenant/types.ts"
+import type { TenantId, UserId } from "../domain/tenant/types.ts"
+import type { TenantRole } from "../domain/auth/types.ts"
 
 /**
  * Context carrying the authenticated tenant and actor identity.
@@ -18,7 +15,7 @@ export type WorkUnitId = string & { readonly __brand: "WorkUnitId" }
 export type Actor = {
   userId: UserId
   tenantId: TenantId
-  role: string
+  role: TenantRole | string
 }
 
 export type TenantContext = {

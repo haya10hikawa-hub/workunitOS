@@ -4,6 +4,9 @@ import { requireSession, createDevSessionWithRole } from "../app/lib/security/se
 import { hasPermission } from "../app/lib/security/rbac.ts"
 import type { WorkUnitPermission } from "../app/lib/security/policy.ts"
 import type { ToolBackendOperation } from "../app/types/toolBackend.ts"
+import { setTestRuntimeEnvForRequest, resetTestRuntimeEnvForRequest } from "../app/lib/runtime/cloudflareRuntimeEnv.ts"
+import type { AppEnv } from "../app/types/cloudflare-env.ts"
+import { FakeD1Database } from "./helpers/fakeD1.ts"
 
 // ─── Operation → Permission Mapping ─────────────────────────────
 
@@ -18,7 +21,7 @@ const OP_PERM: Record<ToolBackendOperation, WorkUnitPermission> = {
 }
 
 // Helper to temporarily set an env var for a test
-function withEnv(key: string, value: string | undefined, fn: () => void) {
+async function withEnv(key: string, value: string | undefined, fn: () => void | Promise<void>) {
   const prev = process.env[key]
   try {
     if (value === undefined) {
@@ -26,7 +29,7 @@ function withEnv(key: string, value: string | undefined, fn: () => void) {
     } else {
       process.env[key] = value
     }
-    fn()
+    await fn()
   } finally {
     if (prev === undefined) {
       delete process.env[key]
@@ -38,37 +41,53 @@ function withEnv(key: string, value: string | undefined, fn: () => void) {
 
 // ─── Session Enforcement ────────────────────────────────────────
 
-test("requireSession returns unauthorized in production (no real auth)", () => {
-  withEnv("NODE_ENV", "production", () => {
-    withEnv("ALLOW_DEV_SESSION", undefined, () => {
-      const result = requireSession()
-      assert.equal(result.ok, false)
-      if (!result.ok) assert.equal(result.reason, "unauthorized")
+test("requireSession returns unauthorized in production (no real auth)", async () => {
+  await withEnv("NODE_ENV", "production", async () => {
+    await withEnv("AUTH_ADAPTER", "none", async () => {
+      await withEnv("ALLOW_DEV_SESSION", undefined, async () => {
+        const result = await requireSession()
+        assert.equal(result.ok, false)
+        if (!result.ok) assert.equal(result.reason, "unauthorized")
+      })
     })
   })
 })
 
-test("requireSession returns unauthorized in dev without ALLOW_DEV_SESSION", () => {
-  withEnv("NODE_ENV", "development", () => {
-    withEnv("ALLOW_DEV_SESSION", undefined, () => {
-      const result = requireSession()
-      assert.equal(result.ok, false)
-      if (!result.ok) assert.equal(result.reason, "unauthorized")
+test("requireSession returns unauthorized in dev without ALLOW_DEV_SESSION", async () => {
+  await withEnv("NODE_ENV", "development", async () => {
+    await withEnv("AUTH_ADAPTER", "dev", async () => {
+      await withEnv("ALLOW_DEV_SESSION", undefined, async () => {
+        const result = await requireSession()
+        assert.equal(result.ok, false)
+        if (!result.ok) assert.equal(result.reason, "unauthorized")
+      })
     })
   })
 })
 
-test("requireSession returns session in dev with ALLOW_DEV_SESSION=true", () => {
-  withEnv("NODE_ENV", "development", () => {
-    withEnv("ALLOW_DEV_SESSION", "true", () => {
-      const result = requireSession()
-      assert.equal(result.ok, true)
-      if (result.ok) {
-        assert.equal(result.session.role, "owner")
-        assert.equal(result.session.tenantId, "dev-tenant")
-      }
+test("requireSession returns session in dev with explicit adapter and bootstrap", async () => {
+  const db = new FakeD1Database()
+  setTestRuntimeEnvForRequest({ CONTROL_DB: db } as AppEnv)
+  try {
+    await withEnv("NODE_ENV", "development", async () => {
+      await withEnv("AUTH_ADAPTER", "dev", async () => {
+        await withEnv("ALLOW_DEV_SESSION", "true", async () => {
+          await withEnv("ALLOW_DEV_WORKSPACE_BOOTSTRAP", "true", async () => {
+            const result = await requireSession()
+            assert.equal(result.ok, true)
+            if (result.ok) {
+              assert.equal(result.session.role, "owner")
+              assert.equal(result.session.tenantId, "dev-tenant")
+              assert.equal(result.session.email, "dev@example.local")
+              assert.equal(result.session.isDevSession, true)
+            }
+          })
+        })
+      })
     })
-  })
+  } finally {
+    resetTestRuntimeEnvForRequest()
+  }
 })
 
 test("createDevSessionWithRole creates session with specific role", () => {
@@ -119,8 +138,8 @@ test("owner has all required permissions", () => {
   }
 })
 
-test("pm can create workunits but cannot execute external actions", () => {
-  const session = createDevSessionWithRole("pm")
+test("editor can create workunits but cannot execute external actions", () => {
+  const session = createDevSessionWithRole("editor")
   assert.equal(hasPermission(session, "workunit.create"), true)
   assert.equal(hasPermission(session, "workunit.execute_external_action"), false)
 })
@@ -132,8 +151,8 @@ test("viewer cannot create or execute", () => {
   assert.equal(hasPermission(session, "workunit.read"), true)
 })
 
-test("member can create but cannot execute external actions", () => {
-  const session = createDevSessionWithRole("member")
+test("manager can create but cannot execute external actions", () => {
+  const session = createDevSessionWithRole("manager")
   assert.equal(hasPermission(session, "workunit.create"), true)
   assert.equal(hasPermission(session, "workunit.execute_external_action"), false)
 })

@@ -284,22 +284,16 @@ test("owner can create preview and approve", () => {
   assert.equal(hasPermission(session, "workunit.approve_external_action"), true)
 })
 
-test("admin can create preview and approve", () => {
-  const session = createDevSessionWithRole("admin")
+test("manager can create preview and approve", () => {
+  const session = createDevSessionWithRole("manager")
   assert.equal(hasPermission(session, "workunit.create_action_preview"), true)
   assert.equal(hasPermission(session, "workunit.approve_external_action"), true)
 })
 
-test("pm can create preview and approve", () => {
-  const session = createDevSessionWithRole("pm")
+test("editor can create preview and approve", () => {
+  const session = createDevSessionWithRole("editor")
   assert.equal(hasPermission(session, "workunit.create_action_preview"), true)
   assert.equal(hasPermission(session, "workunit.approve_external_action"), true)
-})
-
-test("member can create preview but NOT approve", () => {
-  const session = createDevSessionWithRole("member")
-  assert.equal(hasPermission(session, "workunit.create_action_preview"), false)
-  assert.equal(hasPermission(session, "workunit.approve_external_action"), false)
 })
 
 test("viewer can neither create preview nor approve", () => {

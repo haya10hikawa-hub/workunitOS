@@ -3,6 +3,9 @@
  *
  * Client-side API call functions for the WorkUnit Inbox Action Field.
  * Never sends hashes, tenantId, or secrets.
+ *
+ * Legacy path: kept for the standalone WorkUnitActionField component.
+ * Canonical dashboard Preview / Approval client lives in app/lib/application/actionField/.
  */
 
 import type { InboxWorkUnit } from "./types"

@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { listToolBackendAdapters, runToolBackendRequest } from "../../../lib/toolBackend.ts"
 import { validateToolBackendRequest } from "../../../lib/toolBackendValidation.ts"
 import { areExternalActionsEnabled, isExternalOperation } from "../../../lib/security/externalActions.ts"
-import { safeError, toSafeErrorCode } from "../../../lib/security/safeErrors.ts"
-import { requireSession } from "../../../lib/security/session.ts"
+import { getSafeErrorStatus, safeError, toSafeErrorCode } from "../../../lib/security/safeErrors.ts"
+import { getSessionErrorStatus, requireSession } from "../../../lib/security/session.ts"
 import { hasPermission } from "../../../lib/security/rbac.ts"
 import { writeAuditLog, type AuditEventKind } from "../../../lib/security/auditLog.ts"
 import type { WorkUnitPermission } from "../../../lib/security/policy.ts"
@@ -78,10 +78,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   audit("tool_request_received", requestId)
 
   // ── 2. Session boundary ───────────────────────────────────────
-  const sessionResult = requireSession(request)
+  const sessionResult = await requireSession(request)
   if (!sessionResult.ok) {
     audit("auth_required", requestId, { reason: sessionResult.reason })
-    return errorResponse(requestId, "unauthorized", 401)
+    return errorResponse(
+      requestId,
+      (sessionResult.reason === "forbidden" || sessionResult.reason === "invalid_tenant") ? "forbidden" : "unauthorized",
+      getSessionErrorStatus(sessionResult.reason),
+    )
   }
   const session = sessionResult.session
 
@@ -222,7 +226,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     })
     if (!result.ok) {
       const safeCode = toSafeErrorCode(result.errors[0] ?? "internal_error")
-      const status = safeCode === "internal_error" ? 500 : safeCode === "integration_missing" ? 503 : 400
+      const status = getSafeErrorStatus(safeCode)
       audit(safeCode as AuditEventKind, requestId, { operation: validated.operation, reason: safeCode })
       return json(safeError(requestId, safeCode), status)
     }

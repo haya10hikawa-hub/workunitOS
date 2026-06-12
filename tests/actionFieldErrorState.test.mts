@@ -5,7 +5,7 @@ import {
   isRecoverableError,
   isExecutionBlockingError,
   type ActionFieldErrorState,
-} from "../app/lib/actionField/errorState.ts"
+} from "../app/lib/application/actionField/errorState.ts"
 import { SAFE_ERROR_CODES, type SafeErrorCode } from "../app/lib/security/safeErrors.ts"
 
 const allCodes = Object.keys(SAFE_ERROR_CODES) as SafeErrorCode[]

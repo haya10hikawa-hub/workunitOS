@@ -9,6 +9,7 @@
  * role or permission checks should exist elsewhere in the codebase.
  */
 
+import type { SessionContext, TenantRole } from "../domain/auth/types.ts"
 import type { Session } from "./session.ts"
 import type { WorkUnitPermission, WorkUnitRole } from "./policy.ts"
 import { DEFAULT_ROLE_PERMISSIONS, ROLE_HIERARCHY } from "./policy.ts"
@@ -21,7 +22,8 @@ import type { TenantId } from "../tenant/types.ts"
 export type RbacDeniedError = {
   kind: "rbac_denied"
   reason: "missing_permission" | "insufficient_role" | "tenant_mismatch"
-  requiredPermission: WorkUnitPermission
+  requiredPermission?: WorkUnitPermission
+  allowedRoles?: TenantRole[]
   actorRole: WorkUnitRole
   tenantId: TenantId
 }
@@ -51,6 +53,24 @@ export function assertPermission(
     kind: "rbac_denied",
     reason: "missing_permission",
     requiredPermission: permission,
+    actorRole: session.role,
+    tenantId: session.tenantId,
+  }
+}
+
+export function hasRole(session: SessionContext, allowedRoles: TenantRole[]): boolean {
+  return allowedRoles.includes(session.role)
+}
+
+export function requireRole(
+  session: SessionContext,
+  allowedRoles: TenantRole[],
+): RbacDeniedError | undefined {
+  if (hasRole(session, allowedRoles)) return undefined
+  return {
+    kind: "rbac_denied",
+    reason: "insufficient_role",
+    allowedRoles,
     actorRole: session.role,
     tenantId: session.tenantId,
   }

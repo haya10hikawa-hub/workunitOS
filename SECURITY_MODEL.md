@@ -29,6 +29,12 @@ Each level carries a different trust:
 4. **AI output** — always treated as draft until human review
 5. **Frontend state** — any React state can be tampered with
 
+## Architecture boundary notes
+
+- Client code does not own `tenantId`, `actorUserId`, approval hashes, approval status, or tokens.
+- Canonical dashboard Preview / Approval requests are assembled in `app/lib/application/actionField/dashboardPreviewClient.ts`.
+- Legacy standalone Action Field modules remain for compatibility but are not the canonical UI path.
+
 ## Session and Authentication
 
 ### Production
@@ -37,11 +43,14 @@ In production (`NODE_ENV === "production"`), `requireSession()` returns `unautho
 No anonymous or dev session is allowed. Real authentication must be implemented
 before deploying to production.
 
+This phase adds the auth/workspace foundation schema plus a provider-agnostic auth adapter boundary. It now includes signed JWT identity verification, but it does not add OAuth, OIDC, cookie session storage, or provider token storage.
+
 ### Development
 
 In development, `requireSession()` requires explicit opt-in:
 
 ```bash
+AUTH_ADAPTER="dev"
 ALLOW_DEV_SESSION="true"  # Required for local development
 ```
 
@@ -53,19 +62,43 @@ To test RBAC enforcement locally, set the dev session role:
 DEV_SESSION_ROLE="viewer"  # Default: owner
 ```
 
+To allow deterministic dev user / tenant / membership bootstrap:
+
+```bash
+ALLOW_DEV_WORKSPACE_BOOTSTRAP="true"
+```
+
 ### Session Resolution
 
 `requireSession()` is the single integration point for authentication.
-When real auth is added:
-1. Extract session token from cookie or Authorization header
-2. Validate token (JWT or opaque token lookup)
-3. Resolve user's tenant and role
-4. Return typed Session
+Current flow:
+1. Resolve `AuthAdapter`
+2. Verify request into `VerifiedAuthIdentity`
+3. Resolve control DB user + active membership
+4. Build typed `SessionContext`
+
+Current adapters:
+- `dev` adapter — explicit and non-production only
+- `jwt` adapter — verifies HS256 Bearer tokens into `VerifiedAuthIdentity`
+- `none` / noop adapter — always safe-fails
+
+Future adapters:
+- `cookie`
+- `oidc`
+
+JWT adapter notes:
+- Required env: `AUTH_ADAPTER=jwt` and `JWT_AUTH_SECRET`
+- Optional checks: `JWT_AUTH_ISSUER`, `JWT_AUTH_AUDIENCE`
+- Ignored claims: `tenantId`, `role`
+- `tenantId` and `role` still come only from control DB active membership
+- Tokens are verified but never stored or logged
 
 Current dev session:
 - userId: `dev-user`
 - tenantId: `dev-tenant`
 - role: configurable via `DEV_SESSION_ROLE` (default: `owner`)
+- email: `dev@example.local`
+- isDevSession: `true`
 
 ## RBAC Enforcement
 
@@ -119,25 +152,26 @@ The kill switch is checked in **two places** (double guard):
 External actions require server-side approval. The approval model:
 
 - Each external action creates an `ActionApprovalRecord`
-- Record is stored server-side (database — deferred)
+- Record is stored server-side by the Action Preview / Approval API path
 - Record includes: tenant ID, work unit ID, action type, target hash, payload hash
 - Status transitions: `pending → approved → used` or `pending → rejected`
 - Records expire (configurable TTL, default 60 minutes)
 - Client `approvedByPm` flag is ignored — only server-side records authorize execution
 
-Current state: `verifyServerSideApproval` defaults to deny. Returns `approval_required`.
+Current state: D1 schema exists for `action_previews` and `approval_records`, and the approval API can create records. Execution-time `ApprovalStore` resolution is not fully unified with that D1 path yet, so the safe default remains deny unless an approved store is explicitly available.
 
 ## RBAC
 
-Role-based access control with five roles:
+Role-based access control with four canonical roles:
 
 | Role | Permissions |
 |------|------------|
 | owner | All permissions including tenant management |
-| admin | Read, create, edit, approve, execute, manage integrations, read audit |
-| pm | Read, create, edit, approve external actions |
-| member | Read, create, edit work units |
-| viewer | Read only |
+| manager | Read, create, edit, preview, approve, manage integrations, read audit |
+| editor | Read, create, edit, preview, approve, integration status |
+| viewer | Read inbox and integration status only |
+
+Legacy dev/test role inputs (`admin`, `pm`, `member`) are normalized to canonical roles so older fixtures do not silently bypass the new policy model.
 
 Permission checks are centralized in `app/lib/security/rbac.ts`. No ad-hoc role checks elsewhere.
 
@@ -148,6 +182,9 @@ Multi-tenant isolation via branded types (`TenantId`, `UserId`, `WorkUnitId`):
 - Every resource is owned by a tenant
 - `assertTenantBoundary()` enforces cross-tenant access prevention
 - Development mode uses `"dev-tenant"` — explicitly marked unsafe for production
+- Persistence repositories and route handlers scope reads and writes by resolved session tenant ID
+- No client-provided `tenantId` is trusted on inbox, feedback, integration status, preview, or approval routes
+- No client-provided `actorUserId` or `role` is trusted on mutating routes
 
 ## Validation
 
@@ -179,22 +216,57 @@ Audit event vocabulary is defined in `app/lib/security/auditLog.ts`:
 - `external_action_blocked`, `external_action_approved`, `external_action_executed`, `external_action_failed`
 - `tenant_boundary_violation`, `rbac_denied`
 
-Current implementation is no-op (console in dev with `AUDIT_LOG_VERBOSE=true`).
-Database persistence is deferred.
+Current implementation has both:
+
+- no-op / verbose local logger support for low-risk debugging
+- repository-backed audit persistence for feedback and selected route events when repositories are available
+
+Current persisted route coverage:
+
+- `POST /api/workunit/:id/feedback`
+- `GET /api/workunit/inbox` with summarized metadata only: `{ source, count }`
+
+Audit metadata must stay sanitized. Raw WorkUnits, raw provider payloads, tokens, and secrets are not written to audit rows.
+
+## Control DB auth/workspace foundation
+
+Control DB now includes:
+
+- `users`
+- `tenants`
+- `tenant_memberships`
+- `auth_identities`
+- `tenant_databases`
+
+These tables provide the production auth/workspace foundation. A signed JWT can now authenticate identity into this control DB boundary, but cookie-based auth, OIDC callback handling, and provider token storage are still deferred.
+
+No provider integration tokens are stored in this layer.
+
+## Persistence Safety
+
+Current repository-backed persistence rules:
+
+- `GET /api/workunit/inbox` may persist sanitized generated WorkUnits through tenant-scoped `upsert()`
+- repeated fetches do not create duplicate WorkUnit rows for the same stable ID
+- `POST /api/workunit/:id/feedback` persists only safe feedback values and status updates
+- `GET /api/integrations/status` reads persisted connection metadata but does not expose tokens or secret material
+- usage events record only safe metadata such as source name, feedback value, and provider count
+
+Development fallback may skip persistence when repositories are unavailable. Production-safe behavior must not silently succeed without required persistence.
 
 ## Production Blockers
 
 Before production SaaS:
 
-- [ ] Authentication (session management, OAuth/OIDC)
+- [ ] Real cookie or OIDC authentication adapter
 - [ ] Tenant isolation enforcement (not just types)
 - [ ] RBAC enforcement wired to every endpoint
-- [ ] Server-side approval persistence (database)
+- [ ] Server-side approval persistence fully unified with execution-time `ApprovalStore`
 - [ ] Per-tenant OAuth token vault (encrypted at rest)
 - [ ] Rate limiting
 - [ ] CSRF / session hardening
 - [ ] Audit log storage (database or SIEM)
-- [ ] External action review UI
+- [x] External action review UI foundation
 - [ ] Prompt injection red-team testing
 - [ ] Penetration testing
 

@@ -2,6 +2,11 @@
 
 import Image from "next/image"
 import { useState } from "react"
+import {
+  approveDashboardActionPreviews,
+  createDashboardActionPreviews,
+  type DashboardPreviewRef,
+} from "@/lib/application/actionField/dashboardPreviewClient"
 
 type SourceItem = {
   id: string
@@ -53,6 +58,15 @@ type ActionType = "database_update" | "email_send" | "slack_reply" | "github_iss
 type RiskLevel = "low" | "medium" | "high"
 type DraftStatus = "draft_ready" | "draft_saved" | "ready_for_review" | "approved" | "executed"
 type SafetyStatus = "pass" | "warning" | "blocked"
+type PreviewFlowStatus =
+  | "idle"
+  | "preview_creating"
+  | "preview_ready"
+  | "preview_failed"
+  | "approving"
+  | "approved"
+  | "rejected"
+  | "approval_failed"
 
 type SafetyCheck = {
   label: string
@@ -900,6 +914,11 @@ function ActionFieldDrawer({ open, onClose }: { open: boolean; onClose: () => vo
   const [draftActionGroup, setDraftActionGroup] = useState<ActionGroup>(actionGroups[0])
   const [dirtyActionIds, setDirtyActionIds] = useState<string[]>([])
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
+  const [previewFlow, setPreviewFlow] = useState<{
+    status: PreviewFlowStatus
+    previews: DashboardPreviewRef[]
+    message?: string
+  }>({ status: "idle", previews: [] })
   const blockedChecks = draftActionGroup.safetyChecks.filter((check) => check.status === "blocked").length
   const warningChecks = draftActionGroup.safetyChecks.filter((check) => check.status === "warning").length
   const hasUnsavedChanges = dirtyActionIds.length > 0
@@ -911,6 +930,7 @@ function ActionFieldDrawer({ open, onClose }: { open: boolean; onClose: () => vo
     setDraftActionGroup(group)
     setDirtyActionIds([])
     setLastSavedAt(null)
+    setPreviewFlow({ status: "idle", previews: [] })
   }
 
   const markDirty = (actionId: string) => {
@@ -928,6 +948,7 @@ function ActionFieldDrawer({ open, onClose }: { open: boolean; onClose: () => vo
       ),
     }))
     markDirty(actionId)
+    setPreviewFlow({ status: "idle", previews: [], message: "Preview invalidated by edits" })
   }
 
   const handleSaveDraft = () => {
@@ -943,12 +964,27 @@ function ActionFieldDrawer({ open, onClose }: { open: boolean; onClose: () => vo
     onClose()
   }
 
-  const handleApprove = () => {
-    if (blockedChecks > 0) return
-    const approved = { ...draftActionGroup, status: "approved" as const }
-    setDraftActionGroup(approved)
+  const handleCreatePreview = async () => {
+    setPreviewFlow({ status: "preview_creating", previews: [] })
+    const result = await createDashboardActionPreviews(draftActionGroup)
+    if (!result.ok) {
+      setPreviewFlow({ status: "preview_failed", previews: [], message: result.error })
+      return
+    }
+    setPreviewFlow({ status: "preview_ready", previews: result.previews })
+  }
+
+  const handleApprovalDecision = async (decision: "approve" | "reject") => {
+    if (blockedChecks > 0 || previewFlow.previews.length === 0) return
+    setPreviewFlow((current) => ({ ...current, status: "approving" }))
+    const result = await approveDashboardActionPreviews(draftActionGroup.workUnitId, previewFlow.previews, decision)
+    if (!result.ok) {
+      setPreviewFlow((current) => ({ ...current, status: "approval_failed", message: result.error }))
+      return
+    }
+    setDraftActionGroup((current) => ({ ...current, status: decision === "approve" ? "approved" : "draft_ready" }))
     setDirtyActionIds([])
-    console.log("approve and execute", approved)
+    setPreviewFlow((current) => ({ ...current, status: decision === "approve" ? "approved" : "rejected" }))
   }
 
   return (
@@ -995,7 +1031,11 @@ function ActionFieldDrawer({ open, onClose }: { open: boolean; onClose: () => vo
           blockedChecks={blockedChecks}
           warningChecks={warningChecks}
           hasUnsavedChanges={hasUnsavedChanges}
-          onApprove={handleApprove}
+          previewStatus={previewFlow.status}
+          previewMessage={previewFlow.message}
+          onCreatePreview={handleCreatePreview}
+          onApprove={() => handleApprovalDecision("approve")}
+          onReject={() => handleApprovalDecision("reject")}
           onSaveDraft={handleSaveDraft}
           onCancel={handleClose}
         />
@@ -1255,36 +1295,56 @@ function ActionFieldFooter({
   blockedChecks,
   warningChecks,
   hasUnsavedChanges,
+  previewStatus,
+  previewMessage,
+  onCreatePreview,
   onApprove,
+  onReject,
   onSaveDraft,
   onCancel,
 }: {
   blockedChecks: number
   warningChecks: number
   hasUnsavedChanges: boolean
+  previewStatus: PreviewFlowStatus
+  previewMessage?: string
+  onCreatePreview: () => void
   onApprove: () => void
+  onReject: () => void
   onSaveDraft: () => void
   onCancel: () => void
 }) {
+  const canApprove = previewStatus === "preview_ready" && blockedChecks === 0
+  const busy = previewStatus === "preview_creating" || previewStatus === "approving"
+
   return (
     <footer className="shrink-0 border-t border-[var(--ai-divider)] bg-[var(--ai-surface)] px-5 py-4">
       <div className="mb-3 text-[11px] text-[var(--ai-text-muted)]">
-        {blockedChecks > 0
+        {previewMessage ??
+        (blockedChecks > 0
           ? "解決が必要な安全チェックがあります"
           : warningChecks > 0
             ? "警告があります。内容を確認してください"
             : hasUnsavedChanges
               ? "Unsaved changes"
-              : "Draft saved"}
+              : previewStatusLabel(previewStatus))}
       </div>
-      <div className="grid grid-cols-[1fr_112px_112px] gap-3">
+      <div className="grid grid-cols-[1fr_112px_112px_112px] gap-3">
       <button
         type="button"
-        onClick={onApprove}
-        disabled={blockedChecks > 0}
+        onClick={canApprove ? onApprove : onCreatePreview}
+        disabled={busy || (previewStatus === "preview_ready" && blockedChecks > 0)}
         className="rounded-[6px] border border-[var(--ai-accent-border)] bg-[var(--ai-accent)] px-4 py-3 text-[12px] font-bold text-black hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        承認して実行
+        {canApprove ? "承認" : previewStatus === "preview_creating" ? "Preview作成中" : "Previewを作成"}
+      </button>
+      <button
+        type="button"
+        onClick={onReject}
+        disabled={previewStatus !== "preview_ready" || busy}
+        className="rounded-[6px] border border-[var(--ai-border)] bg-black px-4 py-3 text-[12px] font-semibold text-[var(--ai-text)] hover:border-[var(--ai-danger)] disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        却下
       </button>
       <button
         type="button"
@@ -1308,6 +1368,16 @@ function ActionFieldFooter({
       </div>
     </footer>
   )
+}
+
+function previewStatusLabel(status: PreviewFlowStatus): string {
+  if (status === "preview_ready") return "Preview ready"
+  if (status === "approving") return "Approval submitting"
+  if (status === "approved") return "Approved"
+  if (status === "rejected") return "Rejected"
+  if (status === "preview_failed") return "Preview failed"
+  if (status === "approval_failed") return "Approval failed"
+  return "Draft ready"
 }
 
 function ActionSection({ title, risk, children }: { title: string; risk: RiskLevel; children: React.ReactNode }) {

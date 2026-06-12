@@ -66,10 +66,13 @@ export type TenantRow = {
 }
 
 export type MembershipRow = {
+  id: string
   userId: UserId
   tenantId: TenantId
-  role: "owner" | "admin" | "pm" | "member" | "viewer"
-  joinedAt: string
+  role: "owner" | "manager" | "editor" | "viewer"
+  status: "active" | "invited" | "suspended"
+  createdAt: string
+  updatedAt: string
 }
 
 export type WorkUnitRow = {
@@ -205,4 +208,74 @@ export type IntegrationMetadataRow = {
   connectedAt?: string
   tokenExpiresAt?: string
   config: string    // JSON object; never plain tokens
+}
+
+// ─── Phase 2: New persistence types ──────────────────────────────
+
+export type InboxWorkUnitRow = {
+  id: string
+  tenantId: TenantId
+  sourceSignalId?: string
+  title: string
+  kind: string
+  priority: string
+  sourceProvider: string
+  reason: string
+  evidence: string
+  nextAction: string
+  sourceUrl?: string
+  actor?: string
+  assignee?: string
+  repository?: string
+  dueAt?: string
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type WorkUnitFeedbackRow = {
+  id: string
+  tenantId: TenantId
+  workUnitId: string
+  feedback: string
+  actorUserId?: string
+  createdAt: string
+}
+
+export type IntegrationConnectionRow = {
+  id: string
+  tenantId: TenantId
+  provider: string
+  status: string
+  mode: string
+  displayName?: string
+  externalAccountId?: string
+  scopesJson?: string
+  metadataJson?: string
+  connectedAt?: string
+  disconnectedAt?: string
+  lastSyncAt?: string
+  lastErrorCode?: string
+  lastErrorMessage?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type UsageEventRow = {
+  id: string
+  tenantId: TenantId
+  eventType: string
+  quantity: number
+  resourceType?: string
+  resourceId?: string
+  metadataJson?: string
+  createdAt: string
+}
+
+export type UsageDailySummaryRow = {
+  tenantId: TenantId
+  date: string
+  eventType: string
+  quantity: number
+  updatedAt: string
 }

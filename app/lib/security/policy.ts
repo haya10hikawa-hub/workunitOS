@@ -8,7 +8,10 @@
  * Enforcement lives in `rbac.ts` and `policy.ts`.
  */
 
-export type WorkUnitRole = "owner" | "admin" | "pm" | "member" | "viewer"
+import type { LegacyTenantRole, TenantRole } from "../domain/auth/types.ts"
+
+export type WorkUnitRole = TenantRole
+export type WorkUnitRoleInput = TenantRole | LegacyTenantRole
 
 export type WorkUnitPermission =
   | "workunit.read"
@@ -24,10 +27,9 @@ export type WorkUnitPermission =
   | "tenant.manage"
 
 export const ROLE_HIERARCHY: Record<WorkUnitRole, number> = {
-  owner: 4,
-  admin: 3,
-  pm: 2,
-  member: 1,
+  owner: 3,
+  manager: 2,
+  editor: 1,
   viewer: 0,
 }
 
@@ -45,19 +47,18 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<WorkUnitRole, ReadonlySet<WorkUnit
     "audit.read",
     "tenant.manage",
   ]),
-  admin: new Set([
+  manager: new Set([
     "workunit.read",
     "workunit.create",
     "workunit.edit",
     "workunit.review",
     "workunit.approve_external_action",
-    "workunit.execute_external_action",
     "workunit.create_action_preview",
     "integration.read",
     "integration.manage",
     "audit.read",
   ]),
-  pm: new Set([
+  editor: new Set([
     "workunit.read",
     "workunit.create",
     "workunit.edit",
@@ -66,6 +67,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<WorkUnitRole, ReadonlySet<WorkUnit
     "workunit.approve_external_action",
     "integration.read",
   ]),
-  member: new Set(["workunit.read", "workunit.create", "workunit.edit"]),
-  viewer: new Set(["workunit.read"]),
+  viewer: new Set(["workunit.read", "integration.read"]),
+}
+
+export function normalizeRoleInput(role: WorkUnitRoleInput | undefined): WorkUnitRole {
+  if (role === "admin") return "manager"
+  if (role === "pm" || role === "member") return "editor"
+  return role ?? "owner"
 }
