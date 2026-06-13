@@ -2,7 +2,7 @@
 
 /**
  * Legacy standalone Action Field.
- * Canonical Action Field ownership is the dashboard drawer path.
+ * Canonical Action Field ownership is the WorkUnitOSDashboard Action Field Entry pane.
  */
 
 import { useState } from "react"
