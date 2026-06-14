@@ -1,12 +1,11 @@
 "use client"
 
-import type { ReactNode } from "react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
+  BarChart2,
   Bell,
   Bug,
   Calendar,
-  BarChart2,
   CheckSquare,
   ChevronRight,
   Cloud,
@@ -18,75 +17,36 @@ import {
   Square,
   User,
 } from "lucide-react"
+import { createDashboardActionPreviews } from "@/lib/application/actionField/dashboardPreviewClient"
 import {
-  createDashboardActionPreviews,
-} from "@/lib/application/actionField/dashboardPreviewClient"
-import { getPrimaryActionPreviewGroup } from "@/lib/application/dashboard/workUnitDashboardModel"
+  buildAdoptedDashboardViewModel,
+  type DashboardAuditLogView,
+  type DashboardIntegrationStatusView,
+  type DashboardLogEntryView,
+  type DashboardWorkUnitView,
+} from "@/lib/application/dashboard/adoptedDashboardViewModel"
+import {
+  fetchDashboardWorkUnits,
+  fetchIntegrationStatus,
+  fetchRecentAuditLogs,
+  type DashboardAuditLog,
+  type DashboardIntegrationProviderStatus,
+} from "@/lib/application/dashboard/dashboardDataClient"
+import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
 
-type PreviewStatus = "idle" | "creating" | "ready" | "failed"
-type BadgeVariant = "ready" | "needs-review" | "blocked" | "draft" | "error"
+type LoadStatus = "loading" | "loaded" | "error" | "empty"
+type IconKind = DashboardWorkUnitView["iconKind"]
 
-type WorkUnit = {
-  id: string
-  icon: ReactNode
-  iconBg: string
-  label: string
-  roi: number
-  badge: BadgeVariant
+type DashboardState = {
+  status: LoadStatus
+  workUnits: InboxWorkUnit[]
+  integrationStatuses: DashboardIntegrationProviderStatus[]
+  auditLogs: DashboardAuditLog[]
+  error?: string
 }
 
-type LogStatus = "INFO" | "READY" | "NEEDS_REVIEW" | "NEEDS_OWNER" | "NOT_READY" | "STATUS" | "ACTION"
-
-type LogEntry = {
-  status: LogStatus
-  text: string
-  indicator?: "green" | "yellow" | "red" | "gray"
-  note?: string
-}
-
-type ReadinessGate = {
-  label: string
-  checked: boolean
-}
-
-type Tab = {
-  id: string
-  label: string
-}
-
-const workUnits: WorkUnit[] = [
-  { id: "enterprise", icon: <FolderOpen size={14} strokeWidth={1.5} />, iconBg: "#1e3a2e", label: "Enterprise Update Response Pack", roi: 92.0, badge: "ready" },
-  { id: "clientx", icon: <Mail size={14} strokeWidth={1.5} />, iconBg: "#1e2a3a", label: "Client X Project Delta Feedback", roi: 88.5, badge: "needs-review" },
-  { id: "bug1045", icon: <Bug size={14} strokeWidth={1.5} />, iconBg: "#1a1a3a", label: "BUG-1045 - Authentication Failure", roi: 84.0, badge: "blocked" },
-  { id: "quarterly", icon: <Calendar size={14} strokeWidth={1.5} />, iconBg: "#2a1a2a", label: "Quarterly Business Review", roi: 79.0, badge: "draft" },
-  { id: "competitor", icon: <BarChart2 size={14} strokeWidth={1.5} />, iconBg: "#2a1e1a", label: "Competitor Product Launch", roi: 78.5, badge: "ready" },
-  { id: "salesforce", icon: <Cloud size={14} strokeWidth={1.5} />, iconBg: "#1a1e2a", label: "Salesforce Integration Error", roi: 0.0, badge: "error" },
-]
-
-const tabs: Tab[] = [
-  { id: "enterprise", label: "Enterprise Update Response Pack" },
-  { id: "clientx", label: "Client X Feedback" },
-  { id: "bug1045", label: "BUG-1045" },
-]
-
-const logEntries: LogEntry[] = [
-  { status: "INFO", text: "Decomposed Push Candidates initialized." },
-  { status: "READY", text: "1. Verify Source Info (Owner: PM | This Week)", indicator: "green" },
-  { status: "NEEDS_REVIEW", text: "2. Confirm Owner (Owner: PM | This Week)", indicator: "yellow" },
-  { status: "NEEDS_OWNER", text: "3. Determine Acceptance (Owner: PM | This Week)", indicator: "red" },
-  { status: "NOT_READY", text: "4. Prepare External Action (Owner: PM | Next Week)", indicator: "gray" },
-  { status: "STATUS", text: "Push Readiness: 82% - Required owner and execution target set. Push conditions met.", note: "THIS IS WRONG" },
-  { status: "ACTION", text: "Awaiting user decision..." },
-]
-
-const badgeLabel: Record<BadgeVariant, string> = {
-  ready: "READY",
-  "needs-review": "NEEDS REVIEW",
-  blocked: "BLOCKED",
-  draft: "DRAFT",
-  error: "ERROR",
-}
+type LogStatus = DashboardLogEntryView["status"]
 
 const logTagLabel: Record<LogStatus, string> = {
   INFO: "[INFO]",
@@ -99,32 +59,84 @@ const logTagLabel: Record<LogStatus, string> = {
 }
 
 export function AdoptedWorkUnitDashboard() {
-  const [activeUnit, setActiveUnit] = useState("enterprise")
-  const [activeTab, setActiveTab] = useState("enterprise")
+  const [dashboardState, setDashboardState] = useState<DashboardState>({
+    status: "loading",
+    workUnits: [],
+    integrationStatuses: [],
+    auditLogs: [],
+  })
+  const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string>()
+  const [activeTabId, setActiveTabId] = useState<string>()
   const [selectedDecision, setSelectedDecision] = useState<string | null>(null)
-  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("idle")
+  const [previewCreated, setPreviewCreated] = useState(false)
   const [previewMessage, setPreviewMessage] = useState("")
+  const [lastScanLabel, setLastScanLabel] = useState("Pending")
 
-  const readinessGates = useMemo<ReadinessGate[]>(() => ([
-    { label: "Source Verified", checked: true },
-    { label: "Owner Confirmed", checked: true },
-    { label: "Decision Selected", checked: selectedDecision !== null },
-    { label: "Action Preview Created", checked: previewStatus === "ready" },
-    { label: "Approval Completed", checked: false },
-  ]), [previewStatus, selectedDecision])
+  useEffect(() => {
+    let active = true
+    Promise.all([
+      fetchDashboardWorkUnits("all"),
+      fetchIntegrationStatus(),
+      fetchRecentAuditLogs(),
+    ]).then(([workUnitsResult, integrationResult, auditResult]) => {
+      if (!active) return
+      const workUnits = workUnitsResult.ok ? workUnitsResult.workUnits : []
+      const integrationStatuses = integrationResult.ok ? integrationResult.providers : []
+      const auditLogs = auditResult.ok ? auditResult.auditLogs : []
+      const status: LoadStatus = workUnits.length === 0
+        ? (workUnitsResult.ok ? "empty" : "error")
+        : (workUnitsResult.ok ? "loaded" : "error")
+
+      setDashboardState({
+        status,
+        workUnits,
+        integrationStatuses,
+        auditLogs,
+        error: workUnitsResult.ok ? undefined : workUnitsResult.error,
+      })
+      setLastScanLabel(workUnitsResult.ok ? formatScanTime(new Date()) : "Unavailable")
+      const nextId = workUnits[0]?.id
+      setSelectedWorkUnitId((current) => current ?? nextId)
+      setActiveTabId((current) => current ?? nextId)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const viewModel = useMemo(() => buildAdoptedDashboardViewModel({
+    workUnits: dashboardState.workUnits,
+    selectedWorkUnitId,
+    selectedDecision,
+    previewCreated,
+    approved: false,
+    integrationStatuses: dashboardState.integrationStatuses,
+    auditLogs: dashboardState.auditLogs,
+  }), [dashboardState.auditLogs, dashboardState.integrationStatuses, dashboardState.workUnits, previewCreated, selectedDecision, selectedWorkUnitId])
 
   const handleCreatePreview = async () => {
-    setPreviewStatus("creating")
     setPreviewMessage("")
-    const result = await createDashboardActionPreviews(getPrimaryActionPreviewGroup())
+    if (!viewModel.actionField.canCreatePreview) {
+      setPreviewMessage("Select a WorkUnit before creating an action preview.")
+      return
+    }
+    const result = await createDashboardActionPreviews(viewModel.actionField.previewGroup)
     if (!result.ok) {
-      setPreviewStatus("failed")
+      setPreviewCreated(false)
       setPreviewMessage(result.error)
       return
     }
-    setPreviewStatus("ready")
+    setPreviewCreated(true)
     setPreviewMessage(`Created ${result.previews.length} action preview${result.previews.length === 1 ? "" : "s"}.`)
   }
+
+  const statusText = dashboardState.status === "loading"
+    ? "Loading live WorkUnits..."
+    : dashboardState.status === "error"
+      ? dashboardState.error ?? "Failed to load live WorkUnits."
+      : dashboardState.status === "empty"
+        ? "No live WorkUnits."
+        : "Live WorkUnits loaded."
 
   return (
     <div className={styles.root}>
@@ -138,7 +150,7 @@ export function AdoptedWorkUnitDashboard() {
         <div className={styles.topBarRight}>
           <span className={styles.systemStatus}>
             System Status: <span className={styles.statusWatching}>Watching</span>
-            {" | "}Last Scan: 10:40 AM
+            {" | "}Last Scan: {lastScanLabel}
           </span>
           <button type="button" className={styles.iconBtn} aria-label="User avatar">
             <div className={styles.avatar} />
@@ -159,23 +171,30 @@ export function AdoptedWorkUnitDashboard() {
         <aside className={styles.sidebar}>
           <div className={styles.sidebarHeader}>
             <span className={styles.sidebarTitle}>WorkUnit Explorer</span>
+            <div className={styles.sidebarState}>{statusText}</div>
           </div>
           <nav className={styles.sidebarNav} aria-label="WorkUnit list">
-            {workUnits.map((workUnit) => (
+            {viewModel.workUnits.map((workUnit) => (
               <button
                 key={workUnit.id}
                 type="button"
-                className={`${styles.unitItem} ${activeUnit === workUnit.id ? styles.unitItemActive : ""}`}
-                onClick={() => setActiveUnit(workUnit.id)}
+                className={`${styles.unitItem} ${viewModel.selectedWorkUnitId === workUnit.id ? styles.unitItemActive : ""}`}
+                onClick={() => {
+                  setSelectedWorkUnitId(workUnit.id)
+                  setActiveTabId(workUnit.id)
+                  setSelectedDecision(null)
+                  setPreviewCreated(false)
+                  setPreviewMessage("")
+                }}
               >
                 <span className={styles.unitIcon} style={{ backgroundColor: workUnit.iconBg }}>
-                  {workUnit.icon}
+                  <SourceIcon iconKind={workUnit.iconKind} />
                 </span>
                 <div className={styles.unitInfo}>
-                  <span className={styles.unitLabel}>{workUnit.label}</span>
+                  <span className={styles.unitLabel}>{workUnit.title}</span>
                   <div className={styles.unitMeta}>
                     <span className={styles.unitRoi}>ROI: {workUnit.roi.toFixed(1)}</span>
-                    <Badge variant={workUnit.badge} label={badgeLabel[workUnit.badge]} />
+                    <Badge label={workUnit.statusLabel} variant={statusVariant(workUnit.statusLabel)} />
                   </div>
                 </div>
               </button>
@@ -185,14 +204,17 @@ export function AdoptedWorkUnitDashboard() {
 
         <main className={styles.centerPanel}>
           <div className={styles.tabBar} role="tablist">
-            {tabs.map((tab) => (
+            {viewModel.tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 role="tab"
-                aria-selected={activeTab === tab.id}
-                className={`${styles.tab} ${activeTab === tab.id ? styles.tabActive : ""}`}
-                onClick={() => setActiveTab(tab.id)}
+                aria-selected={activeTabId === tab.id}
+                className={`${styles.tab} ${activeTabId === tab.id ? styles.tabActive : ""}`}
+                onClick={() => {
+                  setActiveTabId(tab.id)
+                  setSelectedWorkUnitId(tab.id)
+                }}
               >
                 {tab.label}
               </button>
@@ -203,23 +225,23 @@ export function AdoptedWorkUnitDashboard() {
           </div>
 
           <div className={styles.centerContent}>
-            <h1 className={styles.centerTitle}>Decomposition: Enterprise Update Response Pack</h1>
+            <h1 className={styles.centerTitle}>Decomposition: {viewModel.title}</h1>
 
             <section className={styles.section}>
               <h2 className={styles.sectionLabel}>SITUATION</h2>
-              <p className={styles.sectionBody}>Received signal from WorkUnit OS Roadmap.</p>
+              <p className={styles.sectionBody}>{viewModel.situation}</p>
             </section>
 
             <section className={styles.section}>
               <h2 className={styles.sectionLabel}>PROBLEM / WHY NOW</h2>
-              <p className={styles.sectionBody}>Phase 1-3 implementation in progress.</p>
-              <p className={styles.sectionBody}>Deadline: This Week (2026-06-14)</p>
+              <p className={styles.sectionBody}>{viewModel.problem}</p>
+              <p className={styles.sectionBody}>{viewModel.deadline}</p>
             </section>
 
             <section className={styles.section}>
               <h2 className={styles.sectionLabel}>DECISION REQUIRED</h2>
               <div className={styles.decisionButtons}>
-                {["Accept", "Defer", "Reject", "Ask Owner"].map((decision, index) => (
+                {viewModel.decisionOptions.map((decision, index) => (
                   <button
                     key={decision}
                     type="button"
@@ -235,20 +257,19 @@ export function AdoptedWorkUnitDashboard() {
             <div className={styles.roiBar}>
               <span className={styles.roiLabel}>ROI Metric</span>
               <span className={styles.roiFormula}>
-                Impact × Urgency × Importance / Effort = <span className={styles.roiValue}>240.0</span>
+                Impact × Urgency × Importance / Effort = <span className={styles.roiValue}>{viewModel.workUnits.find((row) => row.id === viewModel.selectedWorkUnitId)?.roi.toFixed(1) ?? "0.0"}</span>
               </span>
             </div>
 
             <section className={styles.logsSection}>
-              <h2 className={styles.logsSectionTitle}>AI Reasoning &amp; Execution Logs</h2>
+              <h2 className={styles.logsSectionTitle}>Decision Trace</h2>
               <ul className={styles.logsList}>
-                {logEntries.map((entry, index) => (
+                {viewModel.logs.map((entry, index) => (
                   <li key={`${entry.status}-${index}`} className={styles.logEntry}>
                     <ChevronRight size={12} strokeWidth={1.5} className={styles.logChevron} />
                     <LogStatusTag status={entry.status} />
                     <span className={styles.logText}>{entry.text}</span>
                     {entry.indicator ? <IndicatorDot color={entry.indicator} /> : null}
-                    {entry.note ? <span className={styles.logNote}>{entry.note}</span> : null}
                   </li>
                 ))}
               </ul>
@@ -262,27 +283,25 @@ export function AdoptedWorkUnitDashboard() {
           <div className={styles.rightSection}>
             <p className={styles.rightLabel}>
               <span className={styles.rightLabelBold}>RECOMMENDED ACTION:</span>{" "}
-              Prepare Slack reply for enterprise update response.
+              {viewModel.actionField.recommendedAction}
             </p>
           </div>
 
           <div className={styles.evidenceCapsule}>
             <div className={styles.evidenceHeader}>
               <span className={styles.evidenceTitle}>EVIDENCE CAPSULE</span>
-              <span className={styles.confidenceBadge}>Confidence: High</span>
+              <span className={styles.confidenceBadge}>Confidence: {viewModel.actionField.confidence}</span>
             </div>
             <div className={styles.evidenceCard}>
-              <p className={styles.evidencePath}>Slack / #enterprise-updates |</p>
-              <p className={styles.evidenceText}>
-                Hey <span className={styles.evidenceMention}>@channel</span>, the new roadmap signals are in. We need to address the Phase 1-3 implementation this week. Please review.
-              </p>
+              <p className={styles.evidencePath}>{viewModel.actionField.evidenceTitle} |</p>
+              <p className={styles.evidenceText}>{viewModel.actionField.evidenceSummary}</p>
             </div>
           </div>
 
           <div className={styles.readinessSection}>
             <h3 className={styles.readinessTitle}>READINESS GATES</h3>
             <ul className={styles.gatesList}>
-              {readinessGates.map((gate) => (
+              {viewModel.readinessGates.map((gate) => (
                 <li key={gate.label} className={styles.gateItem}>
                   {gate.checked ? (
                     <CheckSquare size={14} strokeWidth={1.5} className={styles.gateChecked} />
@@ -301,8 +320,7 @@ export function AdoptedWorkUnitDashboard() {
               type="button"
               className={styles.ctaButton}
               onClick={handleCreatePreview}
-              disabled={previewStatus === "creating"}
-              aria-busy={previewStatus === "creating"}
+              disabled={!viewModel.actionField.canCreatePreview}
             >
               Create Action Preview
             </button>
@@ -311,18 +329,40 @@ export function AdoptedWorkUnitDashboard() {
               <br />
               (Reason: Approval is not completed)
             </div>
-            <span className={styles.srOnly} aria-live="polite">
-              {previewStatus === "idle" ? "" : previewStatus === "creating" ? "Creating action preview." : previewStatus === "ready" ? previewMessage : previewMessage || "Action preview creation failed."}
-            </span>
+            {previewMessage ? <div className={styles.ctaMeta}>{previewMessage}</div> : null}
           </div>
+
+          <CompactStatusList title="INTEGRATION STATUS" rows={viewModel.integrationStatuses} />
+          <CompactAuditList title="RECENT AUDIT" rows={viewModel.auditLogs} />
         </aside>
       </div>
     </div>
   )
 }
 
-function Badge({ variant, label }: { variant: BadgeVariant; label: string }) {
+function formatScanTime(date: Date): string {
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+}
+
+function Badge({ label, variant }: { label: string; variant: "ready" | "needs-review" | "blocked" | "draft" | "error" }) {
   return <span className={`${styles.badge} ${styles[`badge--${variant}`]}`}>{label}</span>
+}
+
+function SourceIcon({ iconKind }: { iconKind: IconKind }) {
+  if (iconKind === "slack") return <FolderOpen size={14} strokeWidth={1.5} />
+  if (iconKind === "mail") return <Mail size={14} strokeWidth={1.5} />
+  if (iconKind === "bug") return <Bug size={14} strokeWidth={1.5} />
+  if (iconKind === "calendar") return <Calendar size={14} strokeWidth={1.5} />
+  if (iconKind === "chart") return <BarChart2 size={14} strokeWidth={1.5} />
+  return <Cloud size={14} strokeWidth={1.5} />
+}
+
+function statusVariant(label: DashboardWorkUnitView["statusLabel"]): "ready" | "needs-review" | "blocked" | "draft" | "error" {
+  if (label === "READY") return "ready"
+  if (label === "NEEDS REVIEW") return "needs-review"
+  if (label === "BLOCKED") return "blocked"
+  if (label === "DRAFT") return "draft"
+  return "error"
 }
 
 function LogStatusTag({ status }: { status: LogStatus }) {
@@ -340,4 +380,38 @@ function LogStatusTag({ status }: { status: LogStatus }) {
 
 function IndicatorDot({ color }: { color: "green" | "yellow" | "red" | "gray" }) {
   return <span className={`${styles.indicatorDot} ${styles[`dot--${color}`]}`} aria-hidden="true" />
+}
+
+function CompactStatusList({ title, rows }: { title: string; rows: DashboardIntegrationStatusView[] }) {
+  if (rows.length === 0) return null
+  return (
+    <div className={styles.compactSection}>
+      <h3 className={styles.readinessTitle}>{title}</h3>
+      <ul className={styles.compactList}>
+        {rows.map((row) => (
+          <li key={`${row.provider}-${row.status}`} className={styles.compactItem}>
+            <div className={styles.compactTitle}>{row.provider}: {row.status}</div>
+            <div className={styles.compactMeta}>{row.detail}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function CompactAuditList({ title, rows }: { title: string; rows: DashboardAuditLogView[] }) {
+  if (rows.length === 0) return null
+  return (
+    <div className={styles.compactSection}>
+      <h3 className={styles.readinessTitle}>{title}</h3>
+      <ul className={styles.compactList}>
+        {rows.map((row) => (
+          <li key={row.id} className={styles.compactItem}>
+            <div className={styles.compactTitle}>{row.title}</div>
+            <div className={styles.compactMeta}>{row.timestamp}{row.summary ? ` | ${row.summary}` : ""}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }

@@ -81,6 +81,13 @@ export function resolveApprovalStore(
   }
 }
 
+export function resolveRepositoryBackedApprovalStore(
+  repo: ApprovalRecordRepository,
+  ctx: TenantDbContext,
+): ApprovalStore {
+  return createRepositoryBackedApprovalStore(repo, ctx)
+}
+
 // ─── Dev In-Memory Store ────────────────────────────────────────
 
 let devInMemoryRepo: ReturnType<typeof createInMemoryApprovalRecordRepository> | null = null

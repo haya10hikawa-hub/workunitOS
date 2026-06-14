@@ -6,9 +6,9 @@ import { areExternalActionsEnabled, isExternalOperation } from "./security/exter
 import {
   verifyApproval,
   defaultDenyApprovalStore,
-  approvalActionTypeForOperation,
 } from "./security/actionApproval.ts"
 import type { ApprovalStore } from "./security/actionApproval.ts"
+import type { ApprovalActionType } from "./domain/types.ts"
 import type { ExternalToolClients } from "./externalToolClients.ts"
 import type { ToolBackendAdapter, ToolBackendRequest, ToolBackendResponse } from "../types/toolBackend.ts"
 import type { TenantId } from "./tenant/types.ts"
@@ -93,8 +93,8 @@ async function runApprovedExternal(
   // Placeholder/draft-derived hashes are NEVER used for execution.
   const store = options.approvalStore ?? defaultDenyApprovalStore
   const tenantId = options.tenantId ?? "dev-tenant" as TenantId
-  const actionType = approvalActionTypeForOperation(request.operation)
-  if (!actionType) return fail(request.id, "invalid_request")
+  const actionType = approvalActionTypeForTarget(target)
+  if (!request.approvalId) return fail(request.id, "approval_required")
 
   // Require real ActionPreview hash context
   const hashCtx = options.previewHashContext
@@ -106,7 +106,7 @@ async function runApprovedExternal(
     tenantId,
     workUnitId: request.draft.id,
     actionPreviewId: hashCtx.actionPreviewId,
-    approvalId: `approval:${request.draft.id}:${actionType}:latest`,
+    approvalId: request.approvalId,
     actionType,
     targetHash: hashCtx.targetHash,
     payloadHash: hashCtx.payloadHash,
@@ -121,6 +121,11 @@ async function runApprovedExternal(
   await store.markApprovalUsed(verification.approvalId, new Date().toISOString())
 
   return ok(request.id, { approved: true, target }, target, verification.approvalId)
+}
+
+function approvalActionTypeForTarget(target: "github_issue" | "calendar" | "gmail_reply" | "slack_reply"): ApprovalActionType {
+  if (target === "calendar") return "calendar_event"
+  return target
 }
 
 function operationsFor(source: ToolBackendRequest["source"]): readonly ToolBackendRequest["operation"][] {

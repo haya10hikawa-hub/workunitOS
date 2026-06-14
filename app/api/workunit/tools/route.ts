@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server.js"
 import { listToolBackendAdapters, runToolBackendRequest } from "../../../lib/toolBackend.ts"
 import { validateToolBackendRequest } from "../../../lib/toolBackendValidation.ts"
 import { areExternalActionsEnabled, isExternalOperation } from "../../../lib/security/externalActions.ts"
@@ -16,7 +16,7 @@ import { createExternalSignal } from "../../../lib/domain/types.ts"
 import type { TenantId } from "../../../lib/tenant/types.ts"
 
 // Approval store import
-import { resolveApprovalStore } from "../../../lib/security/approvalStoreResolver.ts"
+import { resolveApprovalStore, resolveRepositoryBackedApprovalStore } from "../../../lib/security/approvalStoreResolver.ts"
 
 // Repository resolver (for preview hash context resolution)
 import { resolveRouteRepositories } from "../../../lib/persistence/routeRepositories.ts"
@@ -190,7 +190,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   // ── 8. Execute (legacy backend) ───────────────────────────────
   try {
-    const approvalStore = resolveApprovalStore(session.tenantId as TenantId)
+    let approvalStore = resolveApprovalStore(session.tenantId as TenantId)
 
     // Resolve preview hash context for external operations
     let previewHashContext: { actionPreviewId: string; targetHash: string; payloadHash: string } | undefined
@@ -203,7 +203,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         })
         return errorResponse(requestId, "integration_missing", 503)
       }
-      const { actionPreviews: previewRepo, ctx } = repoResult.bundle
+      const { actionPreviews: previewRepo, approvalRecords: approvalRepo, ctx } = repoResult.bundle
       const storedPreview = await previewRepo.findById(ctx, validated.actionPreviewId)
       if (!storedPreview) {
         audit("execution_approval_failed" as AuditEventKind, requestId, {
@@ -217,6 +217,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         targetHash: storedPreview.targetHash as string,
         payloadHash: storedPreview.payloadHash as string,
       }
+      approvalStore = resolveRepositoryBackedApprovalStore(approvalRepo, ctx)
     }
 
     const result = await runToolBackendRequest(validated, {
