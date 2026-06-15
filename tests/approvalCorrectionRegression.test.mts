@@ -541,3 +541,65 @@ test("dashboard does not use nextAction as action type fallback", async () => {
   const envelopeSection = source.slice(source.indexOf("COMMAND ENVELOPE"), source.indexOf("COMMAND ENVELOPE") + 400)
   assert.equal(envelopeSection.includes("nextAction"), false)
 })
+
+// ─── Dry-run dashboard binding regression ──────────────────────
+
+test("dashboard imports dry-run client helper", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("runDashboardExecutionDryRun"), true)
+})
+
+test("dashboard renders Verify Execution button", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("Verify Execution"), true)
+  assert.equal(source.includes("handleDryRun"), true)
+})
+
+test("dashboard Verify button is gated on execution_blocked + previewRefs", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // The button only shows when execution_blocked AND previewRefs.length > 0
+  assert.equal(source.includes('previewRefs.length > 0'), true)
+})
+
+test("dashboard calls dry-run only, not tools route", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // Uses the dry-run client helper
+  assert.equal(source.includes("runDashboardExecutionDryRun"), true)
+  // Does NOT call /api/workunit/tools
+  assert.equal(source.includes("/api/workunit/tools"), false)
+  // No handleExecute
+  assert.equal(source.includes("handleExecute"), false)
+})
+
+test("dashboard dry-run result display exists", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("DRY-RUN RESULT"), true)
+  assert.equal(source.includes("dryRunStatus"), true)
+  assert.equal(source.includes("dryRunMessage"), true)
+})
+
+test("dashboard dry-run does not render approvalId", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("approvalId"), false)
+})
+
+test("dashboard dry-run does not render hashes", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // Ensure no targetHash/payloadHash in the dry-run/CTA section
+  const ctaSection = source.slice(source.indexOf("CTA AREA"))
+  assert.equal(ctaSection.includes("targetHash"), false)
+  assert.equal(ctaSection.includes("payloadHash"), false)
+})
+
+test("dashboard dry-run resets state on WorkUnit switch", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // The onClick handler resets dryRunStatus and dryRunMessage
+  assert.equal(source.includes('setDryRunStatus("idle")'), true)
+  assert.equal(source.includes("setDryRunMessage(null)"), true)
+})
+
+test("dashboard Execute CTA remains disabled", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("Execute (disabled)"), true)
+  assert.equal(source.includes("handleExecute"), false)
+})

@@ -37,6 +37,7 @@ import {
   type DashboardIntegrationProviderStatus,
 } from "@/lib/application/dashboard/dashboardDataClient"
 import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
+import { runDashboardExecutionDryRun } from "@/lib/application/dashboard/dashboardExecutionDryRunClient"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
 
 type LoadStatus = "loading" | "loaded" | "error" | "empty"
@@ -86,6 +87,8 @@ export function AdoptedWorkUnitDashboard() {
   const [approvalAction, setApprovalAction] = useState<ApprovalActionState>("idle")
   const [submitMessage, setSubmitMessage] = useState("")
   const [lastScanLabel, setLastScanLabel] = useState("Pending")
+  const [dryRunStatus, setDryRunStatus] = useState<"idle" | "running" | "verified" | "blocked" | "not_ready" | "failed">("idle")
+  const [dryRunMessage, setDryRunMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -271,6 +274,24 @@ export function AdoptedWorkUnitDashboard() {
     }
   }
 
+  const handleDryRun = async () => {
+    if (!selectedWorkUnitId || previewRefs.length === 0) return
+    setDryRunStatus("running")
+    setDryRunMessage(null)
+    const result = await runDashboardExecutionDryRun({
+      workUnitId: selectedWorkUnitId,
+      previewRefs: previewRefs.map((ref) => ({ actionId: ref.actionId, previewId: ref.previewId })),
+      requestedActionType: viewModel.executionCommandPreview.requestedActionType,
+    })
+    if (!result.ok) {
+      setDryRunStatus("failed")
+      setDryRunMessage(result.error)
+      return
+    }
+    setDryRunStatus(result.status)
+    setDryRunMessage(result.reason)
+  }
+
   // ─── Show Approve/Reject when appropriate ──────────────────────
   const showApproveReject = (): boolean => {
     if (!selectedWorkUnitId) return false
@@ -346,6 +367,8 @@ export function AdoptedWorkUnitDashboard() {
                   setPreviewRefs([])
                   setApprovalAction("idle")
                   setSubmitMessage("")
+                  setDryRunStatus("idle")
+                  setDryRunMessage(null)
                 }}
               >
                 <span className={styles.unitIcon} style={{ backgroundColor: workUnit.iconBg }}>
@@ -532,6 +555,26 @@ export function AdoptedWorkUnitDashboard() {
                 <br />
                 Preview refs: {viewModel.executionCommandPreview.previewRefCount}
                 | Action: {viewModel.executionCommandPreview.requestedActionType ?? "Not available"}
+              </div>
+            ) : null}
+            {viewModel.executionReadiness.traceStatus === "execution_blocked" && previewRefs.length > 0 ? (
+              <button
+                type="button"
+                className={styles.ctaButton}
+                onClick={handleDryRun}
+                disabled={dryRunStatus === "running"}
+                style={{ opacity: dryRunStatus === "running" ? 0.5 : 1 }}
+              >
+                {dryRunStatus === "running" ? "Verifying..." : "Verify Execution"}
+              </button>
+            ) : null}
+            {dryRunStatus !== "idle" && dryRunMessage ? (
+              <div className={styles.ctaBlocked}>
+                <span className={styles.ctaBlockedBadge}>DRY-RUN RESULT</span>
+                <br />
+                Status: {dryRunStatus}
+                <br />
+                Reason: {dryRunMessage}
               </div>
             ) : null}
             {previewMessage ? <div className={styles.ctaMeta}>{previewMessage}</div> : null}
