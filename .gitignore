@@ -43,3 +43,27 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/.open-next/
+/.npm-cache/
+
+# editor temp files
+*.swp
+*.swo
+.*.swp
+.*.swo
+
+# build artifacts
+/.open-next/
+/.npm-cache/
+
+# editor temp files
+*.swp
+*.swo
+.*.swp
+.*.swo
+
+# editor temp files
+*.swp
+*.swo
+.*.swp
+.*.swo
