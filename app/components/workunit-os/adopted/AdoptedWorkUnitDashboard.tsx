@@ -46,6 +46,8 @@ type DashboardState = {
   error?: string
 }
 
+type PreviewLoadingStatus = "idle" | "creating" | "created" | "failed"
+
 type LogStatus = DashboardLogEntryView["status"]
 
 const logTagLabel: Record<LogStatus, string> = {
@@ -69,6 +71,7 @@ export function AdoptedWorkUnitDashboard() {
   const [activeTabId, setActiveTabId] = useState<string>()
   const [selectedDecision, setSelectedDecision] = useState<string | null>(null)
   const [previewCreated, setPreviewCreated] = useState(false)
+  const [previewStatus, setPreviewStatus] = useState<PreviewLoadingStatus>("idle")
   const [previewMessage, setPreviewMessage] = useState("")
   const [lastScanLabel, setLastScanLabel] = useState("Pending")
 
@@ -117,16 +120,34 @@ export function AdoptedWorkUnitDashboard() {
   const handleCreatePreview = async () => {
     setPreviewMessage("")
     if (!viewModel.actionField.canCreatePreview) {
-      setPreviewMessage("Select a WorkUnit before creating an action preview.")
+      if (!selectedWorkUnitId) {
+        setPreviewMessage("Select a WorkUnit before creating an action preview.")
+      } else if (!selectedDecision) {
+        setPreviewMessage("Select a decision (Accept/Defer/Reject/Ask Owner) before creating an action preview.")
+      } else {
+        setPreviewMessage("Preview cannot be created for the selected WorkUnit.")
+      }
       return
     }
+    if (previewStatus === "creating") {
+      setPreviewMessage("Preview creation is already in progress.")
+      return
+    }
+    if (!viewModel.actionField.previewGroup.actions.length) {
+      setPreviewMessage("No safe preview actions can be derived from the selected WorkUnit.")
+      return
+    }
+    setPreviewStatus("creating")
+    setPreviewCreated(false)
     const result = await createDashboardActionPreviews(viewModel.actionField.previewGroup)
     if (!result.ok) {
       setPreviewCreated(false)
-      setPreviewMessage(result.error)
+      setPreviewStatus("failed")
+      setPreviewMessage(mapSafePreviewError(result.error))
       return
     }
     setPreviewCreated(true)
+    setPreviewStatus("created")
     setPreviewMessage(`Created ${result.previews.length} action preview${result.previews.length === 1 ? "" : "s"}.`)
   }
 
@@ -184,6 +205,7 @@ export function AdoptedWorkUnitDashboard() {
                   setActiveTabId(workUnit.id)
                   setSelectedDecision(null)
                   setPreviewCreated(false)
+                  setPreviewStatus("idle")
                   setPreviewMessage("")
                 }}
               >
@@ -320,9 +342,9 @@ export function AdoptedWorkUnitDashboard() {
               type="button"
               className={styles.ctaButton}
               onClick={handleCreatePreview}
-              disabled={!viewModel.actionField.canCreatePreview}
+              disabled={!viewModel.actionField.canCreatePreview || previewStatus === "creating"}
             >
-              Create Action Preview
+              {previewStatus === "creating" ? "Creating Preview..." : "Create Action Preview"}
             </button>
             <div className={styles.ctaBlocked}>
               External Execution: <span className={styles.ctaBlockedBadge}>BLOCKED</span>
@@ -414,4 +436,26 @@ function CompactAuditList({ title, rows }: { title: string; rows: DashboardAudit
       </ul>
     </div>
   )
+}
+
+// ─── Safe error mapping ──────────────────────────────────────────
+
+function mapSafePreviewError(serverError: string): string {
+  const normalized = (serverError ?? "").toLowerCase()
+  if (normalized.includes("unauthorized") || normalized.includes("login") || normalized.includes("401")) {
+    return "Unauthorized. Sign in or enable valid session."
+  }
+  if (normalized.includes("forbidden") || normalized.includes("permission") || normalized.includes("403")) {
+    return "You do not have permission to create action previews."
+  }
+  if (normalized.includes("rate") || normalized.includes("429")) {
+    return "Rate limit reached. Please wait before trying again."
+  }
+  if (normalized.includes("invalid") || normalized.includes("400")) {
+    return "Preview request was invalid. Check the WorkUnit data."
+  }
+  if (normalized.includes("integration") || normalized.includes("503")) {
+    return "Preview service is temporarily unavailable."
+  }
+  return "Preview creation failed. Please try again."
 }

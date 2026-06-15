@@ -1,6 +1,7 @@
 import type { DashboardPreviewGroup } from "@/lib/application/actionField/dashboardPreviewClient"
 import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
 import type { DashboardAuditLog, DashboardIntegrationProviderStatus } from "./dashboardDataClient"
+import { buildPreviewGroupFromSelectedWorkUnit } from "./selectedWorkUnitPreviewModel.ts"
 
 export type DashboardWorkUnitView = {
   id: string
@@ -94,7 +95,7 @@ export function buildAdoptedDashboardViewModel(input: {
     deadline: buildDeadline(selectedWorkUnit),
     decisionOptions: DECISION_OPTIONS,
     logs: buildLogs(selectedWorkUnit, input.selectedDecision, input.previewCreated),
-    actionField: buildActionFieldView(selectedWorkUnit),
+    actionField: buildActionFieldView(selectedWorkUnit, input.selectedDecision),
     readinessGates: buildReadinessGates(selectedWorkUnit, input.selectedDecision, input.previewCreated, input.approved),
     integrationStatuses: input.integrationStatuses.slice(0, 3).map(mapIntegrationStatus),
     auditLogs: input.auditLogs.slice(0, 4).map(mapAuditLog),
@@ -178,7 +179,7 @@ function buildLogs(
   ]
 }
 
-function buildActionFieldView(workUnit: InboxWorkUnit | null): DashboardActionFieldView {
+function buildActionFieldView(workUnit: InboxWorkUnit | null, selectedDecision: string | null | undefined): DashboardActionFieldView {
   if (!workUnit) {
     return {
       recommendedAction: "Select a WorkUnit before creating an action preview.",
@@ -186,39 +187,55 @@ function buildActionFieldView(workUnit: InboxWorkUnit | null): DashboardActionFi
       evidenceSummary: "No evidence is available until a WorkUnit is selected.",
       confidence: "Low",
       canCreatePreview: false,
-      previewGroup: {
-        workUnitId: "",
-        workUnitTitle: "No WorkUnit selected",
-        source: "No source selected",
-        actions: [],
-      },
+      previewGroup: emptyPreviewGroup(),
     }
   }
+
+  // Determine whether a decision is required for readiness
+  const hasDecision = Boolean(selectedDecision)
+
+  // Build the safe preview group via the dedicated mapper
+  const mapped = buildPreviewGroupFromSelectedWorkUnit({ selectedWorkUnit: workUnit, selectedDecision: hasDecision ? selectedDecision! : null })
+  const previewGroup = mapped.ok ? mapped.group : emptyPreviewGroup()
+
   const target = buildEvidenceTarget(workUnit)
   return {
     recommendedAction: workUnit.nextAction,
     evidenceTitle: target,
     evidenceSummary: truncate(workUnit.evidence || workUnit.reason || workUnit.title, 96),
     confidence: workUnit.priority === "high" ? "High" : workUnit.priority === "medium" ? "Medium" : "Low",
-    canCreatePreview: true,
-    previewGroup: {
-      workUnitId: workUnit.id,
-      workUnitTitle: workUnit.title,
-      source: target,
-      actions: [
-        {
-          id: `action:${workUnit.id}`,
-          type: mapPreviewActionType(workUnit),
-          tool: mapPreviewTool(workUnit),
-          title: workUnit.nextAction,
-          fields: {
-            target,
-            messagePreview: truncate(workUnit.evidence || workUnit.reason, 120),
-            messageBody: workUnit.nextAction,
-          },
+    canCreatePreview: hasDecision,
+    previewGroup: mapped.ok ? previewGroup : fallbackPreviewGroup(workUnit, target),
+  }
+}
+
+function emptyPreviewGroup(): DashboardPreviewGroup {
+  return {
+    workUnitId: "",
+    workUnitTitle: "No WorkUnit selected",
+    source: "No source selected",
+    actions: [],
+  }
+}
+
+function fallbackPreviewGroup(workUnit: InboxWorkUnit, target: string): DashboardPreviewGroup {
+  return {
+    workUnitId: workUnit.id,
+    workUnitTitle: workUnit.title,
+    source: target,
+    actions: [
+      {
+        id: `action:${workUnit.id}`,
+        type: mapPreviewActionType(workUnit),
+        tool: mapPreviewTool(workUnit),
+        title: workUnit.nextAction,
+        fields: {
+          target,
+          messagePreview: truncate(workUnit.evidence || workUnit.reason, 120),
+          messageBody: workUnit.nextAction,
         },
-      ],
-    },
+      },
+    ],
   }
 }
 

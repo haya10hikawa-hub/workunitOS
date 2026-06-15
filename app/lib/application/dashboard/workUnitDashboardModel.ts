@@ -75,6 +75,16 @@ export function getDecisionTraceLogs(): DashboardTraceLog[] {
   ]
 }
 
+/**
+ * Legacy / demo-only preview group for the deprecated ActionFieldEntryPanel.
+ *
+ * NOT used in the active dashboard CTA path. The adopted dashboard derives its
+ * preview group from the selected real WorkUnit via
+ * {@link buildPreviewGroupFromSelectedWorkUnit} in selectedWorkUnitPreviewModel.ts.
+ *
+ * @deprecated Use {@link buildPreviewGroupFromSelectedWorkUnit} for live previews.
+ *             This function remains only for tests and the legacy ActionFieldEntryPanel.
+ */
 export function getPrimaryActionPreviewGroup(): DashboardPreviewGroup {
   return {
     workUnitId: "WU-20250608-001",
