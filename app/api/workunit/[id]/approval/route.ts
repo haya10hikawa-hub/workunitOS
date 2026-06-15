@@ -129,10 +129,13 @@ export async function POST(
     ok: true,
     requestId,
     approval: {
-      id: approvalRow.id, workUnitId, actionPreviewId,
-      actionType: preview.actionType, status: approvalRow.status,
-      targetHash: preview.targetHash, payloadHash: preview.payloadHash,
-      expiresAt: approvalRow.expiresAt, createdAt: approvalRow.createdAt,
+      id: approvalRow.id,
+      workUnitId,
+      actionPreviewId,
+      actionType: preview.actionType,
+      status: approvalRow.status,
+      expiresAt: approvalRow.expiresAt,
+      createdAt: approvalRow.createdAt,
     },
   }, 201)
 }

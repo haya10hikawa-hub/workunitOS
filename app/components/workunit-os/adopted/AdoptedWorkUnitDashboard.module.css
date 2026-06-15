@@ -776,6 +776,48 @@
   color: var(--color-on-surface-dim);
 }
 
+.ctaApproveRow {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.ctaApproveBtn,
+.ctaRejectBtn {
+  flex: 1;
+  padding: 8px var(--sp-3);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
+  text-align: center;
+  border: 1px solid var(--color-border-bright);
+}
+
+.ctaApproveBtn {
+  background-color: rgba(76, 227, 43, 0.1);
+  border-color: rgba(76, 227, 43, 0.25);
+  color: var(--color-primary-dim);
+}
+
+.ctaApproveBtn:hover {
+  background-color: rgba(76, 227, 43, 0.2);
+  border-color: var(--color-primary-dim);
+  color: var(--color-primary);
+}
+
+.ctaRejectBtn {
+  background-color: rgba(224, 82, 82, 0.1);
+  border-color: rgba(224, 82, 82, 0.25);
+  color: var(--color-blocked);
+}
+
+.ctaRejectBtn:hover {
+  background-color: rgba(224, 82, 82, 0.2);
+  border-color: var(--color-blocked);
+  color: var(--color-error);
+}
+
 .compactSection {
   display: flex;
   flex-direction: column;

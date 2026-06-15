@@ -56,7 +56,7 @@ export function buildPreviewGroupFromSelectedWorkUnit(
   }
 
   // ── Build actions ───────────────────────────────────────────
-  const primaryAction = buildPrimaryPreviewAction(selectedWorkUnit)
+  const primaryAction = buildPrimaryPreviewAction(selectedWorkUnit, selectedDecision)
 
   return {
     ok: true,
@@ -94,6 +94,7 @@ function resolveSafeSource(workUnit: InboxWorkUnit): string | null {
 
 function buildPrimaryPreviewAction(
   workUnit: InboxWorkUnit,
+  selectedDecision: string,
 ): DashboardPreviewGroup["actions"][number] {
   const actionType = resolveActionType(workUnit)
   const tool = mapTool(workUnit)
@@ -107,7 +108,7 @@ function buildPrimaryPreviewAction(
     type: actionType,
     tool,
     title,
-    fields: buildSafeFields(workUnit),
+    fields: buildSafeFields(workUnit, selectedDecision),
   }
 }
 
@@ -143,25 +144,29 @@ function mapTool(workUnit: InboxWorkUnit): string {
 
 function buildSafeFields(
   workUnit: InboxWorkUnit,
+  selectedDecision: string,
 ): Record<string, string | string[]> {
   const fields: Record<string, string | string[]> = {}
 
   // Safe display-only fields — never include hashes, tokens, secrets, raw payloads
-  fields.decision = mapDecisionField(workUnit.nextAction)
+
+  // The user-selected decision (Accept / Defer / Reject / Ask Owner)
+  fields.decision = selectedDecision
+
+  // Recommended next action from the work unit (NOT the decision)
+  if (workUnit.nextAction.length > 0) {
+    fields.recommendedAction = workUnit.nextAction
+  }
 
   if (workUnit.title) fields.workUnitTitle = workUnit.title
-  if (workUnit.sourceProvider) fields.source = workUnit.sourceProvider
+  if (workUnit.sourceProvider) fields.sourceProvider = workUnit.sourceProvider
+  if (workUnit.sourceUrl) fields.sourceUrl = workUnit.sourceUrl
   if (workUnit.priority) fields.priority = workUnit.priority
 
   const summary = truncate(workUnit.evidence || workUnit.reason || workUnit.title, 120)
   if (summary) fields.summary = summary
 
   return fields
-}
-
-function mapDecisionField(nextAction: string): string {
-  if (nextAction.length > 0) return nextAction
-  return "Review selected WorkUnit"
 }
 
 function providerLabel(provider: string): string {

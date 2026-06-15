@@ -1,0 +1,195 @@
+import { NextResponse } from "next/server.js"
+import { getSessionErrorStatus, requireSession } from "../../../../../lib/security/session.ts"
+import { safeError } from "../../../../../lib/security/safeErrors.ts"
+import { writeAuditLog, type AuditEventKind } from "../../../../../lib/security/auditLog.ts"
+import { resolveRouteRepositories } from "../../../../../lib/persistence/routeRepositories.ts"
+import type { TenantId } from "../../../../../lib/tenant/types.ts"
+import { canCreatePreview } from "../../../../../lib/security/tenantAccess.ts"
+import type { ApprovalRecordRow } from "../../../../../lib/persistence/types.ts"
+
+// ─── Helpers ────────────────────────────────────────────────────
+
+function audit(kind: AuditEventKind, requestId: string, extras?: Record<string, unknown>) {
+  writeAuditLog({ kind, timestamp: new Date().toISOString(), requestId, ...extras })
+}
+
+function json(body: unknown, status: number): NextResponse {
+  return NextResponse.json(body, { status })
+}
+
+function errorResponse(requestId: string, code: string, status: number): NextResponse {
+  return json(safeError(requestId, code as Parameters<typeof safeError>[1]), status)
+}
+
+// ─── Types ──────────────────────────────────────────────────────
+
+type ApprovalStatusResponse = {
+  workUnitId: string
+  latestApprovalId: string | null
+  latestActionPreviewId: string | null
+  status: "none" | "pending" | "approved" | "rejected" | "expired" | "used"
+  approved: boolean
+  rejected: boolean
+  expired: boolean
+  used: boolean
+  createdAt: string | null
+  expiresAt: string | null
+  usedAt: string | null
+}
+
+// ─── GET /api/workunit/:id/approval/status ──────────────────────
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const { id: workUnitId } = await params
+  const requestId = `approval-status:${workUnitId}:${Date.now()}`
+
+  audit("approval_lookup_failed", requestId, { workUnitId, reason: "status_check" })
+
+  // ── Session ──────────────────────────────────────────────────
+  const sessionResult = await requireSession(request)
+  if (!sessionResult.ok) {
+    audit("approval_lookup_failed", requestId, { reason: "unauthorized" })
+    return errorResponse(
+      requestId,
+      (sessionResult.reason === "forbidden" || sessionResult.reason === "invalid_tenant") ? "forbidden" : "unauthorized",
+      getSessionErrorStatus(sessionResult.reason),
+    )
+  }
+  const session = sessionResult.session
+
+  // ── RBAC ─────────────────────────────────────────────────────
+  if (!canCreatePreview(session)) {
+    audit("approval_lookup_failed", requestId, { reason: "rbac_denied" })
+    return errorResponse(requestId, "forbidden", 403)
+  }
+
+  // ── Resolve repositories ────────────────────────────────────
+  const repoResult = await resolveRouteRepositories(session.tenantId as TenantId)
+  if (!repoResult.ok) {
+    return errorResponse(requestId, "integration_missing", 503)
+  }
+  const { approvalRecords, ctx } = repoResult.bundle
+
+  // ── Query approvals ──────────────────────────────────────────
+  const records = await approvalRecords.findByWorkUnitId(ctx, workUnitId)
+
+  // ── Compute safe status ──────────────────────────────────────
+  const status = computeApprovalStatus(workUnitId, records)
+
+  audit("approval_lookup_failed", requestId, { workUnitId, reason: `status_${status.status}` })
+
+  return json(status, 200)
+}
+
+// ─── Status computation ─────────────────────────────────────────
+
+function computeApprovalStatus(
+  workUnitId: string,
+  records: ApprovalRecordRow[],
+): ApprovalStatusResponse {
+  // No approvals at all
+  if (records.length === 0) {
+    return {
+      workUnitId,
+      latestApprovalId: null,
+      latestActionPreviewId: null,
+      status: "none",
+      approved: false,
+      rejected: false,
+      expired: false,
+      used: false,
+      createdAt: null,
+      expiresAt: null,
+      usedAt: null,
+    }
+  }
+
+  // Latest record by createdAt
+  const latest = records[0]
+
+  // Used takes precedence over everything
+  if (latest.status === "used") {
+    return {
+      workUnitId,
+      latestApprovalId: latest.id,
+      latestActionPreviewId: latest.actionPreviewId,
+      status: "used",
+      approved: true, // was approved before being used
+      rejected: false,
+      expired: false,
+      used: true,
+      createdAt: latest.createdAt,
+      expiresAt: latest.expiresAt,
+      usedAt: latest.usedAt ?? null,
+    }
+  }
+
+  // Expired approved
+  if (latest.status === "approved" && latest.expiresAt && new Date(latest.expiresAt) < new Date()) {
+    return {
+      workUnitId,
+      latestApprovalId: latest.id,
+      latestActionPreviewId: latest.actionPreviewId,
+      status: "expired",
+      approved: false,
+      rejected: false,
+      expired: true,
+      used: false,
+      createdAt: latest.createdAt,
+      expiresAt: latest.expiresAt,
+      usedAt: null,
+    }
+  }
+
+  // Explicitly rejected
+  if (latest.status === "rejected") {
+    return {
+      workUnitId,
+      latestApprovalId: latest.id,
+      latestActionPreviewId: latest.actionPreviewId,
+      status: "rejected",
+      approved: false,
+      rejected: true,
+      expired: false,
+      used: false,
+      createdAt: latest.createdAt,
+      expiresAt: latest.expiresAt,
+      usedAt: null,
+    }
+  }
+
+  // Approved and still valid
+  if (latest.status === "approved") {
+    return {
+      workUnitId,
+      latestApprovalId: latest.id,
+      latestActionPreviewId: latest.actionPreviewId,
+      status: "approved",
+      approved: true,
+      rejected: false,
+      expired: false,
+      used: false,
+      createdAt: latest.createdAt,
+      expiresAt: latest.expiresAt,
+      usedAt: null,
+    }
+  }
+
+  // Pending or any other status
+  return {
+    workUnitId,
+    latestApprovalId: latest.id,
+    latestActionPreviewId: latest.actionPreviewId,
+    status: "pending",
+    approved: false,
+    rejected: false,
+    expired: false,
+    used: false,
+    createdAt: latest.createdAt,
+    expiresAt: latest.expiresAt,
+    usedAt: null,
+  }
+}

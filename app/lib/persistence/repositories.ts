@@ -88,6 +88,7 @@ export interface ApprovalRecordRepository {
   create(ctx: TenantDbContext, row: ApprovalRecordRow): Promise<ApprovalRecordRow>
   findById(ctx: TenantDbContext, id: string): Promise<ApprovalRecordRow | null>
   findByPreviewId(ctx: TenantDbContext, previewId: string): Promise<ApprovalRecordRow | null>
+  findByWorkUnitId(ctx: TenantDbContext, workUnitId: string): Promise<ApprovalRecordRow[]>
   updateStatus(ctx: TenantDbContext, id: string, status: ApprovalRecordRow["status"]): Promise<ApprovalRecordRow | null>
   markUsed(ctx: TenantDbContext, id: string, usedAt: string): Promise<ApprovalRecordRow | null>
 }

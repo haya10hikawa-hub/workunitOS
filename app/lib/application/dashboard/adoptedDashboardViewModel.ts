@@ -191,21 +191,34 @@ function buildActionFieldView(workUnit: InboxWorkUnit | null, selectedDecision: 
     }
   }
 
-  // Determine whether a decision is required for readiness
-  const hasDecision = Boolean(selectedDecision)
-
   // Build the safe preview group via the dedicated mapper
-  const mapped = buildPreviewGroupFromSelectedWorkUnit({ selectedWorkUnit: workUnit, selectedDecision: hasDecision ? selectedDecision! : null })
-  const previewGroup = mapped.ok ? mapped.group : emptyPreviewGroup()
+  const mapped = buildPreviewGroupFromSelectedWorkUnit({ selectedWorkUnit: workUnit, selectedDecision: selectedDecision ?? null })
 
   const target = buildEvidenceTarget(workUnit)
+
+  if (!mapped.ok) {
+    const reasonText = mapped.reason === "no_workunit_selected"
+      ? "No WorkUnit is selected."
+      : mapped.reason === "decision_required"
+        ? "A decision (Accept/Defer/Reject/Ask Owner) must be selected."
+        : "The selected WorkUnit has no safe target data for a preview."
+    return {
+      recommendedAction: reasonText,
+      evidenceTitle: target,
+      evidenceSummary: truncate(workUnit.evidence || workUnit.reason || workUnit.title, 96),
+      confidence: workUnit.priority === "high" ? "High" : workUnit.priority === "medium" ? "Medium" : "Low",
+      canCreatePreview: false,
+      previewGroup: emptyPreviewGroup(),
+    }
+  }
+
   return {
     recommendedAction: workUnit.nextAction,
     evidenceTitle: target,
     evidenceSummary: truncate(workUnit.evidence || workUnit.reason || workUnit.title, 96),
     confidence: workUnit.priority === "high" ? "High" : workUnit.priority === "medium" ? "Medium" : "Low",
-    canCreatePreview: hasDecision,
-    previewGroup: mapped.ok ? previewGroup : fallbackPreviewGroup(workUnit, target),
+    canCreatePreview: true,
+    previewGroup: mapped.group,
   }
 }
 
@@ -215,27 +228,6 @@ function emptyPreviewGroup(): DashboardPreviewGroup {
     workUnitTitle: "No WorkUnit selected",
     source: "No source selected",
     actions: [],
-  }
-}
-
-function fallbackPreviewGroup(workUnit: InboxWorkUnit, target: string): DashboardPreviewGroup {
-  return {
-    workUnitId: workUnit.id,
-    workUnitTitle: workUnit.title,
-    source: target,
-    actions: [
-      {
-        id: `action:${workUnit.id}`,
-        type: mapPreviewActionType(workUnit),
-        tool: mapPreviewTool(workUnit),
-        title: workUnit.nextAction,
-        fields: {
-          target,
-          messagePreview: truncate(workUnit.evidence || workUnit.reason, 120),
-          messageBody: workUnit.nextAction,
-        },
-      },
-    ],
   }
 }
 
@@ -304,18 +296,6 @@ function calculateRoi(workUnit: InboxWorkUnit): number {
   const kindBonus = workUnit.kind === "review_waiting" ? 8 : workUnit.kind === "missed_response" ? 6 : workUnit.kind === "deadline" ? 5 : workUnit.kind === "blocker" ? 0 : 4
   const statusDelta = workUnit.status === "later" ? -9 : workUnit.status === "not_useful" ? -64 : workUnit.status === "done" ? 2 : 0
   return Math.max(0, Number((priorityBase + kindBonus + statusDelta).toFixed(1)))
-}
-
-function mapPreviewActionType(workUnit: InboxWorkUnit): DashboardPreviewGroup["actions"][number]["type"] {
-  if (workUnit.sourceProvider === "slack") return "slack_reply"
-  if (workUnit.sourceProvider === "calendar") return "calendar_block"
-  return "github_issue"
-}
-
-function mapPreviewTool(workUnit: InboxWorkUnit): string {
-  if (workUnit.sourceProvider === "slack") return "slack"
-  if (workUnit.sourceProvider === "calendar") return "calendar"
-  return "github"
 }
 
 function providerLabel(provider: string): string {

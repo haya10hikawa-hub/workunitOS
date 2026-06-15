@@ -121,6 +121,9 @@ export function createInMemoryApprovalRecordRepository(): ApprovalRecordReposito
       for (const row of records.values()) { if (row.actionPreviewId === pid) return { ...row } }
       return null
     },
+    async findByWorkUnitId(_ctx, wuId) {
+      return Array.from(records.values()).filter((r) => r.workUnitId === wuId).map((r) => ({ ...r }))
+    },
     async updateStatus(_ctx, id, status) {
       const r = records.get(id); if (!r) return null; const u = { ...r, status }; records.set(id, u); return { ...u }
     },

@@ -28,6 +28,10 @@ const FIND_BY_PREVIEW_ID_SQL = `
   SELECT * FROM approval_records WHERE action_preview_id = ? ORDER BY created_at DESC LIMIT 1
 `
 
+const FIND_BY_WORK_UNIT_ID_SQL = `
+  SELECT * FROM approval_records WHERE work_unit_id = ? ORDER BY created_at DESC
+`
+
 const UPDATE_STATUS_SQL = `
   UPDATE approval_records SET status = ? WHERE id = ?
 `
@@ -77,6 +81,14 @@ export class D1ApprovalRecordRepository implements ApprovalRecordRepository {
       .first<Record<string, unknown>>()
     if (!row) return null
     return this.mapRow(row)
+  }
+
+  async findByWorkUnitId(_ctx: TenantDbContext, workUnitId: string): Promise<ApprovalRecordRow[]> {
+    const result = await this.db.prepare(FIND_BY_WORK_UNIT_ID_SQL)
+      .bind(workUnitId)
+      .all<Record<string, unknown>>()
+    if (!result.results) return []
+    return result.results.map((row) => this.mapRow(row))
   }
 
   async updateStatus(_ctx: TenantDbContext, id: string, status: ApprovalRecordRow["status"]): Promise<ApprovalRecordRow | null> {
