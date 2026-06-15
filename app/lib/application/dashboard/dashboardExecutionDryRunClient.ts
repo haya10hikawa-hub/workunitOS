@@ -21,9 +21,9 @@ export type DryRunRequest = {
 }
 
 export type DryRunResult =
-  | { readonly ok: true; readonly status: "verified"; readonly reason: string; readonly actionCount: number }
-  | { readonly ok: true; readonly status: "blocked"; readonly reason: string; readonly actionCount: number }
-  | { readonly ok: true; readonly status: "not_ready"; readonly reason: string; readonly actionCount: number }
+  | { readonly ok: true; readonly status: "verified"; readonly reason: string; readonly actionCount: number; readonly requestedActionType: string | null }
+  | { readonly ok: true; readonly status: "blocked"; readonly reason: string; readonly actionCount: number; readonly requestedActionType: string | null }
+  | { readonly ok: true; readonly status: "not_ready"; readonly reason: string; readonly actionCount: number; readonly requestedActionType: string | null }
   | { readonly ok: false; readonly error: string }
 
 // ─── Client ─────────────────────────────────────────────────────
@@ -78,6 +78,7 @@ export async function runDashboardExecutionDryRun(
     status,
     reason: data.reason as string,
     actionCount: typeof data.actionCount === "number" ? data.actionCount : 0,
+    requestedActionType: typeof data.requestedActionType === "string" ? data.requestedActionType : null,
   }
 }
 

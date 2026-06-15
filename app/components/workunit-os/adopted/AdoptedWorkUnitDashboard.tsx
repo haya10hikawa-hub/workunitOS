@@ -38,6 +38,7 @@ import {
 } from "@/lib/application/dashboard/dashboardDataClient"
 import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
 import { runDashboardExecutionDryRun } from "@/lib/application/dashboard/dashboardExecutionDryRunClient"
+import { buildExecutionResultViewer } from "@/lib/application/dashboard/executionResultViewerModel"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
 
 type LoadStatus = "loading" | "loaded" | "error" | "empty"
@@ -89,6 +90,8 @@ export function AdoptedWorkUnitDashboard() {
   const [lastScanLabel, setLastScanLabel] = useState("Pending")
   const [dryRunStatus, setDryRunStatus] = useState<"idle" | "running" | "verified" | "blocked" | "not_ready" | "failed">("idle")
   const [dryRunMessage, setDryRunMessage] = useState<string | null>(null)
+  const [dryRunActionCount, setDryRunActionCount] = useState<number>(0)
+  const [dryRunActionType, setDryRunActionType] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -160,6 +163,13 @@ export function AdoptedWorkUnitDashboard() {
     integrationStatuses: dashboardState.integrationStatuses,
     auditLogs: dashboardState.auditLogs,
   }), [dashboardState.auditLogs, dashboardState.integrationStatuses, dashboardState.workUnits, previewCreated, previewStatus, previewRefs, selectedDecision, selectedWorkUnitId, approvalStatus, approvalLoading, approvalError])
+
+  const executionViewer = useMemo(() => buildExecutionResultViewer({
+    dryRunStatus,
+    dryRunMessage,
+    dryRunActionCount,
+    dryRunActionType,
+  }), [dryRunStatus, dryRunMessage, dryRunActionCount, dryRunActionType])
 
   const handleCreatePreview = async () => {
     setPreviewMessage("")
@@ -290,6 +300,16 @@ export function AdoptedWorkUnitDashboard() {
     }
     setDryRunStatus(result.status)
     setDryRunMessage(result.reason)
+    setDryRunActionCount(result.actionCount)
+    setDryRunActionType(result.requestedActionType)
+  }
+
+  const handleClearDryRun = () => {
+    // Local-only — no API call, no external side effects
+    setDryRunStatus("idle")
+    setDryRunMessage(null)
+    setDryRunActionCount(0)
+    setDryRunActionType(null)
   }
 
   // ─── Show Approve/Reject when appropriate ──────────────────────
@@ -369,6 +389,8 @@ export function AdoptedWorkUnitDashboard() {
                   setSubmitMessage("")
                   setDryRunStatus("idle")
                   setDryRunMessage(null)
+                  setDryRunActionCount(0)
+                  setDryRunActionType(null)
                 }}
               >
                 <span className={styles.unitIcon} style={{ backgroundColor: workUnit.iconBg }}>
@@ -565,16 +587,36 @@ export function AdoptedWorkUnitDashboard() {
                 disabled={dryRunStatus === "running"}
                 style={{ opacity: dryRunStatus === "running" ? 0.5 : 1 }}
               >
-                {dryRunStatus === "running" ? "Verifying..." : "Verify Execution"}
+                {dryRunStatus === "running" ? "Verifying..." : dryRunStatus !== "idle" ? "Re-run verification" : "Verify Execution"}
               </button>
             ) : null}
-            {dryRunStatus !== "idle" && dryRunMessage ? (
+            {executionViewer.kind !== "idle" ? (
               <div className={styles.ctaBlocked}>
-                <span className={styles.ctaBlockedBadge}>DRY-RUN RESULT</span>
+                <span className={styles.ctaBlockedBadge}>{executionViewer.title}</span>
                 <br />
-                Status: {dryRunStatus}
+                Status: {executionViewer.statusLabel}
                 <br />
-                Reason: {dryRunMessage}
+                Reason: {executionViewer.reason}
+                {executionViewer.kind !== "running" ? (
+                  <>
+                    <br />
+                    Actions checked: {executionViewer.actionCount}
+                    <br />
+                    Action type: {executionViewer.requestedActionTypeLabel}
+                  </>
+                ) : null}
+                {executionViewer.canClear ? (
+                  <div style={{ marginTop: "var(--sp-2)" }}>
+                    <button
+                      type="button"
+                      className={styles.ctaButton}
+                      onClick={handleClearDryRun}
+                      style={{ fontSize: 12, padding: "6px var(--sp-3)" }}
+                    >
+                      Clear result
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             {previewMessage ? <div className={styles.ctaMeta}>{previewMessage}</div> : null}

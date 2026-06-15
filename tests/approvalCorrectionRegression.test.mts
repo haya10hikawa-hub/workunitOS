@@ -573,9 +573,9 @@ test("dashboard calls dry-run only, not tools route", async () => {
 
 test("dashboard dry-run result display exists", async () => {
   const source = await readFile(dashboardComponent, "utf8")
-  assert.equal(source.includes("DRY-RUN RESULT"), true)
-  assert.equal(source.includes("dryRunStatus"), true)
-  assert.equal(source.includes("dryRunMessage"), true)
+  assert.equal(source.includes("executionViewer.title"), true)
+  assert.equal(source.includes("executionViewer.statusLabel"), true)
+  assert.equal(source.includes("executionViewer.reason"), true)
 })
 
 test("dashboard dry-run does not render approvalId", async () => {
@@ -602,4 +602,136 @@ test("dashboard Execute CTA remains disabled", async () => {
   const source = await readFile(dashboardComponent, "utf8")
   assert.equal(source.includes("Execute (disabled)"), true)
   assert.equal(source.includes("handleExecute"), false)
+})
+
+// ─── Dry-run result detail display regression ─────────────────
+
+test("dry-run result displays Actions checked", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("Actions checked:"), true)
+  assert.equal(source.includes("dryRunActionCount"), true)
+})
+
+test("dry-run result displays Action type", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("Action type:"), true)
+  assert.equal(source.includes("dryRunActionType"), true)
+})
+
+test("dry-run result null action type renders Not available", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // Component uses executionViewer.requestedActionTypeLabel from the model
+  assert.equal(source.includes("executionViewer.requestedActionTypeLabel"), true)
+  // The viewer model handles "Not available" for null action types
+})
+
+test("dryRunActionCount and dryRunActionType reset on WorkUnit switch", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("setDryRunActionCount(0)"), true)
+  assert.equal(source.includes("setDryRunActionType(null)"), true)
+})
+
+test("dry-run client returns requestedActionType", async () => {
+  const source = await readFile("app/lib/application/dashboard/dashboardExecutionDryRunClient.ts", "utf8")
+  assert.equal(source.includes("requestedActionType: typeof data.requestedActionType"), true)
+  // Falls back to null for invalid data
+  assert.equal(source.includes("? data.requestedActionType : null"), true)
+})
+
+// ─── Dry-run result controls regression ───────────────────────
+
+test("dashboard has handleClearDryRun function", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("handleClearDryRun"), true)
+})
+
+test("Clear result is local-only — no API call", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // handleClearDryRun only calls setDryRunStatus/idle, setDryRunMessage/null, etc.
+  // No fetch, no runDashboardExecutionDryRun inside handleClearDryRun
+  const clearFn = source.slice(source.indexOf("handleClearDryRun"), source.indexOf("// ─── Show Approve"))
+  assert.equal(clearFn.includes("fetch"), false)
+  assert.equal(clearFn.includes("runDashboardExecutionDryRun"), false)
+})
+
+test("dashboard renders Clear result button", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("Clear result"), true)
+})
+
+test("dashboard renders Re-run verification button", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("Re-run verification"), true)
+})
+
+test("Re-run verification reuses handleDryRun", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // Both Verify Execution and Re-run verification call handleDryRun
+  assert.equal(source.includes('onClick={handleDryRun}'), true)
+})
+
+test("Clear result resets all dry-run state fields", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  const clearFn = source.slice(source.indexOf("handleClearDryRun"), source.indexOf("// ─── Show Approve"))
+  assert.equal(clearFn.includes('setDryRunStatus("idle")'), true)
+  assert.equal(clearFn.includes("setDryRunMessage(null)"), true)
+  assert.equal(clearFn.includes("setDryRunActionCount(0)"), true)
+  assert.equal(clearFn.includes("setDryRunActionType(null)"), true)
+})
+
+test("dashboard dry-run controls do not expose approvalId", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("approvalId"), false)
+})
+
+test("dashboard Execute CTA remains disabled with dry-run controls", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("Execute (disabled)"), true)
+  assert.equal(source.includes("handleExecute"), false)
+  assert.equal(source.includes("/api/workunit/tools"), false)
+})
+
+// ─── Execution result viewer model regression ─────────────────
+
+test("dashboard imports executionResultViewerModel", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("buildExecutionResultViewer"), true)
+  assert.equal(source.includes("executionResultViewerModel"), true)
+})
+
+test("dashboard renders dry-run result through viewer model", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("executionViewer.kind"), true)
+  assert.equal(source.includes("executionViewer.title"), true)
+  assert.equal(source.includes("executionViewer.statusLabel"), true)
+  assert.equal(source.includes("executionViewer.actionCount"), true)
+  assert.equal(source.includes("executionViewer.requestedActionTypeLabel"), true)
+  assert.equal(source.includes("executionViewer.canClear"), true)
+})
+
+test("executionResultViewerModel has no forbidden imports", async () => {
+  const source = await readFile("app/lib/application/dashboard/executionResultViewerModel.ts", "utf8")
+  const importLines = source.split("\n").filter((line) => line.trimStart().startsWith("import"))
+  const allImports = importLines.join("\n")
+  assert.equal(allImports.includes("react"), false)
+  assert.equal(allImports.includes("NextResponse"), false)
+  assert.equal(allImports.includes("fetch"), false)
+  assert.equal(allImports.includes("@/lib/persistence"), false)
+  assert.equal(source.includes(": any"), false)
+})
+
+test("executionResultViewerModel type has no forbidden fields", async () => {
+  const source = await readFile("app/lib/application/dashboard/executionResultViewerModel.ts", "utf8")
+  const typeStart = source.indexOf("export type ExecutionResultViewerModel")
+  const typeSection = source.slice(typeStart, source.indexOf("}", typeStart) + 1)
+  assert.equal(typeSection.includes("approvalId"), false)
+  assert.equal(typeSection.includes("targetHash"), false)
+  assert.equal(typeSection.includes("payloadHash"), false)
+  assert.equal(typeSection.includes("tenantId"), false)
+  assert.equal(typeSection.includes("actorUserId"), false)
+  assert.equal(typeSection.includes("role"), false)
+  assert.equal(typeSection.includes("token"), false)
+  assert.equal(typeSection.includes("secret"), false)
+  assert.equal(typeSection.includes("rawPayload"), false)
+  assert.equal(typeSection.includes("rawBody"), false)
 })
