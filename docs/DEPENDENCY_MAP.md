@@ -49,6 +49,9 @@ UI
 | `app/lib/application/dashboard/dashboardStatusClient.ts` | Compatibility re-export for older dashboard status/audit imports |
 | `app/lib/application/dashboard/adoptedDashboardViewModel.ts` | Canonical mapping from inbox/status/audit API data into the adopted v0 shell view model; empty states do not fabricate sample WorkUnits |
 | `app/lib/application/dashboard/selectedWorkUnitPreviewModel.ts` | Canonical selected-WorkUnit-to-preview-group mapper; extracts safe fields only (no hashes, tokens, secrets); gates on decision selection |
+| `app/lib/application/dashboard/approvalDecisionTraceModel.ts` | Canonical pure-function mapper from approval status to Decision Trace entries; drives the Approval Completed readiness gate via `isApprovalCompleted()` |
+| `app/lib/application/dashboard/executionReadinessModel.ts` | Canonical pure-function execution readiness model; computes whether external execution is ready |
+| `app/lib/application/dashboard/executionCommandModel.ts` | Canonical pure-function safe execution command envelope builder; blocked/dry_run only |
 | `app/lib/application/dashboard/workUnitDashboardModel.ts` | UI-only dashboard model for WorkUnit Explorer, Decision Trace, Evidence Capsule, and Readiness Gates; `getPrimaryActionPreviewGroup` is legacy/demo only |
 | `app/lib/application/workunitInbox/*` | Canonical inbox-facing application logic |
 | `app/lib/actionField/*.ts` | Legacy compatibility exports only |

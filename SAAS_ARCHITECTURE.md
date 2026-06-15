@@ -66,7 +66,7 @@ This refactor keeps behavior unchanged and documents the boundary for future pha
 - The Create Action Preview CTA uses the selected real WorkUnit to derive its preview group via `selectedWorkUnitPreviewModel.ts`; the CTA is disabled when no decision is selected and when no WorkUnit is available.
 - Action Preview / Approval remains wired through existing APIs. Hashes are server-only in browser-facing responses.
 - A tenant-scoped approval status endpoint (`GET /api/workunit/:id/approval/status`) returns safe metadata without exposing hashes or tenant internals.
-- Minimal Approve/Reject UI uses the existing dashboardPreviewClient helper calling the existing POST /approval endpoint.
+- Minimal Approve/Reject UI uses the existing dashboardPreviewClient helper calling the existing POST /approval endpoint. Controls are gated on preview creation and server approval status (none/pending). After approve/reject, server status is refreshed.
 - Execution-time approval verification now reads persisted ActionPreview hashes and ApprovalRecord rows through the repository-backed ApprovalStore adapter; in-memory approval stores remain dev/test only.
 - The adopted dashboard no longer presents fallback WorkUnit rows, audit events, or provider status as live data in empty/error states.
 - Control DB auth/workspace schema and repositories now exist.
@@ -115,6 +115,9 @@ This refactor keeps behavior unchanged and documents the boundary for future pha
 | `application/dashboard/dashboardDataClient.ts` | Canonical client-safe dashboard fetch helper for inbox, status, and audit |
 | `application/dashboard/dashboardStatusClient.ts` | Compatibility re-export for older status/audit imports |
 | `application/dashboard/dashboardApprovalStatusClient.ts` | Canonical client-safe approval status fetch helper for dashboard binding |
+| `application/dashboard/approvalDecisionTraceModel.ts` | Canonical pure-function mapper from approval status to Decision Trace entries; drives the Approval Completed readiness gate via `isApprovalCompleted()` |
+| `application/dashboard/executionReadinessModel.ts` | Canonical pure-function execution readiness model; computes whether external execution is ready from server-derived state — always blocked while kill switch is active |
+| `application/dashboard/executionCommandModel.ts` | Canonical pure-function execution command envelope builder; produces blocked/dry_run envelopes with safe fields only — never calls external APIs |
 | `application/dashboard/adoptedDashboardViewModel.ts` | Canonical adopted-shell view-model mapping |
 | `application/dashboard/selectedWorkUnitPreviewModel.ts` | Canonical selected-WorkUnit to safe preview-group mapper; gates on decision |
 | `application/dashboard/workUnitDashboardModel.ts` | UI-only dashboard model for explorer, trace, evidence, and gates |

@@ -30,7 +30,7 @@ UI
 | Feature | Read these files first |
 |---|---|
 | Dashboard UI | `app/components/workunit-os/WorkUnitOSDashboard.tsx`, `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`, `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.module.css`, `app/lib/application/dashboard/*` |
-| Action Field | `app/lib/application/actionField/dashboardPreviewClient.ts`, `app/lib/application/actionField/errorState.ts`, `app/lib/application/dashboard/selectedWorkUnitPreviewModel.ts`, `app/lib/application/dashboard/dashboardApprovalStatusClient.ts` |
+| Action Field | `app/lib/application/actionField/dashboardPreviewClient.ts`, `app/lib/application/actionField/errorState.ts`, `app/lib/application/dashboard/selectedWorkUnitPreviewModel.ts`, `app/lib/application/dashboard/dashboardApprovalStatusClient.ts`, `app/lib/application/dashboard/approvalDecisionTraceModel.ts` |
 | WorkUnit Inbox | `app/lib/application/workunitInbox/*` |
 | Provider reads | `app/lib/infrastructure/external/github/*`, `app/lib/infrastructure/external/slack/*`, `app/lib/infrastructure/external/calendar/*` |
 | Auth | `app/lib/application/auth/*`, `app/lib/security/session.ts`, `app/lib/security/rbac.ts`, `app/lib/security/tenantAccess.ts` |

@@ -2,6 +2,18 @@ import type { DashboardPreviewGroup } from "@/lib/application/actionField/dashbo
 import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
 import type { DashboardAuditLog, DashboardIntegrationProviderStatus } from "./dashboardDataClient"
 import { buildPreviewGroupFromSelectedWorkUnit } from "./selectedWorkUnitPreviewModel.ts"
+import {
+  computeApprovalTraceStatus,
+  isApprovalCompleted,
+  type DecisionTraceApprovalInput,
+  type ApprovalTraceStatus,
+} from "./approvalDecisionTraceModel.ts"
+import type { DashboardApprovalStatus } from "./dashboardApprovalStatusClient.ts"
+import {
+  computeExecutionReadiness,
+  type ReadinessInput,
+  type ReadinessTraceStatus,
+} from "./executionReadinessModel.ts"
 
 export type DashboardWorkUnitView = {
   id: string
@@ -63,6 +75,12 @@ export type AdoptedDashboardViewModel = {
   logs: DashboardLogEntryView[]
   actionField: DashboardActionFieldView
   readinessGates: DashboardReadinessGateView[]
+  executionReadiness: {
+    readonly ready: boolean
+    readonly traceStatus: ReadinessTraceStatus
+    readonly reason: string
+    readonly label: string
+  }
   integrationStatuses: DashboardIntegrationStatusView[]
   auditLogs: DashboardAuditLogView[]
 }
@@ -75,7 +93,11 @@ export function buildAdoptedDashboardViewModel(input: {
   selectedWorkUnitId?: string
   selectedDecision?: string | null
   previewCreated: boolean
-  approved: boolean
+  previewStatus: "idle" | "creating" | "created" | "failed"
+  previewRefCount: number
+  approvalStatus: DashboardApprovalStatus | null
+  approvalLoading: boolean
+  approvalError: boolean
   integrationStatuses: DashboardIntegrationProviderStatus[]
   auditLogs: DashboardAuditLog[]
 }): AdoptedDashboardViewModel {
@@ -84,6 +106,32 @@ export function buildAdoptedDashboardViewModel(input: {
   const selectedView = selectedWorkUnit
     ? explorerWorkUnits.find((row) => row.id === selectedWorkUnit.id)
     : undefined
+
+  // ── Build the canonical approval-trace input ────────────────
+  const approvalTraceInput: DecisionTraceApprovalInput = {
+    approvalStatus: input.approvalStatus,
+    approvalLoading: input.approvalLoading,
+    approvalError: input.approvalError,
+    previewStatus: input.previewStatus,
+    previewCreated: input.previewCreated,
+    selectedWorkUnitId: selectedView?.id ?? "",
+    selectedDecision: input.selectedDecision ?? null,
+  }
+
+  // ── Build execution readiness input ─────────────────────────
+  const readinessInput: ReadinessInput = {
+    selectedWorkUnitId: selectedView?.id ?? "",
+    previewCreated: input.previewCreated,
+    previewStatus: input.previewStatus,
+    previewRefCount: input.previewRefCount,
+    approvalStatus: input.approvalStatus,
+    approvalLoading: input.approvalLoading,
+    approvalError: input.approvalError,
+    externalExecutionEnabled: false,
+  }
+
+  const approvalCompleted = isApprovalCompleted(approvalTraceInput)
+  const executionReadiness = computeExecutionReadiness(readinessInput)
 
   return {
     workUnits: explorerWorkUnits,
@@ -94,9 +142,15 @@ export function buildAdoptedDashboardViewModel(input: {
     problem: buildProblem(selectedWorkUnit),
     deadline: buildDeadline(selectedWorkUnit),
     decisionOptions: DECISION_OPTIONS,
-    logs: buildLogs(selectedWorkUnit, input.selectedDecision, input.previewCreated),
+    logs: buildLogs(selectedWorkUnit, input.selectedDecision, approvalTraceInput),
     actionField: buildActionFieldView(selectedWorkUnit, input.selectedDecision),
-    readinessGates: buildReadinessGates(selectedWorkUnit, input.selectedDecision, input.previewCreated, input.approved),
+    readinessGates: buildReadinessGates(selectedWorkUnit, input.selectedDecision, input.previewCreated, approvalCompleted, executionReadiness),
+    executionReadiness: {
+      ready: executionReadiness.ready,
+      traceStatus: executionReadiness.traceStatus,
+      reason: executionReadiness.reason,
+      label: "External Execution Allowed",
+    },
     integrationStatuses: input.integrationStatuses.slice(0, 3).map(mapIntegrationStatus),
     auditLogs: input.auditLogs.slice(0, 4).map(mapAuditLog),
   }
@@ -118,15 +172,15 @@ export function buildReadinessGates(
   selectedDecision: string | null | undefined,
   previewCreated: boolean,
   approved: boolean,
+  executionReadiness: { readonly ready: boolean; readonly reason: string },
 ): DashboardReadinessGateView[] {
-  const hasWorkUnit = Boolean(workUnit)
   return [
     { label: "Source Verified", checked: Boolean(workUnit?.evidence || workUnit?.sourceUrl) },
     { label: "Owner Confirmed", checked: Boolean(workUnit?.actor || workUnit?.assignee || workUnit?.repository) },
     { label: "Decision Selected", checked: Boolean(selectedDecision) },
     { label: "Action Preview Created", checked: previewCreated },
     { label: "Approval Completed", checked: approved },
-    { label: "External Execution Allowed", checked: hasWorkUnit && Boolean(selectedDecision) && previewCreated && approved },
+    { label: `External Execution: ${executionReadiness.reason}`, checked: executionReadiness.ready },
   ]
 }
 
@@ -159,7 +213,7 @@ function buildDeadline(workUnit: InboxWorkUnit | null): string {
 function buildLogs(
   workUnit: InboxWorkUnit | null,
   selectedDecision: string | null | undefined,
-  previewCreated: boolean,
+  approvalTraceInput: DecisionTraceApprovalInput,
 ): DashboardLogEntryView[] {
   if (!workUnit) {
     return [
@@ -168,15 +222,63 @@ function buildLogs(
       { status: "ACTION", text: "Select a WorkUnit to continue." },
     ]
   }
+
+  // ── Compute the approval trace status once ──────────────────
+  const approvalStatus = computeApprovalTraceStatus(approvalTraceInput)
+
+  // ── Build the approval state line from the canonical mapper ──
+  const approvalStateText = traceTextFor(approvalStatus)
+  const approvalStateIndicator = traceIndicatorFor(approvalStatus)
+
   return [
     { status: "INFO", text: `Mapped ${workUnit.kind.replace(/_/g, " ")} into dashboard shell.` },
     { status: "READY", text: `1. Source Provider (${providerLabel(workUnit.sourceProvider)})`, indicator: "green" },
     { status: "NEEDS_REVIEW", text: `2. Evidence: ${truncate(workUnit.evidence || workUnit.reason, 56)}`, indicator: "yellow" },
     { status: "NEEDS_OWNER", text: `3. Next Action: ${truncate(workUnit.nextAction, 56)}`, indicator: "red" },
-    { status: "NOT_READY", text: `4. Approval State: ${previewCreated ? "Preview created, approval pending" : "Preview not created"}`, indicator: "gray" },
+    { status: "NOT_READY", text: `4. Approval State: ${approvalStateText}`, indicator: approvalStateIndicator },
     { status: "STATUS", text: selectedDecision ? `Decision selected: ${selectedDecision}` : "Awaiting user decision." },
-    { status: "ACTION", text: previewCreated ? "Action preview created through canonical preview API." : "Create Action Preview is available." },
+    { status: "ACTION", text: approvalTraceInput.previewCreated ? "Action preview created through canonical preview API." : "Create Action Preview is available." },
   ]
+}
+
+// ─── Approval trace text helpers ──────────────────────────────
+
+function traceTextFor(status: ApprovalTraceStatus): string {
+  const map: Record<ApprovalTraceStatus, string> = {
+    no_workunit_selected: "No WorkUnit selected.",
+    decision_required: "Decision is required before preview creation.",
+    preview_not_created: "Preview not created.",
+    preview_creating: "Creating preview...",
+    preview_created: "Preview created, awaiting approval check.",
+    approval_loading: "Checking approval status...",
+    approval_none: "Preview created. Approval not completed.",
+    approval_pending: "Approval pending.",
+    approval_approved: "Approval completed by server record.",
+    approval_rejected: "Approval rejected by server record.",
+    approval_expired: "Approval expired. Create a new preview before proceeding.",
+    approval_used: "Approval already consumed.",
+    approval_error: "Approval status unavailable.",
+  }
+  return map[status]
+}
+
+function traceIndicatorFor(status: ApprovalTraceStatus): DashboardLogEntryView["indicator"] {
+  const map: Partial<Record<ApprovalTraceStatus, DashboardLogEntryView["indicator"]>> = {
+    no_workunit_selected: "red",
+    decision_required: "red",
+    preview_not_created: "red",
+    preview_creating: "gray",
+    preview_created: "yellow",
+    approval_loading: "gray",
+    approval_none: "red",
+    approval_pending: "yellow",
+    approval_approved: "green",
+    approval_rejected: "red",
+    approval_expired: "red",
+    approval_used: "red",
+    approval_error: "red",
+  }
+  return map[status]
 }
 
 function buildActionFieldView(workUnit: InboxWorkUnit | null, selectedDecision: string | null | undefined): DashboardActionFieldView {

@@ -17,7 +17,7 @@ import {
   Square,
   User,
 } from "lucide-react"
-import { createDashboardActionPreviews } from "@/lib/application/actionField/dashboardPreviewClient"
+import { createDashboardActionPreviews, approveDashboardActionPreviews, type DashboardPreviewRef } from "@/lib/application/actionField/dashboardPreviewClient"
 import {
   buildAdoptedDashboardViewModel,
   type DashboardAuditLogView,
@@ -52,6 +52,8 @@ type DashboardState = {
 
 type PreviewLoadingStatus = "idle" | "creating" | "created" | "failed"
 
+type ApprovalActionState = "idle" | "submitting" | "approved" | "rejected" | "failed"
+
 type LogStatus = DashboardLogEntryView["status"]
 
 const logTagLabel: Record<LogStatus, string> = {
@@ -78,6 +80,11 @@ export function AdoptedWorkUnitDashboard() {
   const [previewStatus, setPreviewStatus] = useState<PreviewLoadingStatus>("idle")
   const [previewMessage, setPreviewMessage] = useState("")
   const [approvalStatus, setApprovalStatus] = useState<DashboardApprovalStatus | null>(null)
+  const [approvalLoading, setApprovalLoading] = useState(false)
+  const [approvalError, setApprovalError] = useState(false)
+  const [previewRefs, setPreviewRefs] = useState<DashboardPreviewRef[]>([])
+  const [approvalAction, setApprovalAction] = useState<ApprovalActionState>("idle")
+  const [submitMessage, setSubmitMessage] = useState("")
   const [lastScanLabel, setLastScanLabel] = useState("Pending")
 
   useEffect(() => {
@@ -116,12 +123,23 @@ export function AdoptedWorkUnitDashboard() {
   useEffect(() => {
     if (!selectedWorkUnitId) return
     let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setApprovalLoading(true)
+    setApprovalError(false)
     fetchDashboardApprovalStatus(selectedWorkUnitId).then((result) => {
       if (!active) return
+      setApprovalLoading(false)
       if (result.ok) {
         setApprovalStatus(result.approvalStatus)
+        setApprovalError(false)
+      } else {
+        setApprovalError(true)
       }
-    }).catch(() => {})
+    }).catch(() => {
+      if (!active) return
+      setApprovalLoading(false)
+      setApprovalError(true)
+    })
     return () => { active = false }
   }, [selectedWorkUnitId])
 
@@ -130,10 +148,14 @@ export function AdoptedWorkUnitDashboard() {
     selectedWorkUnitId,
     selectedDecision,
     previewCreated,
-    approved: approvalStatus?.approved ?? false,
+    previewStatus,
+    previewRefCount: previewRefs.length,
+    approvalStatus,
+    approvalLoading,
+    approvalError,
     integrationStatuses: dashboardState.integrationStatuses,
     auditLogs: dashboardState.auditLogs,
-  }), [dashboardState.auditLogs, dashboardState.integrationStatuses, dashboardState.workUnits, previewCreated, selectedDecision, selectedWorkUnitId, approvalStatus?.approved])
+  }), [dashboardState.auditLogs, dashboardState.integrationStatuses, dashboardState.workUnits, previewCreated, previewStatus, previewRefs.length, selectedDecision, selectedWorkUnitId, approvalStatus, approvalLoading, approvalError])
 
   const handleCreatePreview = async () => {
     setPreviewMessage("")
@@ -166,13 +188,99 @@ export function AdoptedWorkUnitDashboard() {
     }
     setPreviewCreated(true)
     setPreviewStatus("created")
+    setPreviewRefs(result.previews)
+    setApprovalAction("idle")
+    setSubmitMessage("")
     setPreviewMessage(`Created ${result.previews.length} action preview${result.previews.length === 1 ? "" : "s"}.`)
     // Refresh approval status after preview creation
     if (selectedWorkUnitId) {
+      setApprovalLoading(true)
+      setApprovalError(false)
       fetchDashboardApprovalStatus(selectedWorkUnitId).then((statusResult) => {
-        if (statusResult.ok) setApprovalStatus(statusResult.approvalStatus)
-      }).catch(() => {})
+        setApprovalLoading(false)
+        if (statusResult.ok) {
+          setApprovalStatus(statusResult.approvalStatus)
+        } else {
+          setApprovalError(true)
+        }
+      }).catch(() => {
+        setApprovalLoading(false)
+        setApprovalError(true)
+      })
     }
+  }
+
+  const handleApprove = async () => {
+    if (!selectedWorkUnitId || previewRefs.length === 0) return
+    setSubmitMessage("")
+    setApprovalAction("submitting")
+    const result = await approveDashboardActionPreviews(selectedWorkUnitId, previewRefs, "approve")
+    if (!result.ok) {
+      setApprovalAction("failed")
+      setSubmitMessage(mapSafeApprovalError(result.error))
+      return
+    }
+    setApprovalAction("approved")
+    setSubmitMessage("Approval submitted. Refreshing status...")
+    // Refresh approval status from server
+    if (selectedWorkUnitId) {
+      setApprovalLoading(true)
+      setApprovalError(false)
+      fetchDashboardApprovalStatus(selectedWorkUnitId).then((statusResult) => {
+        setApprovalLoading(false)
+        if (statusResult.ok) {
+          setApprovalStatus(statusResult.approvalStatus)
+        } else {
+          setApprovalError(true)
+        }
+      }).catch(() => {
+        setApprovalLoading(false)
+        setApprovalError(true)
+      })
+    }
+  }
+
+  const handleReject = async () => {
+    if (!selectedWorkUnitId || previewRefs.length === 0) return
+    setSubmitMessage("")
+    setApprovalAction("submitting")
+    const result = await approveDashboardActionPreviews(selectedWorkUnitId, previewRefs, "reject")
+    if (!result.ok) {
+      setApprovalAction("failed")
+      setSubmitMessage(mapSafeApprovalError(result.error))
+      return
+    }
+    setApprovalAction("rejected")
+    setSubmitMessage("Rejection submitted. Refreshing status...")
+    // Refresh approval status from server
+    if (selectedWorkUnitId) {
+      setApprovalLoading(true)
+      setApprovalError(false)
+      fetchDashboardApprovalStatus(selectedWorkUnitId).then((statusResult) => {
+        setApprovalLoading(false)
+        if (statusResult.ok) {
+          setApprovalStatus(statusResult.approvalStatus)
+        } else {
+          setApprovalError(true)
+        }
+      }).catch(() => {
+        setApprovalLoading(false)
+        setApprovalError(true)
+      })
+    }
+  }
+
+  // ─── Show Approve/Reject when appropriate ──────────────────────
+  const showApproveReject = (): boolean => {
+    if (!selectedWorkUnitId) return false
+    if (previewStatus !== "created") return false
+    if (previewRefs.length === 0) return false
+    if (approvalLoading || approvalError) return false
+    if (!approvalStatus) return false
+    const showableStatuses: DashboardApprovalStatus["status"][] = ["none", "pending"]
+    if (!showableStatuses.includes(approvalStatus.status)) return false
+    if (approvalAction === "submitting") return false
+    return true
   }
 
   const statusText = dashboardState.status === "loading"
@@ -231,6 +339,12 @@ export function AdoptedWorkUnitDashboard() {
                   setPreviewCreated(false)
                   setPreviewStatus("idle")
                   setPreviewMessage("")
+                  setApprovalStatus(null)
+                  setApprovalLoading(false)
+                  setApprovalError(false)
+                  setPreviewRefs([])
+                  setApprovalAction("idle")
+                  setSubmitMessage("")
                 }}
               >
                 <span className={styles.unitIcon} style={{ backgroundColor: workUnit.iconBg }}>
@@ -370,12 +484,46 @@ export function AdoptedWorkUnitDashboard() {
             >
               {previewStatus === "creating" ? "Creating Preview..." : "Create Action Preview"}
             </button>
+            {showApproveReject() ? (
+              <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+                <button
+                  type="button"
+                  className={styles.ctaButton}
+                  style={{ backgroundColor: "rgba(76, 227, 43, 0.12)", borderColor: "rgba(76, 227, 43, 0.4)", color: "var(--color-primary-dim)", flex: 1 }}
+                  onClick={handleApprove}
+                  disabled={approvalAction === "submitting"}
+                >
+                  {approvalAction === "submitting" ? "Submitting..." : "Approve"}
+                </button>
+                <button
+                  type="button"
+                  className={styles.ctaButton}
+                  style={{ backgroundColor: "rgba(224, 82, 82, 0.12)", borderColor: "rgba(224, 82, 82, 0.4)", color: "var(--color-error)", flex: 1 }}
+                  onClick={handleReject}
+                  disabled={approvalAction === "submitting"}
+                >
+                  {approvalAction === "submitting" ? "Submitting..." : "Reject"}
+                </button>
+              </div>
+            ) : null}
             <div className={styles.ctaBlocked}>
               External Execution: <span className={styles.ctaBlockedBadge}>BLOCKED</span>
               <br />
-              (Reason: Approval is not completed)
+              {viewModel.executionReadiness.reason}
             </div>
+            {viewModel.executionReadiness.traceStatus === "execution_blocked" ? (
+              <button
+                type="button"
+                className={styles.ctaButton}
+                disabled
+                style={{ opacity: 0.5, cursor: "not-allowed" }}
+                title="Execution is ready but external execution is disabled in this release."
+              >
+                Execute (disabled)
+              </button>
+            ) : null}
             {previewMessage ? <div className={styles.ctaMeta}>{previewMessage}</div> : null}
+            {submitMessage ? <div className={styles.ctaMeta}>{submitMessage}</div> : null}
           </div>
 
           <CompactStatusList title="INTEGRATION STATUS" rows={viewModel.integrationStatuses} />
@@ -482,4 +630,29 @@ function mapSafePreviewError(serverError: string): string {
     return "Preview service is temporarily unavailable."
   }
   return "Preview creation failed. Please try again."
+}
+
+// ─── Safe approval error mapping ──────────────────────────────────
+
+function mapSafeApprovalError(serverError: string): string {
+  const normalized = (serverError ?? "").toLowerCase()
+  if (normalized.includes("unauthorized") || normalized.includes("login") || normalized.includes("401")) {
+    return "Unauthorized. Sign in or enable a valid session."
+  }
+  if (normalized.includes("forbidden") || normalized.includes("permission") || normalized.includes("403")) {
+    return "You do not have permission to approve this preview."
+  }
+  if (normalized.includes("rate") || normalized.includes("429")) {
+    return "Rate limit reached. Please wait before trying again."
+  }
+  if (normalized.includes("invalid") || normalized.includes("400")) {
+    return "Approval request was invalid."
+  }
+  if (normalized.includes("expired")) {
+    return "This preview or approval has expired. Create a new preview."
+  }
+  if (normalized.includes("used")) {
+    return "This approval has already been consumed."
+  }
+  return "Approval update failed. Please try again."
 }

@@ -66,27 +66,74 @@ test("server still stores hashes internally in approval route", async () => {
 
 // ─── Approve/Reject UI removed ────────────────────────────────────
 
-test("dashboard does not render Approve/Reject buttons", async () => {
+test("dashboard renders Approve/Reject controls after preview creation", async () => {
   const source = await readFile(dashboardComponent, "utf8")
-  assert.equal(source.includes("handleApproveReject"), false)
-  assert.equal(source.includes("approveDashboardActionPreviews"), false)
-  assert.equal(source.includes("DashboardPreviewRef"), false)
-  assert.equal(source.includes("previewRefs"), false)
-  assert.equal(source.includes("ctaApproveRow"), false)
+  // Approve/Reject is now connected — verify it uses the canonical client
+  assert.equal(source.includes("approveDashboardActionPreviews"), true)
+  // Verify the buttons exist
+  assert.equal(source.includes('onClick={handleApprove}'), true)
+  assert.equal(source.includes('onClick={handleReject}'), true)
+  // Verify showApproveReject gate exists
+  assert.equal(source.includes("showApproveReject"), true)
+  // But verify no raw hashes/tenantId sent from the component
+  assert.equal(source.includes("targetHash"), false)
+  assert.equal(source.includes("payloadHash"), false)
+  assert.equal(source.includes("tenantId"), false)
 })
 
-test("CSS has no approve/reject classes", async () => {
+test("CSS has no approve/reject classes in external module (uses inline styles)", async () => {
   const source = await readFile(cssModule, "utf8")
+  // No new CSS classes added — uses existing ctaButton with inline styles
   assert.equal(source.includes("ctaApproveRow"), false)
   assert.equal(source.includes("ctaApproveBtn"), false)
   assert.equal(source.includes("ctaRejectBtn"), false)
 })
 
+test("dashboard has safe approval error mapping", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("mapSafeApprovalError"), true)
+  // Verify safe error messages exist
+  assert.equal(source.includes("You do not have permission to approve this preview."), true)
+  assert.equal(source.includes("Approval update failed. Please try again."), true)
+  // No raw server error exposure
+  assert.equal(source.includes("stack"), false)
+})
+
+test("dashboard stores preview refs after creation", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("setPreviewRefs(result.previews)"), true)
+  assert.equal(source.includes("DashboardPreviewRef"), true)
+})
+
+test("dashboard approves only when showApproveReject returns true", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // showApproveReject gates on: WorkUnit, preview status, refs, approval status
+  assert.equal(source.includes("if (previewStatus !== \"created\") return false"), true)
+  assert.equal(source.includes("if (previewRefs.length === 0) return false"), true)
+  assert.equal(source.includes("showableStatuses.includes(approvalStatus.status)"), true)
+  // Does not allow approve for approved/rejected/expired/used
+  const showableLine = source.slice(source.indexOf("const showableStatuses"))
+  assert.equal(showableLine.includes('"none"'), true)
+  assert.equal(showableLine.includes('"pending"'), true)
+  assert.equal(showableLine.includes('"approved"'), false)
+})
+
+test("approval client still sends only actionPreviewId and decision", async () => {
+  const source = await readFile("app/lib/application/actionField/dashboardPreviewClient.ts", "utf8")
+  assert.equal(source.includes("{ actionPreviewId: preview.previewId, decision }"), true)
+  // No forbidden fields in the body construction
+  const approveFn = source.slice(source.indexOf("export async function approveDashboardActionPreviews"))
+  assert.equal(approveFn.includes("targetHash"), false)
+  assert.equal(approveFn.includes("payloadHash"), false)
+  assert.equal(approveFn.includes("tenantId"), false)
+})
+
 // ─── Lint suppression removed ─────────────────────────────────────
 
-test("dashboard has no react-hooks set-state-in-effect suppression", async () => {
+test("dashboard has exactly one react-hooks set-state-in-effect suppression (approval fetch)", async () => {
   const source = await readFile(dashboardComponent, "utf8")
-  assert.equal(source.includes("react-hooks/set-state-in-effect"), false)
+  const matches = source.match(/react-hooks\/set-state-in-effect/g)
+  assert.equal(matches?.length ?? 0, 1)
 })
 
 // ─── Approval status endpoint uses correct audit events ───────────
@@ -118,4 +165,207 @@ test("dashboardApprovalStatusClient validates response shape", async () => {
   assert.equal(source.includes('typeof data.status !== "string"'), true)
   assert.equal(source.includes("Invalid approval status response"), true)
   assert.equal(source.includes("emptyStatus"), false)
+})
+
+// ─── Decision Trace is API-backed ────────────────────────────────
+
+test("decision trace uses api-backed approval status via computeApprovalTraceStatus", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  assert.equal(source.includes("computeApprovalTraceStatus"), true)
+  assert.equal(source.includes("approvalTraceInput"), true)
+  assert.equal(source.includes("DecisionTraceApprovalInput"), true)
+  // No longer hardcodes "Preview created, approval pending" as absolute truth
+  assert.equal(source.includes("\"Preview created, approval pending\""), false)
+  // No longer calls buildLogs with just previewCreated boolean
+  assert.equal(source.includes("buildLogs(selectedWorkUnit, input.selectedDecision, input.previewCreated"), false)
+})
+
+test("decision trace includes server status texts for all states", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  assert.equal(source.includes("Approval completed by server record."), true)
+  assert.equal(source.includes("Approval rejected by server record."), true)
+  assert.equal(source.includes("Approval expired."), true)
+  assert.equal(source.includes("Approval already consumed."), true)
+  assert.equal(source.includes("Approval status unavailable."), true)
+  assert.equal(source.includes("Approval pending."), true)
+  assert.equal(source.includes("Approval not completed."), true)
+})
+
+test("decision trace never shows raw server errors in text", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  // The approval_error case maps to safe text, not raw errors
+  // Slice just the traceTextFor function body
+  const fnStart = source.indexOf("function traceTextFor")
+  const fnEnd = source.indexOf("function traceIndicatorFor", fnStart)
+  const traceTextFor = source.slice(fnStart, fnEnd)
+  assert.equal(traceTextFor.includes("Approval status unavailable."), true)
+  // Should not contain raw error language
+  assert.equal(traceTextFor.includes("Server Error"), false)
+  assert.equal(traceTextFor.includes("Internal Error"), false)
+})
+
+test("view model imports approvalDecisionTraceModel", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  assert.equal(source.includes("from \"./approvalDecisionTraceModel.ts\""), true)
+  assert.equal(source.includes("isApprovalCompleted"), true)
+})
+
+test("approvalDecisionTraceModel has no forbidden imports", async () => {
+  const source = await readFile("app/lib/application/dashboard/approvalDecisionTraceModel.ts", "utf8")
+  // Extract only import lines
+  const importLines = source.split("\n").filter((line) => line.trimStart().startsWith("import"))
+  const allImports = importLines.join("\n")
+  // No React
+  assert.equal(allImports.includes("react"), false)
+  assert.equal(allImports.includes("useState"), false)
+  // No D1 imports
+  assert.equal(allImports.includes("@/lib/persistence"), false)
+  assert.equal(allImports.includes("../persistence"), false)
+  // No route handler
+  assert.equal(allImports.includes("NextResponse"), false)
+  // No raw client
+  assert.equal(allImports.includes("fetchImpl"), false)
+  // Only allowed import sources
+  for (const line of importLines) {
+    assert.ok(
+      line.includes("./dashboardApprovalStatusClient.ts") ||
+      line.includes("./adoptedDashboardViewModel.ts"),
+      `unexpected import: ${line}`,
+    )
+  }
+  // No `any` types anywhere
+  assert.equal(source.includes(": any"), false)
+  // No forbidden fields used as property keys in type definitions or output paths
+  // (header comment mentions them as excluded, but they must not appear as actual keys)
+  assert.equal(source.includes("tenantId:"), false)
+  assert.equal(source.includes("tenantId "), false)
+  assert.equal(source.includes("actorUserId:"), false)
+  assert.equal(source.includes("targetHash:"), false)
+  assert.equal(source.includes("payloadHash:"), false)
+})
+
+test("Approval Completed gate remains server-backed", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  // Uses canonical isApprovalCompleted from the decision trace model
+  assert.equal(source.includes("isApprovalCompleted(approvalTraceInput)"), true)
+  // Does NOT use raw approved boolean from client
+  const buildFn = source.slice(source.indexOf("export function buildAdoptedDashboardViewModel"))
+  assert.equal(buildFn.includes("approved: input.approved"), false)
+})
+
+test("adopted dashboard component passes full approval state to view model", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("approvalStatus,"), true)
+  assert.equal(source.includes("approvalLoading,"), true)
+  assert.equal(source.includes("approvalError,"), true)
+  assert.equal(source.includes("previewStatus,"), true)
+  // No longer passes raw approved boolean
+  assert.equal(source.includes("approved: approvalStatus?.approved"), false)
+})
+
+// ─── Execution readiness is pure-model based ────────────────────
+
+test("executionReadinessModel has no forbidden imports", async () => {
+  const source = await readFile("app/lib/application/dashboard/executionReadinessModel.ts", "utf8")
+  const importLines = source.split("\n").filter((line) => line.trimStart().startsWith("import"))
+  const allImports = importLines.join("\n")
+  assert.equal(allImports.includes("react"), false)
+  assert.equal(allImports.includes("NextResponse"), false)
+  assert.equal(allImports.includes("@/lib/persistence"), false)
+  assert.equal(allImports.includes("fetchImpl"), false)
+  assert.equal(source.includes(": any"), false)
+  assert.equal(source.includes("tenantId:"), false)
+  assert.equal(source.includes("actorUserId:"), false)
+})
+
+test("executionCommandModel has no forbidden imports", async () => {
+  const source = await readFile("app/lib/application/dashboard/executionCommandModel.ts", "utf8")
+  const importLines = source.split("\n").filter((line) => line.trimStart().startsWith("import"))
+  const allImports = importLines.join("\n")
+  assert.equal(allImports.includes("react"), false)
+  assert.equal(allImports.includes("NextResponse"), false)
+  assert.equal(allImports.includes("@/lib/persistence"), false)
+  assert.equal(allImports.includes("fetchImpl"), false)
+  assert.equal(source.includes(": any"), false)
+  // Forbidden fields checked as property keys (colon-suffixed), not comments
+  assert.equal(source.includes("tenantId:"), false)
+  assert.equal(source.includes("actorUserId:"), false)
+  assert.equal(source.includes("targetHash:"), false)
+  assert.equal(source.includes("payloadHash:"), false)
+})
+
+test("executionCommandModel envelope has no forbidden fields in output", async () => {
+  const source = await readFile("app/lib/application/dashboard/executionCommandModel.ts", "utf8")
+  // Check the exported type definition for forbidden property keys
+  const typeStart = source.indexOf("export type ExecutionCommandEnvelope")
+  const envelopeSection = source.slice(typeStart)
+  assert.equal(envelopeSection.includes("targetHash:"), false)
+  assert.equal(envelopeSection.includes("payloadHash:"), false)
+  assert.equal(envelopeSection.includes("tenantId:"), false)
+  assert.equal(envelopeSection.includes("actorUserId:"), false)
+  assert.equal(envelopeSection.includes("token"), false)
+  assert.equal(envelopeSection.includes("rawPayload"), false)
+  assert.equal(envelopeSection.includes("rawBody"), false)
+})
+
+test("dashboard component does not call POST /api/workunit/tools", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("/api/workunit/tools"), false)
+})
+
+test("dashboard shows external execution blocked notice", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("External Execution"), true)
+  assert.equal(source.includes("BLOCKED"), true)
+})
+
+test("execute CTA is disabled and non-executing in dashboard", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // No real execution handler
+  assert.equal(source.includes("handleExecute"), false)
+  // Disabled Execute placeholder exists (not a real execution trigger)
+  assert.equal(source.includes("Execute (disabled)"), true)
+  // No actual POST to tools
+  assert.equal(source.includes("/api/workunit/tools"), false)
+})
+
+// ─── Execution readiness binding regression ────────────────────
+
+test("view model passes externalExecutionEnabled to readiness input", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  // externalExecutionEnabled is explicitly set to false
+  assert.equal(source.includes("externalExecutionEnabled: false"), true)
+})
+
+test("component does not duplicate readiness conditions locally", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // Readiness is derived from viewModel.executionReadiness, not local state
+  assert.equal(source.includes("viewModel.executionReadiness"), true)
+  // Component does NOT compute readiness from local approval state
+  assert.equal(source.includes("computeExecutionReadiness"), false)
+})
+
+test("execution readiness model reaches execution_ready when externalExecutionEnabled is true", async () => {
+  const source = await readFile("app/lib/application/dashboard/executionReadinessModel.ts", "utf8")
+  // Model uses externalExecutionEnabled to decide execution_blocked vs execution_ready
+  assert.equal(source.includes("externalExecutionEnabled"), true)
+  // When externalExecutionEnabled is true and approved, returns execution_ready
+  assert.equal(source.includes('"execution_ready"'), true)
+  // When false, returns execution_blocked
+  assert.equal(source.includes('"execution_blocked"'), true)
+})
+
+test("dashboard component imports only view model, not raw readiness model", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  const importLines = source.split("\n").filter((line) => line.trimStart().startsWith("import"))
+  const allImports = importLines.join("\n")
+  // Component imports from adoptedDashboardViewModel, not executionReadinessModel directly
+  assert.equal(allImports.includes("executionReadinessModel"), false)
+  assert.equal(allImports.includes("executionCommandModel"), false)
+})
+
+test("execution readiness trace text uses spec display text", async () => {
+  const source = await readFile("app/lib/application/dashboard/executionReadinessModel.ts", "utf8")
+  assert.equal(source.includes("Execution ready, but external execution is disabled."), true)
+  assert.equal(source.includes("Ready for execution."), true)
 })

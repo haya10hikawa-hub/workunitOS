@@ -190,6 +190,28 @@ States shown:
 * `expired` — approval expired (requires re-request)
 * `used` — approval was consumed by execution
 
+The adopted dashboard now includes minimal Approve/Reject controls in the
+CTA area. They appear only after a real Action Preview has been created and
+the server approval status is `none` or `pending`. Controls are hidden for
+approved, rejected, expired, used, and error states. Approve/Reject actions
+call the existing `approveDashboardActionPreviews` client helper which sends
+only `actionPreviewId` and `decision` — no hashes, tenant, role, or status.
+After approve/reject, approval status is refreshed from the server and the
+Decision Trace and Readiness Gates reflect the server-derived state.
+
+External execution remains blocked by default regardless of approval state.
+
+Dashboard Readiness Gates now include dynamic execution readiness through
+`executionReadinessModel.ts`. The "External Execution" gate shows the current
+readiness state from `computeExecutionReadiness()`. The model accepts an
+`externalExecutionEnabled` flag (set to `false` in the view model by default).
+When the flag is `false`, readiness always shows `execution_blocked` after
+approval completes. A disabled Execute placeholder CTA appears only when
+approval is complete but external execution is blocked. No real execution is
+triggered — the placeholder explains: "Execution is ready but external
+execution is disabled in this release." No `/api/workunit/tools` calls are
+made from the dashboard.
+
 ### 4.8 Execution Result
 
 | Attribute    | Value                     |
