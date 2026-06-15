@@ -69,6 +69,11 @@ export type AuditEventKind =
   | "execution_approval_failed"
   | "execution_approval_verified"
   | "execution_approval_consumed"
+  // Execution dry-run
+  | "execution_dry_run_requested"
+  | "execution_dry_run_verified"
+  | "execution_dry_run_blocked"
+  | "execution_dry_run_failed"
 
 export type AuditEvent = {
   kind: AuditEventKind
