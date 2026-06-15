@@ -126,7 +126,7 @@ All `ALLOW_*` flags are **security boundaries**. They exist ONLY for development
 - `ALLOW_DEV_WORKSPACE_BOOTSTRAP`: Creates deterministic local auth/workspace rows. **Never true in production.**
 - `ALLOW_MOCK_LLM`: Produces fake AI output. **Never true in production.**
 - `ALLOW_IN_MEMORY_PERSISTENCE`: Stores data in memory (lost on restart). **Never true in production.**
-- `ALLOW_IN_MEMORY_APPROVAL_STORE`: Stores approvals in memory. **Never true in production.**
+- `ALLOW_IN_MEMORY_APPROVAL_STORE`: Stores approvals in memory for explicit dev/test only. **Never true in production.** Production execution verification must use persisted approval records or fail closed.
 - `ALLOW_LEGACY_INGEST_FALLBACK`: Falls back to static sanitization. Avoid in production.
 - `EXTERNAL_ACTIONS_ENABLED`: Enables real Slack/Gmail/GitHub/Calendar actions. **Enable only after all other production requirements are met.**
 

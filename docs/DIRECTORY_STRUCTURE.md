@@ -6,8 +6,12 @@
 
 Current active structure is still hybrid:
 
+- `docs/CONTEXT_INDEX.md`
+  - first-read AI context map for canonical files, legacy surfaces, and minimal reading bundles
 - `app/components/`
-  - dashboard UI
+  - canonical dashboard UI
+  - adopted v0 dashboard shell under `workunit-os/adopted/`
+  - transitional pre-v0 dashboard panes retained but not rendered from `app/page.tsx`
   - legacy WorkUnit Inbox UI compatibility exports
 - `app/api/`
   - route handlers for inbox, feedback, integration status, preview, approval, tools
@@ -16,6 +20,7 @@ Current active structure is still hybrid:
 - `app/lib/application/`
   - canonical home for application-layer orchestration helpers going forward
   - `application/auth/` now owns auth adapter resolution and session resolution
+  - `application/dashboard/` now owns client-safe adopted dashboard fetch helpers and view-model mapping
   - `application/workunitInbox/` now owns inbox-facing transforms, read models, and persistence mapping
 - `app/lib/domain/`
   - pure domain types and lifecycle/state-machine logic
@@ -106,15 +111,20 @@ Forbidden:
 
 | Concern | Canonical module / area | Notes |
 |--------|--------------------------|-------|
-| Main UI shell | `app/components/workunit-os/WorkUnitOSDashboard.tsx` | Active page entry |
-| Canonical Action Field UI | dashboard drawer inside `WorkUnitOSDashboard` | Active UI path |
+| Main UI shell | `app/components/workunit-os/WorkUnitOSDashboard.tsx` | Active page entry; wraps the adopted v0 shell |
+| Adopted visual shell | `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` | Official v0-generated frontend design |
+| Canonical Action Field UI | `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` | Right pane entry inside the adopted shell |
+| Adopted dashboard fetch client | `app/lib/application/dashboard/dashboardDataClient.ts` | Reads `/api/workunit/inbox`, `/api/integrations/status`, `/api/audit/recent` |
+| Adopted dashboard view-model | `app/lib/application/dashboard/adoptedDashboardViewModel.ts` | Maps real API data into preserved v0 shell density; empty/loading/error states do not fabricate live WorkUnits |
 | Canonical Preview / Approval client | `app/lib/application/actionField/dashboardPreviewClient.ts` | Client-safe application helper |
+| Pre-v0 dashboard presentation model | `app/lib/application/dashboard/workUnitDashboardModel.ts` | Transitional model retained for older pane components and tests |
 | Legacy Preview / Approval client | `app/lib/workunitInbox/actionFieldClient.ts` | Kept for standalone legacy component |
 | Legacy standalone Action Field UI | `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` | Physical home; old path re-exports remain |
 | Canonical inbox application logic | `app/lib/application/workunitInbox/*` | Active signal->inbox mapping and persistence mapping |
 | Legacy inbox compatibility paths | `app/lib/workunitInbox/*` and `app/components/workunitInbox/*` | Re-export surface only |
 | Inbox read boundary | `app/lib/application/workunitInbox/*` | Normalized source → InboxWorkUnit |
 | Route persistence access | `app/lib/persistence/repositoryResolver.ts` and `routeRepositories.ts` | Canonical persistence entry |
+| Execution approval adapter | `app/lib/persistence/approvalStoreAdapter.ts` | Wraps tenant-scoped approval repository for execution-time verification |
 | Tenant DB repository implementations | `app/lib/persistence/d1/` | Infrastructure implementation |
 | Session / RBAC / approval security | `app/lib/security/` | Server trust boundary |
 | Auth adapter boundary | `app/lib/application/auth/` | Verified identity + session resolution |
@@ -135,8 +145,12 @@ Transitional modules still in repository:
   - legacy standalone Action Field client
 - `app/lib/workunitInbox/sources/**`
   - compatibility exports pointing to infrastructure/external
+- `app/components/workunit-os/{WorkUnitExplorerPane,DecompositionConsole,DecisionTracePanel,ActionFieldEntryPanel}.tsx`
+  - retained pre-adoption shell components; no longer rendered from the root page
 
 These remain to avoid breaking the current MVP while canonical ownership moves to `app/lib/application/actionField/`.
+
+Phase 1 reduction adds `scripts/report-legacy-surface.mjs` and `tests/architectureLegacySurface.test.mts` to track this surface before deletion.
 
 ## 7. High-risk dependency violations and debt
 
@@ -150,8 +164,9 @@ Current architecture debt that remains intentionally deferred:
 ## 8. Migration plan
 
 1. Keep current MVP behavior stable.
-2. Use `app/lib/application/` for new orchestration helpers.
-3. Move new provider clients into `app/lib/infrastructure/external/` rather than expanding route handlers.
-4. Build the real auth adapter on top of the new control DB auth/workspace repositories.
-5. After dashboard drawer fully absorbs the old standalone flow, remove legacy Action Field modules.
-6. After Production Auth lands, route tenant DB resolution through control DB membership ownership.
+2. Read `docs/CONTEXT_INDEX.md` before architecture-sensitive work.
+3. Use `app/lib/application/` for new orchestration helpers.
+4. Move new provider clients into `app/lib/infrastructure/external/` rather than expanding route handlers.
+5. Migrate imports away from compatibility paths before deleting files.
+6. After the Action Field Entry pane fully absorbs the old standalone flow, remove legacy Action Field modules.
+7. After Production Auth lands, route tenant DB resolution through control DB membership ownership.

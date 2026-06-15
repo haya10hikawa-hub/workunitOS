@@ -288,6 +288,8 @@ CREATE TABLE action_previews (
 
 #### Approval Records
 
+Approval records are created from persisted `action_previews`. `target_hash` and `payload_hash` are copied from the stored preview, not accepted from the client. Execution-time approval verification reads these rows through the repository-backed `ApprovalStore` adapter and marks a valid approval `used` after the approved path is consumed.
+
 ```sql
 CREATE TABLE approval_records (
   id               TEXT PRIMARY KEY,

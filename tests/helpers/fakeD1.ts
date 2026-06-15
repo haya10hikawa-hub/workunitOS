@@ -69,10 +69,10 @@ class FakeD1Statement implements D1PreparedStatementLike {
       const filtered = Array.from(table.values()).filter(
         (row) => whereCols.every((col, index) => String(row[col]) === String(this.values[index]))
       )
-      return { results: filtered as unknown as T[] }
+      return { results: this.applyLimit(filtered, whereCols.length) as unknown as T[] }
     }
 
-    return { results: Array.from(table.values()) as unknown as T[] }
+    return { results: this.applyLimit(Array.from(table.values()), 0) as unknown as T[] }
   }
 
   async run(): Promise<{ success: boolean; meta?: { rows_written?: number } }> {
@@ -141,6 +141,13 @@ class FakeD1Statement implements D1PreparedStatementLike {
     const match = this.sql.match(/\(([^)]+)\)\s*values/i)
     if (!match) return this.values.map((_, i) => `col${i}`)
     return match[1].split(",").map((c) => c.trim())
+  }
+
+  private applyLimit(rows: Record<string, unknown>[], offset: number): Record<string, unknown>[] {
+    if (!/limit\s+\?/i.test(this.sql)) return rows
+    const rawLimit = this.values[offset]
+    const limit = typeof rawLimit === "number" ? rawLimit : Number.parseInt(String(rawLimit ?? ""), 10)
+    return Number.isFinite(limit) && limit >= 0 ? rows.slice(0, limit) : rows
   }
 }
 

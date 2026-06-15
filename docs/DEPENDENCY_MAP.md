@@ -16,27 +16,40 @@ UI
 → D1 / External APIs
 ```
 
+## 0.1 First-read context map
+
+- `docs/CONTEXT_INDEX.md` is the first-read file for AI agents.
+- It lists canonical files by task, files to avoid by default, and minimal context bundles.
+- Architecture reduction work should update the context index before expanding feature scope.
+
 ## 1. UI Layer
 
 ### Canonical (active)
 | Path | Role |
 |------|------|
 | `app/page.tsx` | Root page: renders `WorkUnitOSDashboard` only |
-| `app/components/workunit-os/WorkUnitOSDashboard.tsx` | Main dashboard UI with drawer-based Action Field (Preview/Approval) |
-| `app/components/workunitInbox/WorkUnitInbox.tsx` | Compatibility export for the legacy inbox list UI |
-| `app/components/workunitInbox/WorkUnitDetail.tsx` | Compatibility export for the legacy detail UI |
-| `app/components/workunit-os/ExternalActionApprovalDrawer.tsx` | Approval drawer (used by dashboard) |
+| `app/components/workunit-os/WorkUnitOSDashboard.tsx` | Canonical dashboard entry; wraps the adopted v0 implementation |
+| `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` | Adopted v0 three-pane dashboard shell and visual source of truth; now fetches real WorkUnits, integration status, and recent audit logs through application clients |
+| `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.module.css` | Adopted v0 CSS Module with preserved visual values |
 
 ### Deprecated / reference only
 | Path | Status |
 |------|--------|
 | `app/components/workunitInbox/WorkUnitActionField.tsx` | Compatibility export to the older API-wired ActionField; not rendered from `app/page.tsx` |
+| `app/components/workunit-os/{WorkUnitExplorerPane,DecompositionConsole,DecisionTracePanel,ActionFieldEntryPanel}.tsx` | Transitional presentational shell from the pre-v0 adopted dashboard; no longer rendered from `app/page.tsx` |
+| `app/components/workunit-os/{IntegrationStatusPanel,AuditLogPanel}.tsx` | Pre-adoption operations panels; the adopted shell now uses its own compact status/audit rendering |
+| `app/components/workunitInbox/{WorkUnitInbox,WorkUnitDetail}.tsx` | Compatibility exports for the legacy standalone inbox/detail UI |
 
 ### Canonical Action Field ownership
 | Path | Role |
 |------|------|
 | `app/lib/application/actionField/dashboardPreviewClient.ts` | Canonical client-safe Preview / Approval UI client |
 | `app/lib/application/actionField/errorState.ts` | Canonical Action Field error-state mapper |
+| `app/lib/application/dashboard/dashboardDataClient.ts` | Canonical client-safe dashboard fetch helper for inbox, integration status, and recent audit logs |
+| `app/lib/application/dashboard/dashboardStatusClient.ts` | Compatibility re-export for older dashboard status/audit imports |
+| `app/lib/application/dashboard/adoptedDashboardViewModel.ts` | Canonical mapping from inbox/status/audit API data into the adopted v0 shell view model; empty states do not fabricate sample WorkUnits |
+| `app/lib/application/dashboard/selectedWorkUnitPreviewModel.ts` | Canonical selected-WorkUnit-to-preview-group mapper; extracts safe fields only (no hashes, tokens, secrets); gates on decision selection |
+| `app/lib/application/dashboard/workUnitDashboardModel.ts` | UI-only dashboard model for WorkUnit Explorer, Decision Trace, Evidence Capsule, and Readiness Gates; `getPrimaryActionPreviewGroup` is legacy/demo only |
 | `app/lib/application/workunitInbox/*` | Canonical inbox-facing application logic |
 | `app/lib/actionField/*.ts` | Legacy compatibility exports only |
 
@@ -44,9 +57,13 @@ UI
 ```
 page.tsx
   └── WorkUnitOSDashboard
-        ├── dashboardPreviewClient.ts → POST /api/workunit/:id/action-preview
-        │                            → POST /api/workunit/:id/approval
-        └── GET /api/workunit/inbox?source=...
+        └── AdoptedWorkUnitDashboard
+              ├── dashboardDataClient.ts
+              │    → GET /api/workunit/inbox, /api/integrations/status, /api/audit/recent
+              ├── adoptedDashboardViewModel.ts
+              │    └── selectedWorkUnitPreviewModel.ts  (safe preview group from selected WorkUnit)
+              └── dashboardPreviewClient.ts
+                   → POST /api/workunit/:id/action-preview
 ```
 
 ## 2. API Layer
@@ -56,9 +73,11 @@ page.tsx
 | `GET /api/workunit/inbox` | Return WorkUnits from selected source and persist them when repositories are available | `application/workunitInbox/*`, `infrastructure/external/*`, `resolveRouteRepositories()` |
 | `POST /api/workunit/:id/action-preview` | Create ActionPreview with server hashes | `requireSession`, `resolveRouteRepositories`, `hashActionTarget`, `hashActionPayload` |
 | `POST /api/workunit/:id/approval` | Approve/reject preview | `requireSession`, `resolveRouteRepositories`, preview→approval mapping |
+| `GET /api/workunit/:id/approval/status` | Return tenant-scoped safe approval status summary | `requireSession`, `resolveRouteRepositories`, `approvalRecords.findByWorkUnitId` |
 | `POST /api/workunit/:id/feedback` | Persist feedback, update WorkUnit status for `later` / `done`, append audit and usage | `requireSession`, `resolveRouteRepositories` |
 | `GET /api/integrations/status` | Return safe integration connection status per provider | `requireSession`, `resolveRouteRepositories` |
-| `POST /api/workunit/tools` | Execute backend tools (ingest, draft, external) | `requireSession`, `resolveApprovalStore`, `resolveRouteRepositories` |
+| `GET /api/audit/recent` | Return tenant-scoped recent audit events with sanitized metadata | `requireSession`, `resolveRouteRepositories`, `canViewAudit()` |
+| `POST /api/workunit/tools` | Execute backend tools (ingest, draft, external verification path) | `requireSession`, `resolveRouteRepositories`, persisted preview lookup, `resolveRepositoryBackedApprovalStore` |
 
 ## 2.1 Legacy UI compatibility
 
@@ -183,7 +202,8 @@ page.tsx
 ### Current audit coverage
 - Feedback writes audit events through persisted repository paths when available.
 - Inbox fetch can append `workunit.inbox.fetch` audit entries with `{ source, count }`.
-- `GET /api/audit-logs` UI/read path remains a later phase.
+- `GET /api/audit/recent` is the canonical dashboard audit read path.
+- Audit response metadata is sanitized before leaving the server.
 
 ### Usage ownership
 - Usage persistence lives in `persistence/d1/usageRepository.ts` behind the repository bundle.
@@ -201,13 +221,15 @@ page.tsx
 |--------|------|
 | `security/hash.ts` | SHA-256 canonical hashing for approvals |
 | `security/approvalStore.ts` | verifyApproval, markApprovalUsed |
-| `security/approvalStoreResolver.ts` | resolveApprovalStore (mode-based) |
+| `security/approvalStoreResolver.ts` | resolveApprovalStore (mode-based) and repository-backed ApprovalStore adapter resolution |
 | `security/actionApproval.ts` | approvalActionTypeForOperation |
 | `security/safeErrors.ts` | safeError, isSafeErrorCode |
 | `security/externalActions.ts` | Kill switch guard |
 
 ## 9. High-risk architecture debt
 
+- Legacy surface reporting lives in `scripts/report-legacy-surface.mjs`; it reports compatibility imports without failing.
+- `tests/architectureLegacySurface.test.mts` locks the current root page, swap-file, adopted dashboard, and legacy import baseline.
 - `app/api/workunit/inbox/route.ts` still mixes route, source orchestration, and persistence responsibilities.
 - `app/lib/workunitInbox/actionFieldClient.ts` and `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` remain legacy compatibility modules.
 - Control DB schema ownership exists, but active repository routing still goes through `TENANT_DB_DEFAULT` rather than a future workspace auth chain.

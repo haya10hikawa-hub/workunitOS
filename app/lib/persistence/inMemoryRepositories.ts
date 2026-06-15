@@ -117,12 +117,15 @@ export function createInMemoryApprovalRecordRepository(): ApprovalRecordReposito
   return {
     async create(_ctx, row) { records.set(row.id, { ...row }); return { ...row } },
     async findById(_ctx, id) { return records.get(id) ?? null },
-    async findByPreviewId(_ctx, pid) {
-      for (const row of records.values()) { if (row.actionPreviewId === pid) return { ...row } }
+    async findByPreviewId(ctx, pid) {
+      for (const row of records.values()) { if (row.actionPreviewId === pid && row.tenantId === ctx.tenantId) return { ...row } }
       return null
     },
-    async findByWorkUnitId(_ctx, wuId) {
-      return Array.from(records.values()).filter((r) => r.workUnitId === wuId).map((r) => ({ ...r }))
+    async findByWorkUnitId(ctx, wuId) {
+      return Array.from(records.values())
+        .filter((r) => r.workUnitId === wuId && r.tenantId === ctx.tenantId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((r) => ({ ...r }))
     },
     async updateStatus(_ctx, id, status) {
       const r = records.get(id); if (!r) return null; const u = { ...r, status }; records.set(id, u); return { ...u }

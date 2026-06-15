@@ -33,6 +33,14 @@ Each level carries a different trust:
 
 - Client code does not own `tenantId`, `actorUserId`, approval hashes, approval status, or tokens.
 - Canonical dashboard Preview / Approval requests are assembled in `app/lib/application/actionField/dashboardPreviewClient.ts`.
+- Canonical dashboard Action Field Entry shows only an Evidence Capsule and Readiness Gates; it does not expose raw provider payloads or an external execution CTA.
+- Canonical adopted dashboard data reads happen through `app/lib/application/dashboard/dashboardDataClient.ts` and `adoptedDashboardViewModel.ts`; UI components still do not import repositories, route internals, or raw external clients.
+- Dashboard preview groups are derived from selected real WorkUnits via `app/lib/application/dashboard/selectedWorkUnitPreviewModel.ts`; the mapper never includes client-owned hashes, status, tenant, role, or tokens.
+- Server errors from preview creation are mapped to safe user-facing messages (`mapSafePreviewError`) in the adopted dashboard component; raw server error JSON is never displayed.
+- The static `getPrimaryActionPreviewGroup()` in `workUnitDashboardModel.ts` is legacy/demo only and is not used in the active dashboard CTA path.
+- `targetHash` and `payloadHash` are **never returned to the browser** in normal API responses from `POST /action-preview` or `POST /approval`. They are stored server-side and used only for approval/execution verification.
+- Approval status is queried through `GET /api/workunit/:id/approval/status` which returns a safe summary (none/pending/approved/rejected/expired/used) without exposing hashes, tenantId, or raw approval internals.
+- Approve/Reject actions use the existing `dashboardPreviewClient.ts` helper and the existing `POST /approval` endpoint; no client-owned fields are sent.
 - Legacy standalone Action Field modules remain for compatibility but are not the canonical UI path.
 
 ## Session and Authentication
@@ -158,7 +166,7 @@ External actions require server-side approval. The approval model:
 - Records expire (configurable TTL, default 60 minutes)
 - Client `approvedByPm` flag is ignored — only server-side records authorize execution
 
-Current state: D1 schema exists for `action_previews` and `approval_records`, and the approval API can create records. Execution-time `ApprovalStore` resolution is not fully unified with that D1 path yet, so the safe default remains deny unless an approved store is explicitly available.
+Current state: D1 schema exists for `action_previews` and `approval_records`, and the approval API creates records by copying hashes from the persisted preview. Execution-time verification for `/api/workunit/tools` resolves the stored `ActionPreview`, wraps the tenant-scoped `approvalRecords` repository with the canonical `ApprovalStore` adapter, verifies the caller-provided approval ID against persisted hashes, and marks the approval `used` after a successful verification path. Production must not silently fall back to an in-memory approval store; if persistence or preview context is unavailable, execution verification fails closed.
 
 ## RBAC
 
@@ -225,8 +233,19 @@ Current persisted route coverage:
 
 - `POST /api/workunit/:id/feedback`
 - `GET /api/workunit/inbox` with summarized metadata only: `{ source, count }`
+- `GET /api/audit/recent` for tenant-scoped dashboard read visibility
 
 Audit metadata must stay sanitized. Raw WorkUnits, raw provider payloads, tokens, and secrets are not written to audit rows.
+Dashboard audit reads additionally remove metadata keys such as `token`, `accessToken`, `refreshToken`, `secret`, `authorization`, `cookie`, `rawPayload`, `rawBody`, and `password`.
+
+## Dashboard Operations Visibility
+
+- `GET /api/integrations/status` requires `canViewIntegrationStatus(session)`
+- `GET /api/audit/recent` requires `canViewAudit(session)`
+- Both routes derive tenant scope from `SessionContext`
+- Neither route exposes provider tokens, secrets, cookies, raw request bodies, or raw provider payloads
+- Dashboard WorkUnit rows come from `/api/workunit/inbox`; empty/loading/error states must be labeled honestly and must not show sample WorkUnits as live work
+- Preview, approval, integration, and audit states must reflect actual API/local state or remain empty/unavailable; static sample operational events must not be presented as real
 
 ## Control DB auth/workspace foundation
 
@@ -279,3 +298,10 @@ Before production SaaS:
 - API input is runtime-validated, not just TypeScript-cast
 - Error responses don't leak internals
 - Security boundaries exist in code, not just comments
+
+## Architecture reduction guardrails
+
+- `docs/CONTEXT_INDEX.md` is the first-read file for AI agents to avoid legacy paths.
+- Architecture Reduction Phase 1 does not change auth, session, RBAC, tenant access, Preview / Approval, or external execution behavior.
+- Legacy import tracking is allowed to report compatibility usage, but it must not weaken deny-by-default production auth.
+- Compatibility export deletion is deferred until imports are migrated and scanner output proves the surface is unused.

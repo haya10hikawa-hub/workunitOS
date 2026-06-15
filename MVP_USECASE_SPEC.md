@@ -79,19 +79,31 @@ Rules:
 ### Inbox View
 * Card list — each card shows: title, priority badge, kind label, source, reason, next action
 * Loading / error / empty states
+* AI agents should read `docs/CONTEXT_INDEX.md` before touching dashboard or inbox paths
 * Adopted desktop UI path is `WorkUnitOSDashboard`
+* Adopted dashboard visual implementation lives in `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`
+* Adopted dashboard layout is a three-pane OS console: WorkUnit Explorer, Decomposition / Judgment Console, Action Field Entry
+* The adopted shell now fetches real WorkUnits through `/api/workunit/inbox` and maps them into the preserved v0 layout through `app/lib/application/dashboard/adoptedDashboardViewModel.ts`
+* Some center/right console copy still uses deterministic fallback phrasing when inbox data lacks richer decomposition fields
+* Empty/loading/error states must be explicit; the adopted shell must not show sample WorkUnits as live data
 
 ### Detail View
 * Select card → detail panel with: reason, evidence, provider, sourceUrl, actor, assignee, repo, nextAction, priority
 * Visual selection indicator
 
 ### Action Field
-* Adopted dashboard drawer is the canonical Action Field UI
+* Adopted right pane in the v0 shell is the canonical Action Field Entry UI
 * Canonical dashboard Preview / Approval client lives in `app/lib/application/actionField/dashboardPreviewClient.ts`
-* Adopted dashboard drawer supports local draft editing and safety review
-* Adopted dashboard drawer can create ActionPreviews and submit approve/reject decisions through existing APIs
+* Source evidence appears as a compact Evidence Capsule, not as a full source reader
+* The adopted center log label is `Decision Trace`
+* Readiness and decision-trace text now derives from selected WorkUnit fields plus deterministic UI-safe fallback wording
+* The primary CTA is `Create Action Preview`
+* CTA is disabled when no WorkUnit selected or no decision taken; preview group is derived from selected real WorkUnit via `selectedWorkUnitPreviewModel.ts`
+* Action Field Entry can create ActionPreviews through existing APIs without changing request trust boundaries
+* Approval and execution readiness must not be shown as complete unless preview/approval state exists
 * Older `WorkUnitActionField` remains only as a migration reference
 * External execution is still disabled
+* Compatibility paths remain in place during Architecture Reduction Phase 1; deletion is deferred until imports reach zero
 
 ### Feedback Controls
 * Useful / Not useful / Later / Done buttons
@@ -103,7 +115,9 @@ Rules:
 * Inbox fetch records a usage event when the usage repository is available
 * Feedback creation records a usage event when the usage repository is available
 * Integration status reads record a usage event when the usage repository is available
+* Dashboard audit reads are tenant-scoped and sanitize metadata before returning it to the client
 * Usage metadata is sanitized and excludes raw payloads, tokens, and secrets
+* Adopted dashboard also reads tenant-scoped integration status and recent audit summaries through client-safe application helpers
 
 ## 8. Out of Scope
 
@@ -120,8 +134,9 @@ Rules:
 
 * User sees normalized WorkUnits from mock signals
 * User can browse, select, and inspect WorkUnits
-* Selected WorkUnit contextualizes the Action Field
+* Selected WorkUnit contextualizes the Action Field Entry
 * Repeated inbox refresh does not duplicate persisted WorkUnits
 * UI feels responsive and minimal
 * All tests pass (transform + API + UI smoke)
 * Zero real external API calls
+* Architecture cleanup reduces compatibility imports without changing runtime behavior

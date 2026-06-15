@@ -35,7 +35,13 @@ export async function fetchDashboardApprovalStatus(
   if (!response.ok) {
     return { ok: false, error: await readSafeError(response, "approval_status_failed") }
   }
-  const data = await response.json()
+  let data: unknown
+  try { data = await response.json() } catch {
+    return { ok: false, error: "Invalid approval status response from server." }
+  }
+  if (!isRecord(data) || typeof data.workUnitId !== "string" || typeof data.status !== "string") {
+    return { ok: false, error: "Invalid approval status response from server." }
+  }
   return {
     ok: true,
     approvalStatus: normalizeApprovalStatus(data),
@@ -44,10 +50,7 @@ export async function fetchDashboardApprovalStatus(
 
 // ─── Normalization ──────────────────────────────────────────────
 
-function normalizeApprovalStatus(data: unknown): DashboardApprovalStatus {
-  if (!isRecord(data)) {
-    return emptyStatus("")
-  }
+function normalizeApprovalStatus(data: Record<string, unknown>): DashboardApprovalStatus {
   return {
     workUnitId: asString(data.workUnitId, ""),
     latestApprovalId: asStringOrNull(data.latestApprovalId),
@@ -68,22 +71,6 @@ function asStatusValue(value: unknown): DashboardApprovalStatus["status"] {
     return value
   }
   return "none"
-}
-
-function emptyStatus(workUnitId: string): DashboardApprovalStatus {
-  return {
-    workUnitId,
-    latestApprovalId: null,
-    latestActionPreviewId: null,
-    status: "none",
-    approved: false,
-    rejected: false,
-    expired: false,
-    used: false,
-    createdAt: null,
-    expiresAt: null,
-    usedAt: null,
-  }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────

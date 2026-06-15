@@ -17,7 +17,7 @@ import {
   Square,
   User,
 } from "lucide-react"
-import { createDashboardActionPreviews, approveDashboardActionPreviews, type DashboardPreviewRef } from "@/lib/application/actionField/dashboardPreviewClient"
+import { createDashboardActionPreviews } from "@/lib/application/actionField/dashboardPreviewClient"
 import {
   buildAdoptedDashboardViewModel,
   type DashboardAuditLogView,
@@ -75,7 +75,6 @@ export function AdoptedWorkUnitDashboard() {
   const [activeTabId, setActiveTabId] = useState<string>()
   const [selectedDecision, setSelectedDecision] = useState<string | null>(null)
   const [previewCreated, setPreviewCreated] = useState(false)
-  const [previewRefs, setPreviewRefs] = useState<DashboardPreviewRef[]>([])
   const [previewStatus, setPreviewStatus] = useState<PreviewLoadingStatus>("idle")
   const [previewMessage, setPreviewMessage] = useState("")
   const [approvalStatus, setApprovalStatus] = useState<DashboardApprovalStatus | null>(null)
@@ -115,11 +114,7 @@ export function AdoptedWorkUnitDashboard() {
 
   // ─── Fetch approval status when selected WorkUnit changes ──────
   useEffect(() => {
-    if (!selectedWorkUnitId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setApprovalStatus(null)
-      return
-    }
+    if (!selectedWorkUnitId) return
     let active = true
     fetchDashboardApprovalStatus(selectedWorkUnitId).then((result) => {
       if (!active) return
@@ -170,7 +165,6 @@ export function AdoptedWorkUnitDashboard() {
       return
     }
     setPreviewCreated(true)
-    setPreviewRefs(result.previews)
     setPreviewStatus("created")
     setPreviewMessage(`Created ${result.previews.length} action preview${result.previews.length === 1 ? "" : "s"}.`)
     // Refresh approval status after preview creation
@@ -179,24 +173,6 @@ export function AdoptedWorkUnitDashboard() {
         if (statusResult.ok) setApprovalStatus(statusResult.approvalStatus)
       }).catch(() => {})
     }
-  }
-
-  const handleApproveReject = async (decision: "approve" | "reject") => {
-    if (!selectedWorkUnitId || previewRefs.length === 0) return
-    setPreviewMessage("")
-    setPreviewStatus("creating")
-    const result = await approveDashboardActionPreviews(selectedWorkUnitId, previewRefs, decision)
-    if (!result.ok) {
-      setPreviewStatus("failed")
-      setPreviewMessage(mapSafePreviewError(result.error))
-      return
-    }
-    setPreviewStatus("created")
-    setPreviewMessage(decision === "approve" ? "Preview approved." : "Preview rejected.")
-    // Refresh approval status
-    fetchDashboardApprovalStatus(selectedWorkUnitId).then((statusResult) => {
-      if (statusResult.ok) setApprovalStatus(statusResult.approvalStatus)
-    }).catch(() => {})
   }
 
   const statusText = dashboardState.status === "loading"
@@ -253,7 +229,6 @@ export function AdoptedWorkUnitDashboard() {
                   setActiveTabId(workUnit.id)
                   setSelectedDecision(null)
                   setPreviewCreated(false)
-                  setPreviewRefs([])
                   setPreviewStatus("idle")
                   setPreviewMessage("")
                 }}
@@ -401,24 +376,6 @@ export function AdoptedWorkUnitDashboard() {
               (Reason: Approval is not completed)
             </div>
             {previewMessage ? <div className={styles.ctaMeta}>{previewMessage}</div> : null}
-            {previewStatus === "created" && previewRefs.length > 0 ? (
-              <div className={styles.ctaApproveRow}>
-                <button
-                  type="button"
-                  className={styles.ctaApproveBtn}
-                  onClick={() => handleApproveReject("approve")}
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  className={styles.ctaRejectBtn}
-                  onClick={() => handleApproveReject("reject")}
-                >
-                  Reject
-                </button>
-              </div>
-            ) : null}
           </div>
 
           <CompactStatusList title="INTEGRATION STATUS" rows={viewModel.integrationStatuses} />

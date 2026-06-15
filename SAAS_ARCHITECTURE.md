@@ -20,12 +20,13 @@ This refactor keeps behavior unchanged and documents the boundary for future pha
 ┌─────────────────────────────────────────┐
 │              Frontend (React)            │
 │  WorkUnitOSDashboard                    │
-│  Inbox review + Action Field drawer     │
+│  Explorer + Judgment Console + Action Field Entry │
 ├─────────────────────────────────────────┤
 │              API Layer (Next.js)          │
 │  /api/workunit/inbox                     │
 │  /api/workunit/:id/feedback              │
 │  /api/integrations/status                │
+│  /api/audit/recent                       │
 │  /api/workunit/:id/action-preview        │
 │  /api/workunit/:id/approval              │
 │  /api/workunit/tools                     │
@@ -55,10 +56,19 @@ This refactor keeps behavior unchanged and documents the boundary for future pha
 ## Current auth foundation state
 
 - The adopted main UI path is `WorkUnitOSDashboard`.
+- `WorkUnitOSDashboard` now wraps the adopted v0 frontend shell in `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`.
+- The adopted dashboard is a three-pane console: WorkUnit Explorer, Decomposition / Judgment Console, and Action Field Entry.
+- The adopted shell now binds live WorkUnit rows from `/api/workunit/inbox` and reads integration status plus recent audit events through `application/dashboard/dashboardDataClient.ts`.
 - The inbox route can persist sanitized generated WorkUnits when repositories are available.
 - Feedback writes persist feedback, update WorkUnit status, append audit, and record usage.
 - Integration status reads persisted connection metadata and records usage.
-- Action Preview / Approval remains wired through existing APIs.
+- Canonical dashboard Action Field Entry in the adopted shell keeps the v0 visual layout while still creating previews through the canonical client helper.
+- The Create Action Preview CTA uses the selected real WorkUnit to derive its preview group via `selectedWorkUnitPreviewModel.ts`; the CTA is disabled when no decision is selected and when no WorkUnit is available.
+- Action Preview / Approval remains wired through existing APIs. Hashes are server-only in browser-facing responses.
+- A tenant-scoped approval status endpoint (`GET /api/workunit/:id/approval/status`) returns safe metadata without exposing hashes or tenant internals.
+- Minimal Approve/Reject UI uses the existing dashboardPreviewClient helper calling the existing POST /approval endpoint.
+- Execution-time approval verification now reads persisted ActionPreview hashes and ApprovalRecord rows through the repository-backed ApprovalStore adapter; in-memory approval stores remain dev/test only.
+- The adopted dashboard no longer presents fallback WorkUnit rows, audit events, or provider status as live data in empty/error states.
 - Control DB auth/workspace schema and repositories now exist.
 - SessionContext and route-side role helpers now derive `tenantId` and `actorUserId` from the server session only.
 - Real authentication provider wiring is still deferred.
@@ -102,6 +112,12 @@ This refactor keeps behavior unchanged and documents the boundary for future pha
 |--------|---------------|
 | `application/actionField/dashboardPreviewClient.ts` | Canonical client-safe Preview / Approval flow helper |
 | `application/actionField/errorState.ts` | Canonical Action Field error-state mapping |
+| `application/dashboard/dashboardDataClient.ts` | Canonical client-safe dashboard fetch helper for inbox, status, and audit |
+| `application/dashboard/dashboardStatusClient.ts` | Compatibility re-export for older status/audit imports |
+| `application/dashboard/dashboardApprovalStatusClient.ts` | Canonical client-safe approval status fetch helper for dashboard binding |
+| `application/dashboard/adoptedDashboardViewModel.ts` | Canonical adopted-shell view-model mapping |
+| `application/dashboard/selectedWorkUnitPreviewModel.ts` | Canonical selected-WorkUnit to safe preview-group mapper; gates on decision |
+| `application/dashboard/workUnitDashboardModel.ts` | UI-only dashboard model for explorer, trace, evidence, and gates |
 | `application/auth/authAdapter.ts` | Verified identity interface |
 | `application/auth/resolveAuthAdapter.ts` | Adapter selection |
 | `application/auth/devAuthAdapter.ts` | Explicit dev identity adapter |
@@ -133,6 +149,9 @@ This refactor keeps behavior unchanged and documents the boundary for future pha
 | `d1/auditLogRepository.ts` | Audit persistence/read path |
 | `d1/integrationConnectionRepository.ts` | Integration connection metadata |
 | `d1/usageRepository.ts` | Usage event persistence/read path |
+| `d1/actionPreviewRepository.ts` | Persisted ActionPreview rows and server-owned hashes |
+| `d1/approvalRecordRepository.ts` | Persisted ApprovalRecord rows, status, expiry, usedAt |
+| `approvalStoreAdapter.ts` | Tenant repository-backed adapter used by execution-time approval verification |
 
 See `DATA_MODEL.md` for full D1 schema design.
 
@@ -174,10 +193,10 @@ See `DATA_MODEL.md` for full D1 schema design.
    │  Trust level: draft — human review required
    ▼
 6. Human Approval (server-side)
-   │  PM approves/rejects via server-side record
+   │  PM approves/rejects via persisted ActionApprovalRecord copied from ActionPreview hashes
    ▼
 7. Execution (toolBackend.ts → externalToolClients.ts)
-   │  Only after: kill switch ON, approval verified, RBAC passed
+   │  Only after: kill switch ON, RBAC passed, persisted approval verified and marked used
    ▼
 8. External Execution Result
    │  Logged, auditable
@@ -209,7 +228,7 @@ The route response remains UI-shaped even when persistence is enabled.
 ## Extensibility Points
 
 - **Add auth**: extend the current JWT adapter with a real cookie or OIDC adapter on top of the same control-DB-backed membership resolution
-- **Add database**: implement `writeAuditLog()` and `verifyServerSideApproval()` with real storage
+- **Harden storage operations**: add stronger idempotency, migration/backup practice, and operational monitoring around persisted approvals and audit rows
 - **Add tenant**: brand real tenant IDs and enforce in middleware
 - **Add rate limiting**: hook into middleware or API routes
 - **Add OAuth**: implement per-tenant token vault in `integrations/types.ts`
@@ -218,6 +237,7 @@ The route response remains UI-shaped even when persistence is enabled.
 ## Out of Scope in this phase
 
 - GitHub OAuth / Slack OAuth / Calendar OAuth
+- Audit event connect/disconnect mutation UI
 - Provider token storage
 - Real external provider connections
 - External execution enablement
@@ -233,3 +253,11 @@ The route response remains UI-shaped even when persistence is enabled.
 
 - `app/lib/actionField/*.ts` are now compatibility exports only.
 - `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` is the physical legacy UI; `app/components/workunitInbox/*` remains compatibility exports only.
+
+## Architecture reduction phase
+
+- `docs/CONTEXT_INDEX.md` is the first-read map for AI agents before architecture-sensitive work.
+- Canonical imports should use `app/lib/application/*` and `app/lib/infrastructure/external/*` instead of compatibility paths.
+- `scripts/report-legacy-surface.mjs` reports remaining legacy imports without failing the build.
+- Compatibility export deletion is deferred until scanner output reaches zero for the target path.
+- This reduction phase does not change auth, Preview / Approval, tenant ownership, UI design, or runtime behavior.

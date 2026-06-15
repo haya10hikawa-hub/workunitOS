@@ -46,12 +46,12 @@ export async function GET(
   const { id: workUnitId } = await params
   const requestId = `approval-status:${workUnitId}:${Date.now()}`
 
-  audit("approval_lookup_failed", requestId, { workUnitId, reason: "status_check" })
+  audit("approval_status_requested", requestId, { workUnitId })
 
   // ── Session ──────────────────────────────────────────────────
   const sessionResult = await requireSession(request)
   if (!sessionResult.ok) {
-    audit("approval_lookup_failed", requestId, { reason: "unauthorized" })
+    audit("approval_status_failed", requestId, { reason: "unauthorized" })
     return errorResponse(
       requestId,
       (sessionResult.reason === "forbidden" || sessionResult.reason === "invalid_tenant") ? "forbidden" : "unauthorized",
@@ -62,7 +62,7 @@ export async function GET(
 
   // ── RBAC ─────────────────────────────────────────────────────
   if (!canCreatePreview(session)) {
-    audit("approval_lookup_failed", requestId, { reason: "rbac_denied" })
+    audit("approval_status_failed", requestId, { reason: "rbac_denied" })
     return errorResponse(requestId, "forbidden", 403)
   }
 
@@ -79,7 +79,7 @@ export async function GET(
   // ── Compute safe status ──────────────────────────────────────
   const status = computeApprovalStatus(workUnitId, records)
 
-  audit("approval_lookup_failed", requestId, { workUnitId, reason: `status_${status.status}` })
+  audit("approval_status_returned", requestId, { workUnitId, status: status.status })
 
   return json(status, 200)
 }

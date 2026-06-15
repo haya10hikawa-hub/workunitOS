@@ -6,6 +6,14 @@
 
 The Action Field is the central workspace attached to a WorkUnit.
 
+Current canonical UI location:
+
+* `app/components/workunit-os/WorkUnitOSDashboard.tsx`
+* `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`
+
+The adopted v0 dashboard shell is now the official frontend design. It preserves the existing Preview / Approval API client boundary while keeping the accepted visual shell intact.
+The adopted shell now binds the left WorkUnit list to `/api/workunit/inbox` and derives center/right pane content from the selected WorkUnit through application-level view-model mapping. This changes frontend data binding only; it does not change server trust boundaries.
+
 It is where the user:
 
 * reviews the WorkUnit context
@@ -479,7 +487,7 @@ Detailed error model deferred to `ERROR_MODEL.md`.
 
 5. **`approvedByPm` from client is not trusted.** Approval is always resolved server-side. The client may request approval but must not declare itself approved.
 
-6. **Server-side policy controls execution.** The `Execute` path checks: kill switch → RBAC → tenant boundary → approval validity → integration config → idempotency.
+6. **Server-side policy controls execution.** The `Execute` path checks: kill switch → RBAC → tenant boundary → persisted preview hash context → approval validity → integration config → idempotency.
 
 ---
 
@@ -526,16 +534,58 @@ Detailed error model deferred to `ERROR_MODEL.md`.
 
 ### What Exists Today
 
-The current UI (`app/components/workunit-os/WorkUnitOSDashboard.tsx`) implements:
+The current UI (`app/components/workunit-os/WorkUnitOSDashboard.tsx`) implements a three-pane OS console:
 
-* `ActionFieldDrawer` — right-side panel with action group tabs (lines 899-1004)
-* Per-action-type sections: Slack, Email, GitHub, Calendar, Database (lines 1100-1252)
-* Editable text fields + text editor with toolbar (lines 1336-1428)
-* Draft save, preview, approve/reject, cancel buttons (lines 1254-1311)
-* Safety check panel (lines 1499-1513)
-* Status badges (draft_ready, draft_saved, approved) (lines 1445-1457)
+* left: WorkUnit Explorer
+* center: Decomposition / Judgment Console
+* right: Action Field Entry
+* `Decision Trace` replaces AI-reasoning wording and records auditable judgment state.
+* The right pane uses an Evidence Capsule instead of a raw Source Context reader.
+* Readiness Gates replace vague Push Readiness scoring.
+* The primary CTA is `Create Action Preview`; no `Execute External Action` button is exposed.
 
-The older `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` also exists. It is retained as a migration reference, but it is not the adopted desktop UI path. The adopted MVP UI path is `WorkUnitOSDashboard`; the dashboard drawer now creates ActionPreviews and submits approve/reject decisions through existing APIs.
+### CTA Wiring (Create Action Preview)
+
+The adopted dashboard CTA connects to the existing Action Preview API through the following path:
+
+```
+selected InboxWorkUnit
+  → selectedWorkUnitPreviewModel.ts  (buildPreviewGroupFromSelectedWorkUnit)
+    → adoptedDashboardViewModel.ts   (buildActionFieldView → canCreatePreview gate)
+      → AdoptedWorkUnitDashboard.tsx  (handleCreatePreview → createDashboardActionPreviews)
+        → dashboardPreviewClient.ts  (buildDashboardPreviewRequests → strip forbidden keys)
+          → POST /api/workunit/:id/action-preview
+```
+
+Key behavior:
+- CTA is disabled when: no WorkUnit selected, no decision selected, preview already in-progress, or WorkUnit cannot produce a safe preview group.
+- Active preview group is derived from the currently selected real WorkUnit in the sidebar.
+- `getPrimaryActionPreviewGroup()` (in workUnitDashboardModel.ts) is legacy/demo only — not used in the active CTA path.
+- Server errors are mapped to safe user-facing messages (`mapSafePreviewError` in adopted dashboard).
+- No new backend route was added; client-owned hashes/status/tenant/role remain forbidden.
+
+Remaining debt:
+- Approval status needs API-backed dashboard binding (no GET approval-by-workunit endpoint exists yet).
+- Real external execution remains blocked.
+- OAuth/token storage still not implemented.
+
+### Correction (2026-06-15): Truth/Security Gap Fix
+
+The initial CTA wiring had several truth/security mismatches with the server-side model:
+
+1. **Decision mapping**: `selectedDecision` was gated but never placed in the preview payload. `workUnit.nextAction` was incorrectly used as the `decision` field. Fixed: `decision` now carries the user-selected decision string; `recommendedAction` carries `nextAction`.
+
+2. **Fallback removal**: `canCreatePreview` was based on `Boolean(selectedDecision)` instead of mapper success, and `fallbackPreviewGroup()` could produce active previews even when the safe mapper returned not-ready. Fixed: `canCreatePreview` is now `false` and `previewGroup` is empty when the mapper fails.
+
+3. **Hash exposure**: Both `POST /api/workunit/:id/action-preview` and `POST /api/workunit/:id/approval` returned `targetHash`/`payloadHash` to the browser. Fixed: hashes are now server-only in browser-facing responses while remaining available for server-side verification.
+
+4. **Approval status endpoint**: No API endpoint existed for querying approval status by WorkUnit. Added: `GET /api/workunit/:id/approval/status` returns a safe status summary (`none`, `pending`, `approved`, `rejected`, `expired`, `used`) without exposing hashes or tenant internals.
+
+5. **Dashboard binding**: Approval Completed gate was hardcoded `false`. Fixed: gate now reflects real server-derived approval status, refreshed on work unit selection and after preview/approval actions.
+
+6. **Approve/Reject UI**: Minimal Approve/Reject buttons appear after successful preview creation, calling the existing `approveDashboardActionPreviews()` client helper. No client-owned hash/status/tenant fields are sent.
+
+The older `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` also exists. It is retained as a migration reference, but it is not the adopted desktop UI path. The adopted MVP UI path is `WorkUnitOSDashboard`; the Action Field Entry uses the canonical dashboard preview client to create ActionPreviews through existing APIs.
 
 ### Gaps vs This Spec
 
@@ -543,23 +593,26 @@ The older `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` also exi
 | --- | ------------- | ------------ |
 | Status values | `draft_ready`, `draft_saved`, `approved` (UI-only) | Domain-aligned: `draft_workspace`, `preview_ready`, `approval_required`, `approved`, `executing`, `executed` |
 | Action type names | `email_send`, `calendar_block`, `database_update` | `gmail_reply`, `calendar_event`; remove `database_update` |
-| Approval flow | Dashboard drawer calls Preview / Approval APIs; execution remains disabled | Server-side `verifyServerSideApproval` before execution |
-| Payload hash binding | Not implemented | `targetHash` + `payloadHash` in `ActionApprovalRecord` |
+| Approval flow | Action Field Entry can create ActionPreviews; approval completion remains a separate visible gate | Execution-time verification now uses persisted `ActionPreview` + repository-backed `ApprovalStore` |
+| Payload hash binding | Preview / Approval APIs persist `targetHash` + `payloadHash`; tools route verifies against them | Add edit-after-approval invalidation UI |
 | Edit invalidates approval | No invalidation logic | Hash comparison triggers invalidation |
 | Workspace vs payload separation | All in same editable drawer | Section-based model (4.1-4.9) |
 | Execution | Disabled from the drawer | `ExecutionCommand` + `ExecutionResult` after approval |
-| UI path integration | Adopted drawer owns Preview / Approval API flow; old component remains as reference | Remove deprecated component after migration is complete |
-| Data source | Hardcoded `actionGroups` mock array | API-driven from domain objects |
+| UI path integration | Adopted right pane owns Action Field Entry; old component remains as reference | Remove deprecated component after migration is complete |
+| Data source | WorkUnit list and selected Action Field content bind through dashboard API clients; preview/approval state still partly local | Fully API-driven approval status and execution result display |
 
 ### Migration Path
 
+0. Read `docs/CONTEXT_INDEX.md` and use canonical Action Field imports under `app/lib/application/actionField/*`
 1. Add `ActionFieldSections` type matching Section 4
 2. Add `ActionFieldState` type matching Section 5.1
 3. Add state transition logic matching Section 5.2
-4. Replace mock `actionGroups` with API-fetched ActionPreview data
+4. Replace remaining local preview/approval state with API-fetched ActionPreview / ApprovalRecord data
 5. Wire "approve" button to server-side approval request (not local state)
 6. Add approval invalidation on edit (payloadHash check)
 7. Add execution flow through ExecutionCommand
 8. Add ExecutionResult display
 9. Remove `database_update` action type
 10. Rename `email_send` → `gmail_reply`, `calendar_block` → `calendar_event`
+
+Internal Alpha hardening unifies execution-time approval verification through the persisted approval adapter and removes misleading sample WorkUnit states from the adopted dashboard critical path. It does not enable external execution, OAuth, billing, provider token storage, or legacy UI deletion.

@@ -29,7 +29,7 @@ const FIND_BY_PREVIEW_ID_SQL = `
 `
 
 const FIND_BY_WORK_UNIT_ID_SQL = `
-  SELECT * FROM approval_records WHERE work_unit_id = ? ORDER BY created_at DESC
+  SELECT * FROM approval_records WHERE tenant_id = ? AND work_unit_id = ? ORDER BY created_at DESC
 `
 
 const UPDATE_STATUS_SQL = `
@@ -83,9 +83,9 @@ export class D1ApprovalRecordRepository implements ApprovalRecordRepository {
     return this.mapRow(row)
   }
 
-  async findByWorkUnitId(_ctx: TenantDbContext, workUnitId: string): Promise<ApprovalRecordRow[]> {
+  async findByWorkUnitId(ctx: TenantDbContext, workUnitId: string): Promise<ApprovalRecordRow[]> {
     const result = await this.db.prepare(FIND_BY_WORK_UNIT_ID_SQL)
-      .bind(workUnitId)
+      .bind(ctx.tenantId, workUnitId)
       .all<Record<string, unknown>>()
     if (!result.results) return []
     return result.results.map((row) => this.mapRow(row))
