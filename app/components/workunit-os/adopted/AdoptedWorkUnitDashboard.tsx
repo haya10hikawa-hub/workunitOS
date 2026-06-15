@@ -531,7 +531,7 @@ export function AdoptedWorkUnitDashboard() {
                 {viewModel.executionCommandPreview.reason ? ` — ${viewModel.executionCommandPreview.reason}` : ""}
                 <br />
                 Preview refs: {viewModel.executionCommandPreview.previewRefCount}
-                {viewModel.executionCommandPreview.requestedActionType ? ` | Action: ${viewModel.executionCommandPreview.requestedActionType}` : ""}
+                | Action: {viewModel.executionCommandPreview.requestedActionType ?? "Not available"}
               </div>
             ) : null}
             {previewMessage ? <div className={styles.ctaMeta}>{previewMessage}</div> : null}

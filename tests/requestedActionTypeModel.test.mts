@@ -39,6 +39,14 @@ test("github without repository → database_update", () => {
   )
 })
 
+test("email source → email_send", () => {
+  assert.equal(deriveRequestedActionType(input({ sourceProvider: "email" })), "email_send")
+})
+
+test("gmail source → email_send", () => {
+  assert.equal(deriveRequestedActionType(input({ sourceProvider: "gmail" })), "email_send")
+})
+
 test("unknown provider → null", () => {
   assert.equal(deriveRequestedActionType(input({ sourceProvider: "unknown" })), null)
 })

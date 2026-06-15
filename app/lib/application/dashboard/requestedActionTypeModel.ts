@@ -52,6 +52,9 @@ export function deriveRequestedActionType(
     case "github":
       // github_issue requires repository context
       return input.hasRepository ? "github_issue" : "database_update"
+    case "email":
+    case "gmail":
+      return "email_send"
     default:
       // Unknown or unsupported provider — no canonical type available
       return null

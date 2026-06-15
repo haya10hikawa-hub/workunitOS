@@ -517,3 +517,27 @@ test("requestedActionTypeModel returns canonical type codes only", async () => {
   const deriveSection = source.slice(source.indexOf("export function deriveRequestedActionType"))
   assert.equal(deriveSection.includes("Reply in Slack"), false)
 })
+
+// ─── Email mapping + null display regression ──────────────────
+
+test("requestedActionTypeModel maps email and gmail to email_send", async () => {
+  const source = await readFile("app/lib/application/dashboard/requestedActionTypeModel.ts", "utf8")
+  const codeSection = source.slice(source.indexOf("export function deriveRequestedActionType"))
+  assert.equal(codeSection.includes('case "email"'), true)
+  assert.equal(codeSection.includes('case "gmail"'), true)
+  assert.equal(codeSection.includes('"email_send"'), true)
+})
+
+test("dashboard renders Not available for null requestedActionType", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("Not available"), true)
+  // Uses nullish coalescing for safe fallback
+  assert.equal(source.includes("requestedActionType ?? "), true)
+})
+
+test("dashboard does not use nextAction as action type fallback", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // The command envelope section should not reference nextAction
+  const envelopeSection = source.slice(source.indexOf("COMMAND ENVELOPE"), source.indexOf("COMMAND ENVELOPE") + 400)
+  assert.equal(envelopeSection.includes("nextAction"), false)
+})
