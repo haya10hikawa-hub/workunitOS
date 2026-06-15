@@ -150,12 +150,13 @@ export function AdoptedWorkUnitDashboard() {
     previewCreated,
     previewStatus,
     previewRefCount: previewRefs.length,
+    previewRefs: previewRefs.map((ref) => ({ actionId: ref.actionId, previewId: ref.previewId })),
     approvalStatus,
     approvalLoading,
     approvalError,
     integrationStatuses: dashboardState.integrationStatuses,
     auditLogs: dashboardState.auditLogs,
-  }), [dashboardState.auditLogs, dashboardState.integrationStatuses, dashboardState.workUnits, previewCreated, previewStatus, previewRefs.length, selectedDecision, selectedWorkUnitId, approvalStatus, approvalLoading, approvalError])
+  }), [dashboardState.auditLogs, dashboardState.integrationStatuses, dashboardState.workUnits, previewCreated, previewStatus, previewRefs, selectedDecision, selectedWorkUnitId, approvalStatus, approvalLoading, approvalError])
 
   const handleCreatePreview = async () => {
     setPreviewMessage("")
@@ -521,6 +522,17 @@ export function AdoptedWorkUnitDashboard() {
               >
                 Execute (disabled)
               </button>
+            ) : null}
+            {viewModel.executionReadiness.traceStatus === "execution_blocked" ? (
+              <div className={styles.ctaBlocked}>
+                <span className={styles.ctaBlockedBadge}>COMMAND ENVELOPE</span>
+                <br />
+                Mode: {viewModel.executionCommandPreview.mode}
+                {viewModel.executionCommandPreview.reason ? ` — ${viewModel.executionCommandPreview.reason}` : ""}
+                <br />
+                Preview refs: {viewModel.executionCommandPreview.previewRefCount}
+                {viewModel.executionCommandPreview.requestedActionType ? ` | Action: ${viewModel.executionCommandPreview.requestedActionType}` : ""}
+              </div>
             ) : null}
             {previewMessage ? <div className={styles.ctaMeta}>{previewMessage}</div> : null}
             {submitMessage ? <div className={styles.ctaMeta}>{submitMessage}</div> : null}

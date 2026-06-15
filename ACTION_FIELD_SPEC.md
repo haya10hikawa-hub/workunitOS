@@ -212,6 +212,17 @@ triggered — the placeholder explains: "Execution is ready but external
 execution is disabled in this release." No `/api/workunit/tools` calls are
 made from the dashboard.
 
+A safe, non-executing Execution Command envelope is displayed near the
+disabled Execute CTA. The envelope is built from `executionCommandModel.ts`
+in the view model and shows only display-safe metadata: mode, reason,
+previewRefCount, and requestedActionType. Approval IDs are not displayed.
+No hashes, tenant/user/role, tokens, secrets, or raw payloads are rendered.
+The envelope is for transparency/debuggability only and does not trigger
+execution or call any server APIs. The `requestedActionType` is derived from
+canonical preview action type codes (e.g., `slack_reply`, `github_issue`) via
+`requestedActionTypeModel.ts`, not from natural-language `workUnit.nextAction`
+text. If no canonical action type is available, `requestedActionType` is null.
+
 ### 4.8 Execution Result
 
 | Attribute    | Value                     |

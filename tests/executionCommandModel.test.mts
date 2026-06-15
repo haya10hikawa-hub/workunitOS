@@ -140,3 +140,35 @@ test("envelope handles empty previewRefs", () => {
   assert.equal(envelope.previewRefs.length, 0)
   assert.equal(envelope.mode, "blocked")
 })
+
+// ─── Display-safe subset (for UI binding) ─────────────────────
+
+test("envelope does not expose approvalId when not provided", () => {
+  const envelope = buildExecutionCommandEnvelope(baseInput({
+    approvalId: null,
+  }))
+  assert.equal(envelope.approvalId, null)
+  assert.equal(envelope.approvalIdAvailable, false)
+})
+
+test("previewRefs reduced to safe actionId + previewId only — no extra keys", () => {
+  const envelope = buildExecutionCommandEnvelope(baseInput({
+    previewRefs: [{ actionId: "a1", previewId: "p1" }],
+  }))
+  const ref = envelope.previewRefs[0]
+  const keys = Object.keys(ref).sort()
+  assert.deepEqual(keys, ["actionId", "previewId"])
+  // Count is correctly derivable
+  assert.equal(envelope.previewRefs.length, 1)
+})
+
+test("blockedReason is always non-null string when blocked", () => {
+  const envelope = buildExecutionCommandEnvelope(baseInput({ approvalId: "ap:1" }))
+  assert.equal(typeof envelope.blockedReason, "string")
+  assert.ok(envelope.blockedReason.length > 0)
+})
+
+test("blockedReason mentions unavailability when approvalId is null", () => {
+  const envelope = buildExecutionCommandEnvelope(baseInput({ approvalId: null }))
+  assert.equal(envelope.blockedReason?.includes("unavailable"), true)
+})

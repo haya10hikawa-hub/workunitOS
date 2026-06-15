@@ -14,6 +14,11 @@ import {
   type ReadinessInput,
   type ReadinessTraceStatus,
 } from "./executionReadinessModel.ts"
+import {
+  buildExecutionCommandEnvelope,
+  type SafePreviewRef,
+} from "./executionCommandModel.ts"
+import { deriveRequestedActionType } from "./requestedActionTypeModel.ts"
 
 export type DashboardWorkUnitView = {
   id: string
@@ -63,6 +68,14 @@ export type DashboardAuditLogView = {
   summary: string
 }
 
+export type ExecutionCommandPreviewView = {
+  readonly mode: string
+  readonly reason: string
+  readonly workUnitId: string | null
+  readonly previewRefCount: number
+  readonly requestedActionType: string | null
+}
+
 export type AdoptedDashboardViewModel = {
   workUnits: DashboardWorkUnitView[]
   tabs: DashboardTabView[]
@@ -81,6 +94,7 @@ export type AdoptedDashboardViewModel = {
     readonly reason: string
     readonly label: string
   }
+  executionCommandPreview: ExecutionCommandPreviewView
   integrationStatuses: DashboardIntegrationStatusView[]
   auditLogs: DashboardAuditLogView[]
 }
@@ -95,6 +109,7 @@ export function buildAdoptedDashboardViewModel(input: {
   previewCreated: boolean
   previewStatus: "idle" | "creating" | "created" | "failed"
   previewRefCount: number
+  previewRefs: readonly SafePreviewRef[]
   approvalStatus: DashboardApprovalStatus | null
   approvalLoading: boolean
   approvalError: boolean
@@ -133,6 +148,27 @@ export function buildAdoptedDashboardViewModel(input: {
   const approvalCompleted = isApprovalCompleted(approvalTraceInput)
   const executionReadiness = computeExecutionReadiness(readinessInput)
 
+  // ── Build safe execution command envelope ────────────────────
+  const requestedActionType = selectedWorkUnit
+    ? deriveRequestedActionType({
+        sourceProvider: selectedWorkUnit.sourceProvider,
+        hasRepository: Boolean(selectedWorkUnit.repository),
+      })
+    : null
+  const envelope = buildExecutionCommandEnvelope({
+    workUnitId: selectedView?.id ?? "",
+    previewRefs: input.previewRefs,
+    requestedActionType,
+    // approvalId intentionally not passed — never fabricate
+  })
+  const executionCommandPreview: ExecutionCommandPreviewView = {
+    mode: envelope.mode,
+    reason: envelope.blockedReason ?? "external execution disabled",
+    workUnitId: envelope.workUnitId || null,
+    previewRefCount: envelope.previewRefs.length,
+    requestedActionType: envelope.requestedActionType,
+  }
+
   return {
     workUnits: explorerWorkUnits,
     tabs: explorerWorkUnits.slice(0, 3).map((row) => ({ id: row.id, label: shortenLabel(row.title) })),
@@ -151,6 +187,7 @@ export function buildAdoptedDashboardViewModel(input: {
       reason: executionReadiness.reason,
       label: "External Execution Allowed",
     },
+    executionCommandPreview,
     integrationStatuses: input.integrationStatuses.slice(0, 3).map(mapIntegrationStatus),
     auditLogs: input.auditLogs.slice(0, 4).map(mapAuditLog),
   }

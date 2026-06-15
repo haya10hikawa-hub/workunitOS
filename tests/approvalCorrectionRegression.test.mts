@@ -369,3 +369,151 @@ test("execution readiness trace text uses spec display text", async () => {
   assert.equal(source.includes("Execution ready, but external execution is disabled."), true)
   assert.equal(source.includes("Ready for execution."), true)
 })
+
+// ─── Command envelope display binding regression ──────────────
+
+test("view model imports buildExecutionCommandEnvelope", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  assert.equal(source.includes("from \"./executionCommandModel.ts\""), true)
+  assert.equal(source.includes("buildExecutionCommandEnvelope"), true)
+})
+
+test("view model output type includes executionCommandPreview", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  assert.equal(source.includes("executionCommandPreview: ExecutionCommandPreviewView"), true)
+  assert.equal(source.includes("ExecutionCommandPreviewView"), true)
+})
+
+test("view model ExecutionCommandPreviewView has no forbidden fields", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  // Find the ExecutionCommandPreviewView type definition
+  const typeStart = source.indexOf("export type ExecutionCommandPreviewView")
+  const typeSection = source.slice(typeStart, source.indexOf("}", typeStart) + 1)
+  // Must include safe display fields
+  assert.equal(typeSection.includes("mode: string"), true)
+  assert.equal(typeSection.includes("reason: string"), true)
+  assert.equal(typeSection.includes("workUnitId: string | null"), true)
+  assert.equal(typeSection.includes("previewRefCount: number"), true)
+  assert.equal(typeSection.includes("requestedActionType: string | null"), true)
+  // Must NOT include forbidden fields
+  assert.equal(typeSection.includes("approvalId"), false)
+  assert.equal(typeSection.includes("targetHash"), false)
+  assert.equal(typeSection.includes("payloadHash"), false)
+  assert.equal(typeSection.includes("tenantId"), false)
+  assert.equal(typeSection.includes("actorUserId"), false)
+  assert.equal(typeSection.includes("role"), false)
+  assert.equal(typeSection.includes("token"), false)
+  assert.equal(typeSection.includes("secret"), false)
+  assert.equal(typeSection.includes("rawPayload"), false)
+  assert.equal(typeSection.includes("rawBody"), false)
+})
+
+test("view model builds envelope without passing approvalId", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  // The approvalId is intentionally not passed
+  assert.equal(source.includes("never fabricate"), true)
+  // requestedActionType is now derived from deriveRequestedActionType, not nextAction
+  const envelopeSection = source.slice(source.indexOf("Build safe execution command envelope"))
+  assert.equal(envelopeSection.includes("deriveRequestedActionType"), true)
+})
+
+test("dashboard component passes previewRefs to view model", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("previewRefs: previewRefs.map"), true)
+})
+
+test("dashboard renders command envelope display", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("COMMAND ENVELOPE"), true)
+  assert.equal(source.includes("viewModel.executionCommandPreview.mode"), true)
+  assert.equal(source.includes("viewModel.executionCommandPreview.previewRefCount"), true)
+  assert.equal(source.includes("viewModel.executionCommandPreview.requestedActionType"), true)
+})
+
+test("dashboard command envelope does not render approvalId", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("approvalId"), false)
+})
+
+test("dashboard command envelope does not render targetHash/payloadHash", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("targetHash"), false)
+  assert.equal(source.includes("payloadHash"), false)
+})
+
+test("dashboard command envelope does not render tenantId/actorUserId/role", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("tenantId"), false)
+  assert.equal(source.includes("actorUserId"), false)
+})
+
+test("dashboard command envelope does not render raw payloads or tokens", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  assert.equal(source.includes("token"), false)
+  assert.equal(source.includes("secret"), false)
+  assert.equal(source.includes("rawPayload"), false)
+  assert.equal(source.includes("rawBody"), false)
+})
+
+test("dashboard command envelope display is gated on execution_blocked", async () => {
+  const source = await readFile(dashboardComponent, "utf8")
+  // The envelope display only appears when traceStatus is execution_blocked
+  // Count occurrences of "execution_blocked" — one for the CTA gate, one for envelope gate
+  const blockedMatches = source.match(/execution_blocked/g)
+  assert.ok((blockedMatches?.length ?? 0) >= 2, "execution_blocked should appear at least twice (CTA + envelope gates)")
+})
+
+// ─── requestedActionType normalization regression ─────────────
+
+test("view model imports deriveRequestedActionType", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  assert.equal(source.includes("from \"./requestedActionTypeModel.ts\""), true)
+  assert.equal(source.includes("deriveRequestedActionType"), true)
+})
+
+test("view model does NOT use workUnit.nextAction as requestedActionType", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  // The envelope builder block should use deriveRequestedActionType, not nextAction
+  const envelopeSection = source.slice(source.indexOf("Build safe execution command envelope"))
+  assert.equal(envelopeSection.includes("deriveRequestedActionType"), true)
+  assert.equal(envelopeSection.includes("selectedWorkUnit?.nextAction"), false)
+})
+
+test("view model uses sourceProvider + hasRepository for action type derivation", async () => {
+  const source = await readFile("app/lib/application/dashboard/adoptedDashboardViewModel.ts", "utf8")
+  const envelopeSection = source.slice(source.indexOf("Build safe execution command envelope"))
+  assert.equal(envelopeSection.includes("sourceProvider:"), true)
+  assert.equal(envelopeSection.includes("hasRepository:"), true)
+})
+
+test("requestedActionTypeModel has no forbidden imports", async () => {
+  const source = await readFile("app/lib/application/dashboard/requestedActionTypeModel.ts", "utf8")
+  const importLines = source.split("\n").filter((line) => line.trimStart().startsWith("import"))
+  const allImports = importLines.join("\n")
+  assert.equal(allImports.includes("react"), false)
+  assert.equal(allImports.includes("NextResponse"), false)
+  assert.equal(allImports.includes("fetch"), false)
+  assert.equal(source.includes(": any"), false)
+  // Check code-only section (after JSDoc header) for forbidden property-key patterns
+  const codeSection = source.slice(source.indexOf("export type RequestedActionTypeCode"))
+  assert.equal(codeSection.includes("tenantId:"), false)
+  assert.equal(codeSection.includes("actorUserId:"), false)
+  assert.equal(codeSection.includes("approvalId:"), false)
+  assert.equal(codeSection.includes("targetHash:"), false)
+  assert.equal(codeSection.includes("payloadHash:"), false)
+})
+
+test("requestedActionTypeModel returns canonical type codes only", async () => {
+  const source = await readFile("app/lib/application/dashboard/requestedActionTypeModel.ts", "utf8")
+  // Check code section only (skip JSDoc header which mentions examples)
+  const codeSection = source.slice(source.indexOf("export type RequestedActionTypeCode"))
+  // The type union has only canonical codes
+  assert.equal(codeSection.includes('"slack_reply"'), true)
+  assert.equal(codeSection.includes('"github_issue"'), true)
+  assert.equal(codeSection.includes('"calendar_block"'), true)
+  assert.equal(codeSection.includes('"email_send"'), true)
+  assert.equal(codeSection.includes('"database_update"'), true)
+  // No natural-language action descriptions in code (header comments excluded)
+  const deriveSection = source.slice(source.indexOf("export function deriveRequestedActionType"))
+  assert.equal(deriveSection.includes("Reply in Slack"), false)
+})
