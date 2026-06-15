@@ -54,7 +54,7 @@ UI
 | Task | Minimal context |
 |---|---|
 | UI work | `docs/CONTEXT_INDEX.md`, `WorkUnitOSDashboard`, adopted dashboard shell, dashboard clients/view models, relevant API response shape only |
-| Auth work | `SECURITY_MODEL.md`, `app/lib/application/auth/*`, `app/lib/security/session.ts`, control repositories |
+| Auth work | `docs/security/SECURITY_MODEL.md`, `app/lib/application/auth/*`, `app/lib/security/session.ts`, control repositories |
 | Persistence work | `docs/DEPENDENCY_MAP.md`, target route file, `routeRepositories.ts`, `repositoryResolver.ts`, target repository implementation |
 | LLM work | `app/lib/llm/sanitize.ts`, `app/lib/llm/budget.ts`, `app/lib/llm/prompts.ts`, `app/lib/llm/processWorkSignal.ts` |
 | Integration work | Target `app/lib/infrastructure/external/<provider>` folder, `app/lib/application/workunitInbox/*`, relevant API route |
