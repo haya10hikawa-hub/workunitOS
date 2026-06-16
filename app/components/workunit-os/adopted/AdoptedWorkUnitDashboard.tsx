@@ -36,6 +36,8 @@ import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
 import { runDashboardExecutionDryRun } from "@/lib/application/dashboard/dashboardExecutionDryRunClient"
 import { buildExecutionResultViewer } from "@/lib/application/dashboard/executionResultViewerModel"
 import { AdoptedActionFieldPanel } from "./AdoptedActionFieldPanel"
+import { AdoptedActionApprovalDrawer } from "./AdoptedActionApprovalDrawer"
+import { buildApprovalDrawerVariantInfo } from "@/lib/application/actionField/adoptedApprovalDrawerModel"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
 
 type LoadStatus = "loading" | "loaded" | "error" | "empty"
@@ -87,8 +89,9 @@ export function AdoptedWorkUnitDashboard() {
   const [lastScanLabel, setLastScanLabel] = useState("Pending")
   const [dryRunStatus, setDryRunStatus] = useState<"idle" | "running" | "verified" | "blocked" | "not_ready" | "failed">("idle")
   const [dryRunMessage, setDryRunMessage] = useState<string | null>(null)
-  const [dryRunActionCount, setDryRunActionCount] = useState<number>(0)
+  const [dryRunActionCount, setDryRunActionCount] = useState(0)
   const [dryRunActionType, setDryRunActionType] = useState<string | null>(null)
+  const [approvalDrawerOpen, setApprovalDrawerOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -168,6 +171,11 @@ export function AdoptedWorkUnitDashboard() {
     dryRunActionType,
   }), [dryRunStatus, dryRunMessage, dryRunActionCount, dryRunActionType])
 
+  const approvalDrawerVariantInfo = useMemo(() => {
+    const wu = dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId)
+    return wu ? buildApprovalDrawerVariantInfo(wu) : null
+  }, [dashboardState.workUnits, selectedWorkUnitId])
+
   const handleCreatePreview = async () => {
     setPreviewMessage("")
     if (!viewModel.actionField.canCreatePreview) {
@@ -203,7 +211,7 @@ export function AdoptedWorkUnitDashboard() {
     setApprovalAction("idle")
     setSubmitMessage("")
     setPreviewMessage(`Created ${result.previews.length} action preview${result.previews.length === 1 ? "" : "s"}.`)
-    // Refresh approval status after preview creation
+    setApprovalDrawerOpen(true)
     if (selectedWorkUnitId) {
       setApprovalLoading(true)
       setApprovalError(false)
@@ -495,6 +503,22 @@ export function AdoptedWorkUnitDashboard() {
           onReject={handleReject}
           onDryRun={handleDryRun}
           onClearDryRun={handleClearDryRun}
+          onOpenApprovalDrawer={() => setApprovalDrawerOpen(true)}
+          canOpenApprovalDrawer={previewStatus === "created"}
+        />
+        {/* ─── Approval Drawer ──────────────────────────── */}
+        <AdoptedActionApprovalDrawer
+          open={approvalDrawerOpen}
+          variantInfo={approvalDrawerVariantInfo}
+          workUnitTitle={dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId)?.title ?? ""}
+          sourceProvider={dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId)?.sourceProvider ?? ""}
+          previewRefCount={previewRefs.length}
+          previewStatus={previewStatus}
+          approvalAction={approvalAction}
+          canApprove={showApproveReject()}
+          onClose={() => setApprovalDrawerOpen(false)}
+          onApprove={handleApprove}
+          onReject={handleReject}
         />
       </div>
     </div>

@@ -23,6 +23,9 @@ type AdoptedActionFieldPanelProps = {
 
   readonly showApproveReject: boolean
 
+  readonly onOpenApprovalDrawer?: () => void
+  readonly canOpenApprovalDrawer?: boolean
+
   readonly onCreatePreview: () => void | Promise<void>
   readonly onApprove: () => void | Promise<void>
   readonly onReject: () => void | Promise<void>
@@ -48,6 +51,8 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
     onReject,
     onDryRun,
     onClearDryRun,
+    onOpenApprovalDrawer,
+    canOpenApprovalDrawer,
   } = props
 
   return (
@@ -117,6 +122,18 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
               disabled={approvalAction === "submitting"}
             >
               {approvalAction === "submitting" ? "Submitting..." : "Reject"}
+            </button>
+          </div>
+        ) : null}
+        {onOpenApprovalDrawer && canOpenApprovalDrawer ? (
+          <div style={{ marginBottom: "var(--sp-2)" }}>
+            <button
+              type="button"
+              className={styles.ctaButton}
+              onClick={onOpenApprovalDrawer}
+              style={{ fontSize: 13 }}
+            >
+              Review External Action
             </button>
           </div>
         ) : null}
