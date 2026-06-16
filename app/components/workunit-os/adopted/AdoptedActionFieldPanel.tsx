@@ -117,7 +117,7 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
                 <EmailApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
               ) : null}
               {viewerVariant === "database" ? (
-                <DatabaseApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
+                <DatabaseApprovalVariant />
               ) : null}
               {viewerVariant === "slack_github" ? (
                 <SlackGithubApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
@@ -456,7 +456,7 @@ function EmailApprovalVariant(props: {
 
 // ─── Database Variant ──────────────────────────────────────────
 
-function DatabaseApprovalVariant(_props?: Record<string, unknown>) {
+function DatabaseApprovalVariant() {
   return (
     <ApprovalSectionCard icon="DB" iconColor="#b8ff9b" title="Database Action">
       <ApprovalCodePreview label="Mutation Preview" code={`-- Database Mutation Preview
