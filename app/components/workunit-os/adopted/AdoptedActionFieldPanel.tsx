@@ -79,15 +79,15 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
           <section className={styles.actionFieldViewerPanel}>
             <header className={styles.actionFieldViewerHeader}>
               <div>
-                <h2 className={styles.actionFieldViewerTitle}>Slack返信 承認ドロワー詳細</h2>
+                <h2 className={styles.actionFieldViewerTitle}>Email送信 承認ドロワー詳細</h2>
                 <p className={styles.actionFieldViewerSubtitle}>AI-powered decision engine &ldquo;WorkUnit OS&rdquo;</p>
               </div>
               <button type="button" className={styles.actionFieldViewerCloseBtn} onClick={onCloseDetail}>&times;</button>
             </header>
             <div className={styles.actionFieldViewerBody}>
-              <h3 className={styles.approvalViewerMainLabel}>External Action Approval: Slack Reply</h3>
+              <h3 className={styles.approvalViewerMainLabel}>External Action Approval: Email Send</h3>
 
-              <SlackVariantContent
+              <EmailApprovalVariant
                 actionDrafts={actionDrafts}
                 draftFieldOverrides={draftFieldOverrides}
                 onDraftFieldChange={onDraftFieldChange}
@@ -527,6 +527,50 @@ function SlackVariantContent(props: {
       </ApprovalFieldRow>
       <ApprovalFieldRow label="Mention Check" value="なし" />
       <ApprovalFieldRow label="Context Used" value="WorkUnit要約、関連ドキュメント" />
+    </ApprovalSectionCard>
+  )
+}
+
+// ─── Email Variant ────────────────────────────────────────────
+
+function EmailApprovalVariant(props: {
+  readonly actionDrafts?: ActionDraftSet | null
+  readonly draftFieldOverrides?: Record<string, string>
+  readonly onDraftFieldChange?: (draftId: string, fieldKey: string, value: string) => void
+}) {
+  const { actionDrafts, draftFieldOverrides, onDraftFieldChange } = props
+  const emailDraft = actionDrafts?.drafts.find((d) => d.tool === "email")
+  const def = { recipients: "support@acmecorp.com", subject: "[対応完了のご連絡] サポートチケット #12345", body: "いつもお世話になっております。\n\nご連絡いただいた件につきまして、対応が完了しましたのでご報告いたします。\n詳細は添付資料をご確認ください。\n\n今後ともよろしくお願いいたします。" }
+  const get = (key: string, fallback: string) => {
+    const f = emailDraft?.editableFields.find((f) => f.key === key)
+    const gen = f?.value ?? fallback
+    const ok = emailDraft && draftFieldOverrides?.[`${emailDraft.id}:${key}`]
+    return { value: ok !== undefined ? ok : gen, dirty: ok !== undefined && ok !== gen }
+  }
+  const recp = get("recipients", def.recipients)
+  const subj = get("subject", def.subject)
+  const body = get("body", def.body)
+
+  return (
+    <ApprovalSectionCard icon="@" iconColor="#ffb454" title="Email Action">
+      <ApprovalFieldRow label="Recipients">
+        {recp.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={recp.value}
+          onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "recipients", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Subject">
+        {subj.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={subj.value}
+          onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "subject", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Body Preview">
+        {body.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <textarea className={styles.approvalTextareaBox} rows={5} value={body.value}
+          onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "body", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalSuccessRow text="顧客向けではない" />
+      <ApprovalSuccessRow text="添付ファイルなし" />
+      <ApprovalSuccessRow text="外部送信内容を確認済み" />
     </ApprovalSectionCard>
   )
 }
