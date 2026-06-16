@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+.env.local
+.env.*.local
+.dev.vars
 
 # editor temp files
 *.swp
