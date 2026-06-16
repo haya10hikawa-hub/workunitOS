@@ -12,7 +12,7 @@
  */
 
 import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
-import type { DetectedToolRequirement, ToolActionKind } from "./toolRequirementModel"
+import type { DetectedToolRequirement, ToolActionKind, ToolRequirementSummary } from "./toolRequirementModel"
 
 export type EditableActionDraftField = {
   readonly key: string
@@ -180,4 +180,11 @@ function buildDatabaseDraft(wu: InboxWorkUnit, req: DetectedToolRequirement): Ac
     contextUsed: [wu.title ?? ""],
     dirty: false,
   }
+}
+
+export function buildReviewableActionDrafts(
+  wu: InboxWorkUnit,
+  summary: ToolRequirementSummary,
+): ActionDraftSet {
+  return buildActionDrafts(wu, summary.reviewableTools)
 }

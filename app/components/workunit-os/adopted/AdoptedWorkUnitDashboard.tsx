@@ -38,6 +38,8 @@ import { buildExecutionResultViewer } from "@/lib/application/dashboard/executio
 import { AdoptedActionFieldPanel } from "./AdoptedActionFieldPanel"
 import { AdoptedActionApprovalDrawer } from "./AdoptedActionApprovalDrawer"
 import { buildApprovalDrawerVariantInfo } from "@/lib/application/actionField/adoptedApprovalDrawerModel"
+import { detectToolRequirements } from "@/lib/application/actionField/toolRequirementModel"
+import { buildReviewableActionDrafts } from "@/lib/application/actionField/actionDraftModel"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
 
 type LoadStatus = "loading" | "loaded" | "error" | "empty"
@@ -92,6 +94,7 @@ export function AdoptedWorkUnitDashboard() {
   const [dryRunActionCount, setDryRunActionCount] = useState(0)
   const [dryRunActionType, setDryRunActionType] = useState<string | null>(null)
   const [approvalDrawerOpen, setApprovalDrawerOpen] = useState(false)
+  const [draftFieldOverrides, setDraftFieldOverrides] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let active = true
@@ -176,8 +179,21 @@ export function AdoptedWorkUnitDashboard() {
     return wu ? buildApprovalDrawerVariantInfo(wu) : null
   }, [dashboardState.workUnits, selectedWorkUnitId])
 
+  const selectedInboxWorkUnit = useMemo(() => {
+    return dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId) ?? null
+  }, [dashboardState.workUnits, selectedWorkUnitId])
+
+  const toolRequirements = useMemo(() => {
+    return selectedInboxWorkUnit ? detectToolRequirements(selectedInboxWorkUnit) : null
+  }, [selectedInboxWorkUnit])
+
+  const actionDrafts = useMemo(() => {
+    if (!selectedInboxWorkUnit || !toolRequirements) return null
+    return buildReviewableActionDrafts(selectedInboxWorkUnit, toolRequirements)
+  }, [selectedInboxWorkUnit, toolRequirements])
 
   const handleCreatePreview = async () => {
+    setPreviewMessage("")
     setPreviewMessage("")
     if (!viewModel.actionField.canCreatePreview) {
       if (!selectedWorkUnitId) {
@@ -316,6 +332,14 @@ export function AdoptedWorkUnitDashboard() {
     setDryRunMessage(null)
     setDryRunActionCount(0)
     setDryRunActionType(null)
+  }
+
+  const handleDraftFieldChange = (draftId: string, fieldKey: string, value: string) => {
+    setDraftFieldOverrides((prev) => ({ ...prev, [`${draftId}:${fieldKey}`]: value }))
+  }
+
+  const handleResetDrafts = () => {
+    setDraftFieldOverrides({})
   }
 
   // ─── Show Approve/Reject when appropriate ──────────────────────
@@ -506,6 +530,11 @@ export function AdoptedWorkUnitDashboard() {
           onClearDryRun={handleClearDryRun}
           onOpenApprovalDrawer={() => setApprovalDrawerOpen(true)}
           canOpenApprovalDrawer={previewStatus === "created"}
+          toolRequirements={toolRequirements}
+          actionDrafts={actionDrafts}
+          draftFieldOverrides={draftFieldOverrides}
+          onDraftFieldChange={handleDraftFieldChange}
+          onResetDrafts={handleResetDrafts}
         />
         {/* ─── Approval Drawer ──────────────────────────── */}
         <AdoptedActionApprovalDrawer

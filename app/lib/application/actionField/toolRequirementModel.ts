@@ -19,6 +19,11 @@ export type ToolRequirementSummary = {
   readonly calendar: DetectedToolRequirement
   readonly database: DetectedToolRequirement
   readonly primaryAction: ToolActionKind
+  readonly allTools: readonly DetectedToolRequirement[]
+  readonly requiredTools: readonly DetectedToolRequirement[]
+  readonly recommendedTools: readonly DetectedToolRequirement[]
+  readonly reviewableTools: readonly DetectedToolRequirement[]
+  /** Backward-compatible alias — prefer requiredTools. */
   readonly allRequired: readonly DetectedToolRequirement[]
 }
 
@@ -26,18 +31,28 @@ export function detectToolRequirements(wu: InboxWorkUnit): ToolRequirementSummar
   const sp = wu.sourceProvider as string
   const na = wu.nextAction?.toLowerCase() ?? ""
   const kind = wu.kind
-  const title = wu.title.toLowerCase()
+  const title = wu.title.toLowerCase(); void title
 
   const slack = detectSlack(wu, sp, na, kind)
-  const github = detectGitHub(wu, sp, na, kind, title)
+  const github = detectGitHub(wu, sp, na, kind)
   const email = detectEmail(wu, sp, na, kind)
   const calendar = detectCalendar(wu, sp, na, kind)
   const database = detectDatabase(wu, sp, na)
 
   const all = [slack, github, email, calendar, database]
   const required = all.filter((t) => t.necessity === "required")
+  const recommended = all.filter((t) => t.necessity === "recommended")
+  const reviewable = all.filter((t) => t.necessity === "required" || t.necessity === "recommended" || t.necessity === "blocked")
   const primary = required[0]?.actionKind ?? slack.actionKind
-  return { slack, github, email, calendar, database, primaryAction: primary, allRequired: required }
+  return {
+    slack, github, email, calendar, database,
+    primaryAction: primary,
+    allTools: all,
+    requiredTools: required,
+    recommendedTools: recommended,
+    reviewableTools: reviewable,
+    allRequired: required,
+  }
 }
 
 function detectSlack(

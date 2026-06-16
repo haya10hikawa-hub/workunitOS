@@ -3,56 +3,42 @@
 import { CheckSquare, Square } from "lucide-react"
 import type { AdoptedDashboardViewModel, DashboardAuditLogView, DashboardIntegrationStatusView } from "@/lib/application/dashboard/adoptedDashboardViewModel"
 import type { ExecutionResultViewerModel } from "@/lib/application/dashboard/executionResultViewerModel"
+import type { ToolRequirementSummary } from "@/lib/application/actionField/toolRequirementModel"
+import type { ActionDraftSet, ActionDraft } from "@/lib/application/actionField/actionDraftModel"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
-
-// ─── Props ─────────────────────────────────────────────────────
 
 type AdoptedActionFieldPanelProps = {
   readonly viewModel: AdoptedDashboardViewModel
   readonly executionViewer: ExecutionResultViewerModel
-
   readonly previewStatus: "idle" | "creating" | "created" | "failed"
   readonly previewMessage: string
-
   readonly approvalAction: "idle" | "submitting" | "approved" | "rejected" | "failed"
   readonly submitMessage: string
-
   readonly dryRunStatus: "idle" | "running" | "verified" | "blocked" | "not_ready" | "failed"
-
   readonly previewRefCount: number
-
   readonly showApproveReject: boolean
-
   readonly onOpenApprovalDrawer?: () => void
   readonly canOpenApprovalDrawer?: boolean
-
   readonly onCreatePreview: () => void | Promise<void>
   readonly onApprove: () => void | Promise<void>
   readonly onReject: () => void | Promise<void>
   readonly onDryRun: () => void | Promise<void>
   readonly onClearDryRun: () => void
+  readonly toolRequirements?: ToolRequirementSummary | null
+  readonly actionDrafts?: ActionDraftSet | null
+  readonly draftFieldOverrides?: Record<string, string>
+  readonly onDraftFieldChange?: (draftId: string, fieldKey: string, value: string) => void
+  readonly onResetDrafts?: () => void
 }
-
-// ─── Component ──────────────────────────────────────────────────
 
 export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
   const {
-    viewModel,
-    executionViewer,
-    previewStatus,
-    previewMessage,
-    approvalAction,
-    submitMessage,
-    dryRunStatus,
-    previewRefCount,
-    showApproveReject,
-    onCreatePreview,
-    onApprove,
-    onReject,
-    onDryRun,
-    onClearDryRun,
-    onOpenApprovalDrawer,
-    canOpenApprovalDrawer,
+    viewModel, executionViewer, previewStatus, previewMessage,
+    approvalAction, submitMessage, dryRunStatus, previewRefCount,
+    showApproveReject, onOpenApprovalDrawer, canOpenApprovalDrawer,
+    onCreatePreview, onApprove, onReject, onDryRun, onClearDryRun,
+    toolRequirements, actionDrafts, draftFieldOverrides,
+    onDraftFieldChange, onResetDrafts,
   } = props
 
   return (
@@ -77,6 +63,50 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
         </div>
       </div>
 
+      {/* Detected Tools */}
+      {toolRequirements ? (
+        <div className={styles.detectedTools}>
+          <h3 className={styles.readinessTitle}>DETECTED TOOLS</h3>
+          {toolRequirements.allTools.map((req) => (
+            <div key={req.tool} className={styles.toolRequirementRow}>
+              <span className={styles.toolReqLabel}>{req.tool}</span>
+              <span className={styles.toolReqActionKind}>{req.actionKind}</span>
+              <span className={styles[necessityClass(req.necessity)]}>{req.necessity}</span>
+              <span className={styles.toolReqConfidence}>{req.confidence}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Action Drafts */}
+      {actionDrafts && actionDrafts.drafts.length > 0 ? (
+        <div className={styles.actionDraftSection}>
+          <div className={styles.draftSectionHeader}>
+            <h3 className={styles.readinessTitle}>ACTION DRAFTS</h3>
+            {onResetDrafts ? (
+              <button type="button" className={styles.resetDraftButton} onClick={onResetDrafts}>
+                Reset Drafts
+              </button>
+            ) : null}
+          </div>
+          {actionDrafts.drafts.map((draft) => (
+            <DraftCard
+              key={draft.id}
+              draft={draft}
+              overrides={draftFieldOverrides}
+              onChange={onDraftFieldChange}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <div className={styles.rightSection}>
+        <p className={styles.rightLabel}>
+          <span className={styles.rightLabelBold}>RECOMMENDED ACTION:</span>{" "}
+          {viewModel.actionField.recommendedAction}
+        </p>
+      </div>
+
       <div className={styles.readinessSection}>
         <h3 className={styles.readinessTitle}>READINESS GATES</h3>
         <ul className={styles.gatesList}>
@@ -95,109 +125,72 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
 
       <div className={styles.ctaSection}>
         <h3 className={styles.ctaTitle}>CTA AREA</h3>
-        <button
-          type="button"
-          className={styles.ctaButton}
-          onClick={onCreatePreview}
-          disabled={!viewModel.actionField.canCreatePreview || previewStatus === "creating"}
-        >
+        <button type="button" className={styles.ctaButton} onClick={onCreatePreview}
+          disabled={!viewModel.actionField.canCreatePreview || previewStatus === "creating"}>
           {previewStatus === "creating" ? "Creating Preview..." : "Create Action Preview"}
         </button>
         {showApproveReject ? (
           <div style={{ display: "flex", gap: "var(--sp-2)" }}>
-            <button
-              type="button"
-              className={styles.ctaButton}
+            <button type="button" className={styles.ctaButton}
               style={{ backgroundColor: "rgba(76, 227, 43, 0.12)", borderColor: "rgba(76, 227, 43, 0.4)", color: "var(--color-primary-dim)", flex: 1 }}
-              onClick={onApprove}
-              disabled={approvalAction === "submitting"}
-            >
+              onClick={onApprove} disabled={approvalAction === "submitting"}>
               {approvalAction === "submitting" ? "Submitting..." : "Approve"}
             </button>
-            <button
-              type="button"
-              className={styles.ctaButton}
+            <button type="button" className={styles.ctaButton}
               style={{ backgroundColor: "rgba(224, 82, 82, 0.12)", borderColor: "rgba(224, 82, 82, 0.4)", color: "var(--color-error)", flex: 1 }}
-              onClick={onReject}
-              disabled={approvalAction === "submitting"}
-            >
+              onClick={onReject} disabled={approvalAction === "submitting"}>
               {approvalAction === "submitting" ? "Submitting..." : "Reject"}
             </button>
           </div>
         ) : null}
         {onOpenApprovalDrawer && canOpenApprovalDrawer ? (
           <div style={{ marginBottom: "var(--sp-2)" }}>
-            <button
-              type="button"
-              className={styles.ctaButton}
-              onClick={onOpenApprovalDrawer}
-              style={{ fontSize: 13 }}
-            >
+            <button type="button" className={styles.ctaButton}
+              onClick={onOpenApprovalDrawer} style={{ fontSize: 13 }}>
               Review External Action
             </button>
           </div>
         ) : null}
         <div className={styles.ctaBlocked}>
-          External Execution: <span className={styles.ctaBlockedBadge}>BLOCKED</span>
-          <br />
+          External Execution: <span className={styles.ctaBlockedBadge}>BLOCKED</span><br />
           {viewModel.executionReadiness.reason}
         </div>
         {viewModel.executionReadiness.traceStatus === "execution_blocked" ? (
-          <button
-            type="button"
-            className={styles.ctaButton}
-            disabled
+          <button type="button" className={styles.ctaButton} disabled
             style={{ opacity: 0.5, cursor: "not-allowed" }}
-            title="Execution is ready but external execution is disabled in this release."
-          >
+            title="Execution is ready but external execution is disabled in this release.">
             Execute (disabled)
           </button>
         ) : null}
         {viewModel.executionReadiness.traceStatus === "execution_blocked" ? (
           <div className={styles.ctaBlocked}>
-            <span className={styles.ctaBlockedBadge}>COMMAND ENVELOPE</span>
-            <br />
+            <span className={styles.ctaBlockedBadge}>COMMAND ENVELOPE</span><br />
             Mode: {viewModel.executionCommandPreview.mode}
-            {viewModel.executionCommandPreview.reason ? ` — ${viewModel.executionCommandPreview.reason}` : ""}
-            <br />
+            {viewModel.executionCommandPreview.reason ? ` — ${viewModel.executionCommandPreview.reason}` : ""}<br />
             Preview refs: {viewModel.executionCommandPreview.previewRefCount}
             | Action: {viewModel.executionCommandPreview.requestedActionType ?? "Not available"}
           </div>
         ) : null}
         {viewModel.executionReadiness.traceStatus === "execution_blocked" && previewRefCount > 0 ? (
-          <button
-            type="button"
-            className={styles.ctaButton}
-            onClick={onDryRun}
-            disabled={dryRunStatus === "running"}
-            style={{ opacity: dryRunStatus === "running" ? 0.5 : 1 }}
-          >
+          <button type="button" className={styles.ctaButton}
+            onClick={onDryRun} disabled={dryRunStatus === "running"}
+            style={{ opacity: dryRunStatus === "running" ? 0.5 : 1 }}>
             {dryRunStatus === "running" ? "Verifying..." : dryRunStatus !== "idle" ? "Re-run verification" : "Verify Execution"}
           </button>
         ) : null}
         {executionViewer.kind !== "idle" ? (
           <div className={styles.ctaBlocked}>
-            <span className={styles.ctaBlockedBadge}>{executionViewer.title}</span>
-            <br />
-            Status: {executionViewer.statusLabel}
-            <br />
+            <span className={styles.ctaBlockedBadge}>{executionViewer.title}</span><br />
+            Status: {executionViewer.statusLabel}<br />
             Reason: {executionViewer.reason}
             {executionViewer.kind !== "running" ? (
-              <>
-                <br />
-                Actions checked: {executionViewer.actionCount}
-                <br />
-                Action type: {executionViewer.requestedActionTypeLabel}
-              </>
+              <><br />Actions checked: {executionViewer.actionCount}<br />
+              Action type: {executionViewer.requestedActionTypeLabel}</>
             ) : null}
             {executionViewer.canClear ? (
               <div style={{ marginTop: "var(--sp-2)" }}>
-                <button
-                  type="button"
-                  className={styles.ctaButton}
-                  onClick={onClearDryRun}
-                  style={{ fontSize: 12, padding: "6px var(--sp-3)" }}
-                >
+                <button type="button" className={styles.ctaButton}
+                  onClick={onClearDryRun} style={{ fontSize: 12, padding: "6px var(--sp-3)" }}>
                   Clear result
                 </button>
               </div>
@@ -214,7 +207,59 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
   )
 }
 
-// ─── Helpers ────────────────────────────────────────────────────
+function DraftCard({ draft, overrides, onChange }: {
+  draft: ActionDraft
+  overrides?: Record<string, string>
+  onChange?: (draftId: string, fieldKey: string, value: string) => void
+}) {
+  const isDirty = draft.editableFields.some((f) => {
+    const key = `${draft.id}:${f.key}`
+    return overrides?.[key] !== undefined && overrides[key] !== f.value
+  })
+
+  return (
+    <div className={styles.actionDraftCard}>
+      <div className={styles.draftHeader}>
+        <span className={styles.draftTitle}>{draft.title}</span>
+        <span className={styles[necessityClass(draft.necessity)]}>{draft.necessity}</span>
+        {isDirty ? <span className={styles.draftDirty}>edited</span> : null}
+      </div>
+      {draft.editableFields.map((f) => {
+        const key = `${draft.id}:${f.key}`
+        const value = overrides?.[key] ?? f.value
+        return (
+          <div key={f.key} className={styles.draftField}>
+            <span className={styles.draftFieldLabel}>{f.label}</span>
+            {f.kind === "textarea" || f.kind === "code" ? (
+              <textarea className={styles.draftTextarea} value={value}
+                onChange={(e) => onChange?.(draft.id, f.key, e.target.value)} rows={3} />
+            ) : (
+              <input className={styles.draftInput} type="text" value={value}
+                onChange={(e) => onChange?.(draft.id, f.key, e.target.value)} />
+            )}
+          </div>
+        )
+      })}
+      {draft.safetyNotes.length > 0 ? (
+        <div className={styles.draftSafetyNote}>{draft.safetyNotes.join(" ")}</div>
+      ) : null}
+      {draft.contextUsed.length > 0 ? (
+        <div className={styles.draftContext}>Context: {draft.contextUsed.join(" | ")}</div>
+      ) : null}
+    </div>
+  )
+}
+
+function necessityClass(n: string): string {
+  switch (n) {
+    case "required": return styles.toolBadgeRequired
+    case "recommended": return styles.toolBadgeRecommended
+    case "optional": return styles.toolBadgeOptional
+    case "not_needed": return styles.toolBadgeNotNeeded
+    case "blocked": return styles.toolBadgeBlocked
+    default: return ""
+  }
+}
 
 function CompactStatusList({ title, rows }: { title: string; rows: DashboardIntegrationStatusView[] }) {
   if (rows.length === 0) return null
