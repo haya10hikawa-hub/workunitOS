@@ -79,33 +79,19 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
           <section className={styles.actionFieldViewerPanel}>
             <header className={styles.actionFieldViewerHeader}>
               <div>
-                <h2 className={styles.actionFieldViewerTitle}>Action Field Viewer</h2>
+                <h2 className={styles.actionFieldViewerTitle}>Slack返信 承認ドロワー詳細</h2>
                 <p className={styles.actionFieldViewerSubtitle}>AI-powered decision engine &ldquo;WorkUnit OS&rdquo;</p>
               </div>
               <button type="button" className={styles.actionFieldViewerCloseBtn} onClick={onCloseDetail}>&times;</button>
             </header>
             <div className={styles.actionFieldViewerBody}>
-              <h3 className={styles.approvalViewerMainLabel}>External Action Approval</h3>
+              <h3 className={styles.approvalViewerMainLabel}>External Action Approval: Slack Reply</h3>
 
-              <ApprovalSectionCard icon="DB" iconColor="#b8ff9b" title="Database Action">
-                <ApprovalCodePreview label="Mutation Preview" code={`-- Database Mutation Preview
-UPDATE customer_records
-SET account_status = 'active',
-    last_contact_date = NOW()
-WHERE subscription_id = 'SUBS-773-8912'
-  AND status_flag = 'pending_approval';`} />
-                <ApprovalFieldRow label="Affected Rows Estimate" value="15 records (approx.)" />
-                <ApprovalWarningRow text="Warning: This operation modifies sensitive customer data. Please verify subscription IDs carefully." />
-              </ApprovalSectionCard>
-
-              <ApprovalSectionCard icon="@" iconColor="#ffb454" title="Email Action">
-                <ApprovalFieldRow label="Recipients" value="customers@acmecorp.com, billing@acmecorp.com" />
-                <ApprovalFieldRow label="Subject" value="Important Account Update - Action Required" />
-                <ApprovalFieldRow label="Body Preview">
-                  <span className={`${styles.approvalChip} ${styles.approvalChipRed}`} style={{ marginBottom: 8, display: "inline-block" }}>Customer-facing Communication</span>
-                  <div className={styles.approvalTextareaBox} style={{ minHeight: 56, whiteSpace: "pre-wrap" }}>Dear Customer,{"\n\n"}Your account status has been successfully updated. Please review the changes in your dashboard.{"\n\n"}Regards,{"\n"}The WorkUnit Team.</div>
-                </ApprovalFieldRow>
-              </ApprovalSectionCard>
+              <SlackVariantContent
+                actionDrafts={actionDrafts}
+                draftFieldOverrides={draftFieldOverrides}
+                onDraftFieldChange={onDraftFieldChange}
+              />
 
               <p style={{ fontSize: 11, color: "var(--color-warning, #ffb454)", padding: "8px 0" }}>&#9888; External Execution: BLOCKED</p>
             </div>
@@ -512,4 +498,35 @@ function ApprovalWarningRow({ text }: { text: string }) {
 
 function ApprovalSuccessRow({ text }: { text: string }) {
   return <div className={styles.approvalSuccessRow}>✓ {text}</div>
+}
+
+// ─── Slack Variant ────────────────────────────────────────────
+
+function SlackVariantContent(props: {
+  readonly actionDrafts?: ActionDraftSet | null
+  readonly draftFieldOverrides?: Record<string, string>
+  readonly onDraftFieldChange?: (draftId: string, fieldKey: string, value: string) => void
+}) {
+  const { actionDrafts, draftFieldOverrides, onDraftFieldChange } = props
+  const slackDraft = actionDrafts?.drafts.find((d) => d.tool === "slack")
+  const DEFAULT_MSG = "ご連絡ありがとうございます。該当の件について確認し、対応を進めます。\n進捗があり次第こちらで共有します。"
+  const msgFieldKey = slackDraft?.editableFields.find((f) => f.kind === "textarea" || f.key === "message")?.key
+  const generatedMsg = slackDraft?.editableFields.find((f) => f.key === msgFieldKey)?.value ?? DEFAULT_MSG
+  const overrideKey = slackDraft && msgFieldKey ? `${slackDraft.id}:${msgFieldKey}` : null
+  const currentMsg = overrideKey && draftFieldOverrides?.[overrideKey] !== undefined ? draftFieldOverrides[overrideKey] : generatedMsg
+  const isDirty = !!(overrideKey && draftFieldOverrides?.[overrideKey] !== undefined && draftFieldOverrides[overrideKey] !== generatedMsg)
+
+  return (
+    <ApprovalSectionCard icon="SL" iconColor="#69ff47" title="Slack Action">
+      <ApprovalFieldRow label="Channel / Thread" value="#enterprise-updates / スレッド返信" />
+      <ApprovalFieldRow label="Message Preview" value={generatedMsg} />
+      <ApprovalFieldRow label="Editable Message">
+        {isDirty ? <span className={styles.draftDirty} style={{ marginBottom: 4, display: "inline-block" }}>edited</span> : null}
+        <textarea className={styles.approvalTextareaBox} rows={4} value={currentMsg}
+          onChange={(e) => { if (slackDraft && msgFieldKey && onDraftFieldChange) onDraftFieldChange(slackDraft.id, msgFieldKey, e.target.value) }} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Mention Check" value="なし" />
+      <ApprovalFieldRow label="Context Used" value="WorkUnit要約、関連ドキュメント" />
+    </ApprovalSectionCard>
+  )
 }
