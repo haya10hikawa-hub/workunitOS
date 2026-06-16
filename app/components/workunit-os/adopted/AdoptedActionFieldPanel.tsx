@@ -46,6 +46,7 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
     ? (toolRequirements.slack.necessity === "required" && toolRequirements.github.necessity === "required" ? "slack_github"
       : toolRequirements.calendar.necessity === "required" && toolRequirements.email.necessity === "recommended" ? "calendar_email"
       : toolRequirements.calendar.necessity === "required" ? "calendar_email"
+      : toolRequirements.database.necessity === "blocked" && toolRequirements.email.necessity !== "not_needed" ? "db_email"
       : toolRequirements.slack.necessity === "required" ? "slack"
       : toolRequirements.email.necessity === "required" ? "email"
       : toolRequirements.database.necessity === "blocked" ? "database"
@@ -58,6 +59,7 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
     database: "Database更新 承認ドロワー詳細",
     slack_github: "Slack/GitHub連携 承認ドロワー詳細",
     calendar_email: "Calendar/Email連携 承認ドロワー詳細",
+    db_email: "DB/Email連携 承認ドロワー詳細",
   }
   const LABELS: Record<string, string> = {
     slack: "External Action Approval: Slack Reply",
@@ -65,6 +67,7 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
     database: "External Action Approval: Database Update",
     slack_github: "External Action Approval: Slack Reply & GitHub Issue",
     calendar_email: "External Action Approval: Calendar Block & Email Notification",
+    db_email: "External Action Approval: Database & Email",
   }
   const viewerTitle = TITLES[viewerVariant] ?? "Action Field Viewer"
   const viewerLabel = LABELS[viewerVariant] ?? "External Action Approval"
@@ -114,6 +117,9 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
             <div className={styles.actionFieldViewerBody}>
               <h3 className={styles.approvalViewerMainLabel}>{viewerLabel}</h3>
 
+              {viewerVariant === "db_email" ? (
+                <DbEmailApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
+              ) : null}
               {viewerVariant === "calendar_email" ? (
                 <CalendarEmailApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
               ) : null}
@@ -599,6 +605,58 @@ function CalendarEmailApprovalVariant(props: {
       <ApprovalFieldRow label="Body Preview">
         {emailBody.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
         <textarea className={styles.approvalTextareaBox} rows={3} value={emailBody.value}
+          onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "body", e.target.value)} />
+      </ApprovalFieldRow>
+    </ApprovalSectionCard>
+  </>)
+}
+
+// ─── DB + Email Variant ────────────────────────────────────────
+
+function DbEmailApprovalVariant(props: {
+  readonly actionDrafts?: ActionDraftSet | null
+  readonly draftFieldOverrides?: Record<string, string>
+  readonly onDraftFieldChange?: (draftId: string, fieldKey: string, value: string) => void
+}) {
+  const { actionDrafts, draftFieldOverrides, onDraftFieldChange } = props
+  const emailDraft = actionDrafts?.drafts.find((d) => d.tool === "email")
+  const fv = (draft: ActionDraft | undefined, key: string, fallback: string) => {
+    const f = draft?.editableFields.find((f) => f.key === key)
+    const gen = f?.value ?? fallback
+    const ok = draft && draftFieldOverrides?.[`${draft.id}:${key}`]
+    return { value: ok !== undefined ? ok : gen, dirty: !!(ok !== undefined && ok !== gen) }
+  }
+  const recp = fv(emailDraft, "recipients", "customers@acmecorp.com, billing@acmecorp.com")
+  const subj = fv(emailDraft, "subject", "Important Account Update - Action Required")
+  const body = fv(emailDraft, "body", "Dear Customer,\n\nYour account status has been successfully updated. Please review the changes in your dashboard.\n\nRegards,\nThe WorkUnit Team.")
+
+  return (<>
+    <ApprovalSectionCard icon="DB" iconColor="#b8ff9b" title="Database Action">
+      <ApprovalCodePreview label="Mutation Preview" code={`-- Database Mutation Preview
+UPDATE customer_records
+SET account_status = 'active',
+    last_contact_date = NOW()
+WHERE subscription_id = 'SUBS-773-8912'
+  AND status_flag = 'pending_approval';`} />
+      <ApprovalFieldRow label="Affected Rows Estimate" value="15 records (approx.)" />
+      <ApprovalWarningRow text="Warning: This operation modifies sensitive customer data. Please verify subscription IDs carefully." />
+      <ApprovalWarningRow text="Database execution remains blocked in this release." />
+    </ApprovalSectionCard>
+    <ApprovalSectionCard icon="@" iconColor="#ffb454" title="Email Action">
+      <ApprovalFieldRow label="Recipients">
+        {recp.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={recp.value}
+          onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "recipients", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Subject">
+        {subj.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={subj.value}
+          onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "subject", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Body Preview">
+        <span className={`${styles.approvalChip} ${styles.approvalChipRed}`} style={{ marginBottom: 6, display: "inline-block" }}>Customer-facing Communication</span>
+        {body.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <textarea className={styles.approvalTextareaBox} rows={5} value={body.value}
           onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "body", e.target.value)} />
       </ApprovalFieldRow>
     </ApprovalSectionCard>
