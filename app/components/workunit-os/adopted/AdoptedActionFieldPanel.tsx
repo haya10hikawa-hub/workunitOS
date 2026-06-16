@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckSquare, Square, ArrowLeft } from "lucide-react"
+import { CheckSquare, Square } from "lucide-react"
 import type { AdoptedDashboardViewModel, DashboardAuditLogView, DashboardIntegrationStatusView } from "@/lib/application/dashboard/adoptedDashboardViewModel"
 import type { ExecutionResultViewerModel } from "@/lib/application/dashboard/executionResultViewerModel"
 import type { ToolRequirementSummary } from "@/lib/application/actionField/toolRequirementModel"
@@ -39,8 +39,31 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
     showApproveReject, detailOpen, onOpenDetail, onCloseDetail,
     onCreatePreview, onApprove, onReject, onDryRun, onClearDryRun,
     toolRequirements, actionDrafts, draftFieldOverrides,
-    onDraftFieldChange, onResetDrafts,
+    onDraftFieldChange,
   } = props
+
+  const viewerVariant = toolRequirements
+    ? (toolRequirements.slack.necessity === "required" && toolRequirements.github.necessity === "required" ? "slack_github"
+      : toolRequirements.slack.necessity === "required" ? "slack"
+      : toolRequirements.email.necessity === "required" ? "email"
+      : toolRequirements.database.necessity === "blocked" ? "database"
+      : "slack") as string
+    : "slack"
+
+  const TITLES: Record<string, string> = {
+    slack: "Slack返信 承認ドロワー詳細",
+    email: "Email送信 承認ドロワー詳細",
+    database: "Database更新 承認ドロワー詳細",
+    slack_github: "Slack/GitHub連携 承認ドロワー詳細",
+  }
+  const LABELS: Record<string, string> = {
+    slack: "External Action Approval: Slack Reply",
+    email: "External Action Approval: Email Send",
+    database: "External Action Approval: Database Update",
+    slack_github: "External Action Approval: Slack Reply & GitHub Issue",
+  }
+  const viewerTitle = TITLES[viewerVariant] ?? "Action Field Viewer"
+  const viewerLabel = LABELS[viewerVariant] ?? "External Action Approval"
 
   return (
     <>
@@ -79,19 +102,26 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
           <section className={styles.actionFieldViewerPanel}>
             <header className={styles.actionFieldViewerHeader}>
               <div>
-                <h2 className={styles.actionFieldViewerTitle}>Slack/GitHub連携 承認ドロワー詳細</h2>
+                <h2 className={styles.actionFieldViewerTitle}>{viewerTitle}</h2>
                 <p className={styles.actionFieldViewerSubtitle}>AI-powered decision engine &ldquo;WorkUnit OS&rdquo;</p>
               </div>
               <button type="button" className={styles.actionFieldViewerCloseBtn} onClick={onCloseDetail}>&times;</button>
             </header>
             <div className={styles.actionFieldViewerBody}>
-              <h3 className={styles.approvalViewerMainLabel}>External Action Approval: Slack Reply & GitHub Issue</h3>
+              <h3 className={styles.approvalViewerMainLabel}>{viewerLabel}</h3>
 
-              <SlackGithubApprovalVariant
-                actionDrafts={actionDrafts}
-                draftFieldOverrides={draftFieldOverrides}
-                onDraftFieldChange={onDraftFieldChange}
-              />
+              {viewerVariant === "slack" ? (
+                <SlackVariantContent actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
+              ) : null}
+              {viewerVariant === "email" ? (
+                <EmailApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
+              ) : null}
+              {viewerVariant === "database" ? (
+                <DatabaseApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
+              ) : null}
+              {viewerVariant === "slack_github" ? (
+                <SlackGithubApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
+              ) : null}
 
               <p style={{ fontSize: 11, color: "var(--color-warning, #ffb454)", padding: "8px 0" }}>&#9888; External Execution: BLOCKED</p>
             </div>
@@ -229,126 +259,6 @@ function EntryPane(props: {
   )
 }
 
-// ─── Detail Pane ─────────────────────────────────────────────────
-
-function DetailPane(props: {
-  readonly viewModel: AdoptedDashboardViewModel
-  readonly executionViewer: ExecutionResultViewerModel
-  readonly previewStatus: "idle" | "creating" | "created" | "failed"
-  readonly approvalAction: "idle" | "submitting" | "approved" | "rejected" | "failed"
-  readonly dryRunStatus: "idle" | "running" | "verified" | "blocked" | "not_ready" | "failed"
-  readonly previewRefCount: number
-  readonly showApproveReject: boolean
-  readonly onCloseDetail: () => void
-  readonly onApprove: () => void | Promise<void>
-  readonly onReject: () => void | Promise<void>
-  readonly onDryRun: () => void | Promise<void>
-  readonly onClearDryRun: () => void
-  readonly toolRequirements?: ToolRequirementSummary | null
-  readonly actionDrafts?: ActionDraftSet | null
-  readonly draftFieldOverrides?: Record<string, string>
-  readonly onDraftFieldChange?: (draftId: string, fieldKey: string, value: string) => void
-  readonly onResetDrafts?: () => void
-}) {
-  const { viewModel, executionViewer, approvalAction, dryRunStatus, previewRefCount,
-    showApproveReject, onCloseDetail, onApprove, onReject, onDryRun, onClearDryRun,
-    toolRequirements, actionDrafts, draftFieldOverrides, onDraftFieldChange, onResetDrafts } = props
-
-  return (
-    <>
-      <header className={styles.detailHeader}>
-        <button type="button" className={styles.detailBackButton} onClick={onCloseDetail}>
-          <ArrowLeft size={14} /> Back
-        </button>
-        <h2 className={styles.rightPanelTitle}>Action Review</h2>
-      </header>
-
-      <div className={styles.detailWarningBand}>
-        External Execution: <span className={styles.ctaBlockedBadge}>BLOCKED</span>
-        <br /><span className={styles.detailNote}>Draft edits are local to this review workspace in the current release.</span>
-      </div>
-
-      <div className={styles.detailSection}>
-        <h3 className={styles.readinessTitle}>WORKUNIT SUMMARY</h3>
-        <p className={styles.detailSummary}>
-          <strong>Recommended:</strong> {viewModel.actionField.recommendedAction}
-        </p>
-        <p className={styles.detailSummary}>
-          <strong>Evidence:</strong> {viewModel.actionField.evidenceSummary}
-        </p>
-        <p className={styles.detailSummary}>
-          <strong>Confidence:</strong> {viewModel.actionField.confidence}
-        </p>
-      </div>
-
-      {toolRequirements ? (
-        <div className={styles.detailSection}>
-          <h3 className={styles.readinessTitle}>DETECTED TOOLS</h3>
-          {toolRequirements.allTools.map((req) => (
-            <div key={req.tool} className={styles.toolRequirementRow}>
-              <span className={styles.toolReqLabel}>{req.tool}</span>
-              <span className={styles.toolReqActionKind}>{req.actionKind}</span>
-              <span className={styles[necessityClass(req.necessity)]}>{req.necessity}</span>
-              <span className={styles.toolReqConfidence}>{req.confidence}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {actionDrafts && actionDrafts.drafts.length > 0 ? (
-        <div className={styles.detailSection}>
-          <div className={styles.draftSectionHeader}>
-            <h3 className={styles.readinessTitle}>ACTION DRAFTS</h3>
-            {onResetDrafts ? <button type="button" className={styles.resetDraftButton} onClick={onResetDrafts}>Reset Drafts</button> : null}
-          </div>
-          {actionDrafts.drafts.map((draft) => (
-            <DraftCard key={draft.id} draft={draft} overrides={draftFieldOverrides} onChange={onDraftFieldChange} />
-          ))}
-        </div>
-      ) : null}
-
-      <div className={styles.detailSection}>
-        <h3 className={styles.readinessTitle}>SAFETY / READINESS</h3>
-        {viewModel.readinessGates.map((gate) => (
-          <div key={gate.label} className={styles.detailSafetyRow}>
-            <span className={gate.checked ? styles.checkPass : styles.checkFail}>
-              {gate.checked ? "✓" : "○"}
-            </span> {gate.label}
-          </div>
-        ))}
-      </div>
-
-      <div className={styles.ctaSection}>
-        {showApproveReject ? (
-          <div style={{ display: "flex", gap: "var(--sp-2)", marginBottom: 8 }}>
-            <button type="button" className={styles.ctaButton}
-              style={{ backgroundColor: "rgba(76, 227, 43, 0.12)", borderColor: "rgba(76, 227, 43, 0.4)", color: "var(--color-primary-dim)", flex: 1 }}
-              onClick={onApprove} disabled={approvalAction === "submitting"}>
-              {approvalAction === "submitting" ? "Submitting..." : "Approve"}
-            </button>
-            <button type="button" className={styles.ctaButton}
-              style={{ backgroundColor: "rgba(224, 82, 82, 0.12)", borderColor: "rgba(224, 82, 82, 0.4)", color: "var(--color-error)", flex: 1 }}
-              onClick={onReject} disabled={approvalAction === "submitting"}>
-              {approvalAction === "submitting" ? "Submitting..." : "Reject"}
-            </button>
-          </div>
-        ) : null}
-        {viewModel.executionReadiness.traceStatus === "execution_blocked" && previewRefCount > 0 ? (
-          <button type="button" className={styles.ctaButton} onClick={onDryRun} disabled={dryRunStatus === "running"}
-            style={{ opacity: dryRunStatus === "running" ? 0.5 : 1, marginBottom: 8 }}>
-            {dryRunStatus === "running" ? "Verifying..." : dryRunStatus !== "idle" ? "Re-run verification" : "Verify Execution"}
-          </button>
-        ) : null}
-        {executionViewer.kind !== "idle" ? (
-          <div className={styles.ctaBlocked}><span className={styles.ctaBlockedBadge}>{executionViewer.title}</span><br />
-            Status: {executionViewer.statusLabel}<br />Reason: {executionViewer.reason}
-            {executionViewer.canClear ? <div style={{ marginTop: "var(--sp-2)" }}><button type="button" className={styles.ctaButton} onClick={onClearDryRun} style={{ fontSize: 12, padding: "6px var(--sp-3)" }}>Clear result</button></div> : null}
-          </div>
-        ) : null}
-      </div>
-    </>
-  )
-}
 
 // ─── Shared sub-components ──────────────────────────────────────
 
@@ -394,37 +304,6 @@ function CompactDrafts({ drafts, onOpenDetail }: { drafts: readonly ActionDraft[
   )
 }
 
-function DraftCard({ draft, overrides, onChange }: { draft: ActionDraft; overrides?: Record<string, string>; onChange?: (draftId: string, fieldKey: string, value: string) => void }) {
-  const isDirty = draft.editableFields.some((f) => {
-    const key = `${draft.id}:${f.key}`
-    return overrides?.[key] !== undefined && overrides[key] !== f.value
-  })
-  return (
-    <div className={styles.actionDraftCard}>
-      <div className={styles.draftHeader}>
-        <span className={styles.draftTitle}>{draft.title}</span>
-        <span className={styles[necessityClass(draft.necessity)]}>{draft.necessity}</span>
-        {isDirty ? <span className={styles.draftDirty}>edited</span> : null}
-      </div>
-      {draft.editableFields.map((f) => {
-        const key = `${draft.id}:${f.key}`
-        const value = overrides?.[key] ?? f.value
-        return (
-          <div key={f.key} className={styles.draftField}>
-            <span className={styles.draftFieldLabel}>{f.label}</span>
-            {f.kind === "textarea" || f.kind === "code" ? (
-              <textarea className={styles.draftTextarea} value={value} onChange={(e) => onChange?.(draft.id, f.key, e.target.value)} rows={3} />
-            ) : (
-              <input className={styles.draftInput} type="text" value={value} onChange={(e) => onChange?.(draft.id, f.key, e.target.value)} />
-            )}
-          </div>
-        )
-      })}
-      {draft.safetyNotes.length > 0 ? <div className={styles.draftSafetyNote}>{draft.safetyNotes.join(" ")}</div> : null}
-      {draft.contextUsed.length > 0 ? <div className={styles.draftContext}>Context: {draft.contextUsed.join(" | ")}</div> : null}
-    </div>
-  )
-}
 
 function necessityClass(n: string): string {
   switch (n) {
@@ -577,7 +456,7 @@ function EmailApprovalVariant(props: {
 
 // ─── Database Variant ──────────────────────────────────────────
 
-function DatabaseApprovalVariant() {
+function DatabaseApprovalVariant(_props?: Record<string, unknown>) {
   return (
     <ApprovalSectionCard icon="DB" iconColor="#b8ff9b" title="Database Action">
       <ApprovalCodePreview label="Mutation Preview" code={`-- Database Mutation Preview
