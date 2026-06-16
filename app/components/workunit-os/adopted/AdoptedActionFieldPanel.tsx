@@ -79,15 +79,19 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
           <section className={styles.actionFieldViewerPanel}>
             <header className={styles.actionFieldViewerHeader}>
               <div>
-                <h2 className={styles.actionFieldViewerTitle}>Database更新 承認ドロワー詳細</h2>
+                <h2 className={styles.actionFieldViewerTitle}>Slack/GitHub連携 承認ドロワー詳細</h2>
                 <p className={styles.actionFieldViewerSubtitle}>AI-powered decision engine &ldquo;WorkUnit OS&rdquo;</p>
               </div>
               <button type="button" className={styles.actionFieldViewerCloseBtn} onClick={onCloseDetail}>&times;</button>
             </header>
             <div className={styles.actionFieldViewerBody}>
-              <h3 className={styles.approvalViewerMainLabel}>External Action Approval: Database Update</h3>
+              <h3 className={styles.approvalViewerMainLabel}>External Action Approval: Slack Reply & GitHub Issue</h3>
 
-              <DatabaseApprovalVariant />
+              <SlackGithubApprovalVariant
+                actionDrafts={actionDrafts}
+                draftFieldOverrides={draftFieldOverrides}
+                onDraftFieldChange={onDraftFieldChange}
+              />
 
               <p style={{ fontSize: 11, color: "var(--color-warning, #ffb454)", padding: "8px 0" }}>&#9888; External Execution: BLOCKED</p>
             </div>
@@ -590,4 +594,57 @@ WHERE user_id = 'USR-88921';`} />
       </p>
     </ApprovalSectionCard>
   )
+}
+
+// ─── Slack + GitHub Variant ────────────────────────────────────
+
+function SlackGithubApprovalVariant(props: {
+  readonly actionDrafts?: ActionDraftSet | null
+  readonly draftFieldOverrides?: Record<string, string>
+  readonly onDraftFieldChange?: (draftId: string, fieldKey: string, value: string) => void
+}) {
+  const { actionDrafts, draftFieldOverrides, onDraftFieldChange } = props
+  const slackDraft = actionDrafts?.drafts.find((d) => d.tool === "slack")
+  const ghDraft = actionDrafts?.drafts.find((d) => d.tool === "github")
+  const fv = (draft: ActionDraft | undefined, key: string, fallback: string) => {
+    const f = draft?.editableFields.find((f) => f.key === key)
+    const gen = f?.value ?? fallback
+    const ok = draft && draftFieldOverrides?.[`${draft.id}:${key}`]
+    return { value: ok !== undefined ? ok : gen, dirty: !!(ok !== undefined && ok !== gen) }
+  }
+  const slackMsg = fv(slackDraft, "message", "ご連絡ありがとうございます。該当の問題について、GitHubに調査用のIssueを作成しました。\n進捗があり次第、こちらのスレッドで共有いたします。")
+  const ghTitle = fv(ghDraft, "issue_title", "認証モジュールのタイムアウトエラー調査")
+  const ghBody = fv(ghDraft, "issue_body", "認証モジュールでタイムアウトエラーが発生している問題の調査を行います。\n\n環境: Production\n影響範囲: 一部ユーザーのログイン遅延\n再現手順: 添付ログを参照")
+
+  return (<>
+    <ApprovalSectionCard icon="SL" iconColor="#69ff47" title="Slack Action">
+      <ApprovalFieldRow label="Channel / Thread" value="#enterprise-updates / スレッド返信" />
+      <ApprovalFieldRow label="Message Preview">
+        {slackMsg.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <textarea className={styles.approvalTextareaBox} rows={3} value={slackMsg.value}
+          onChange={(e) => slackDraft && onDraftFieldChange?.(slackDraft.id, "message", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Mention Check" value="@team-dev, @ops-alerts" />
+      <ApprovalFieldRow label="Context Used" value="WorkUnit要約、関連ドキュメント、過去の類似対応履歴" />
+    </ApprovalSectionCard>
+    <ApprovalSectionCard icon="GH" iconColor="#5aa7f7" title="GitHub Action">
+      <ApprovalFieldRow label="Repository" value="acme/workunit-os" />
+      <ApprovalFieldRow label="Issue Title">
+        {ghTitle.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={ghTitle.value}
+          onChange={(e) => ghDraft && onDraftFieldChange?.(ghDraft.id, "issue_title", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Issue Body Preview">
+        {ghBody.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <textarea className={styles.approvalTextareaBox} rows={4} value={ghBody.value}
+          onChange={(e) => ghDraft && onDraftFieldChange?.(ghDraft.id, "issue_body", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Labels">
+        <span className={`${styles.approvalChip} ${styles.approvalChipBlue}`}>bug</span>
+        <span className={`${styles.approvalChip} ${styles.approvalChipBlue}`}>investigation</span>
+        <span className={`${styles.approvalChip} ${styles.approvalChipRed}`}>priority:high</span>
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Assignee" value="@dev-team" />
+    </ApprovalSectionCard>
+  </>)
 }

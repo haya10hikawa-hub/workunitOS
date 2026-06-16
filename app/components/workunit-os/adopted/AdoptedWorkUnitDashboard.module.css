@@ -1778,3 +1778,9 @@
   color: #ff6b6b;
   border: 1px solid rgba(255, 107, 107, 0.15);
 }
+
+.approvalChipBlue {
+  background: rgba(90, 167, 247, 0.12);
+  color: #5aa7f7;
+  border: 1px solid rgba(90, 167, 247, 0.2);
+}
