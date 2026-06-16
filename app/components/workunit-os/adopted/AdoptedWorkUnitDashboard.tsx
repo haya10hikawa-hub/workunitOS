@@ -36,8 +36,6 @@ import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
 import { runDashboardExecutionDryRun } from "@/lib/application/dashboard/dashboardExecutionDryRunClient"
 import { buildExecutionResultViewer } from "@/lib/application/dashboard/executionResultViewerModel"
 import { AdoptedActionFieldPanel } from "./AdoptedActionFieldPanel"
-import { AdoptedActionApprovalDrawer } from "./AdoptedActionApprovalDrawer"
-import { buildApprovalDrawerVariantInfo } from "@/lib/application/actionField/adoptedApprovalDrawerModel"
 import { detectToolRequirements } from "@/lib/application/actionField/toolRequirementModel"
 import { buildReviewableActionDrafts } from "@/lib/application/actionField/actionDraftModel"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
@@ -93,7 +91,7 @@ export function AdoptedWorkUnitDashboard() {
   const [dryRunMessage, setDryRunMessage] = useState<string | null>(null)
   const [dryRunActionCount, setDryRunActionCount] = useState(0)
   const [dryRunActionType, setDryRunActionType] = useState<string | null>(null)
-  const [approvalDrawerOpen, setApprovalDrawerOpen] = useState(false)
+  const [actionFieldMode, setActionFieldMode] = useState<"entry" | "detail">("entry")
   const [draftFieldOverrides, setDraftFieldOverrides] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -174,10 +172,6 @@ export function AdoptedWorkUnitDashboard() {
     dryRunActionType,
   }), [dryRunStatus, dryRunMessage, dryRunActionCount, dryRunActionType])
 
-  const approvalDrawerVariantInfo = useMemo(() => {
-    const wu = dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId)
-    return wu ? buildApprovalDrawerVariantInfo(wu) : null
-  }, [dashboardState.workUnits, selectedWorkUnitId])
 
   const selectedInboxWorkUnit = useMemo(() => {
     return dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId) ?? null
@@ -228,7 +222,7 @@ export function AdoptedWorkUnitDashboard() {
     setApprovalAction("idle")
     setSubmitMessage("")
     setPreviewMessage(`Created ${result.previews.length} action preview${result.previews.length === 1 ? "" : "s"}.`)
-    setApprovalDrawerOpen(true)
+    setActionFieldMode("detail")
     if (selectedWorkUnitId) {
       setApprovalLoading(true)
       setApprovalError(false)
@@ -528,27 +522,14 @@ export function AdoptedWorkUnitDashboard() {
           onReject={handleReject}
           onDryRun={handleDryRun}
           onClearDryRun={handleClearDryRun}
-          onOpenApprovalDrawer={() => setApprovalDrawerOpen(true)}
-          canOpenApprovalDrawer={previewStatus === "created"}
+          detailOpen={actionFieldMode === "detail"}
+          onOpenDetail={() => setActionFieldMode("detail")}
+          onCloseDetail={() => setActionFieldMode("entry")}
           toolRequirements={toolRequirements}
           actionDrafts={actionDrafts}
           draftFieldOverrides={draftFieldOverrides}
           onDraftFieldChange={handleDraftFieldChange}
           onResetDrafts={handleResetDrafts}
-        />
-        {/* ─── Approval Drawer ──────────────────────────── */}
-        <AdoptedActionApprovalDrawer
-          open={approvalDrawerOpen}
-          variantInfo={approvalDrawerVariantInfo}
-          workUnitTitle={dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId)?.title ?? ""}
-          sourceProvider={dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId)?.sourceProvider ?? ""}
-          previewRefCount={previewRefs.length}
-          previewStatus={previewStatus}
-          approvalAction={approvalAction}
-          canApprove={showApproveReject()}
-          onClose={() => setApprovalDrawerOpen(false)}
-          onApprove={handleApprove}
-          onReject={handleReject}
         />
       </div>
     </div>
