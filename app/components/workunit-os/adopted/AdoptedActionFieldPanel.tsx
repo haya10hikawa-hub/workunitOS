@@ -43,34 +43,40 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
   } = props
 
   return (
-    <aside className={styles.rightPanel}>
-      <div className={styles.actionFieldViewport}>
-        <div className={`${styles.actionFieldSlider} ${detailOpen ? styles.actionFieldSliderOpen : ""}`}>
-          {/* ─── Entry Pane ─────────────────────────────── */}
-          <section className={styles.actionFieldPane}>
-            <EntryPane
-              viewModel={viewModel}
-              executionViewer={executionViewer}
-              previewStatus={previewStatus}
-              previewMessage={previewMessage}
-              approvalAction={approvalAction}
-              submitMessage={submitMessage}
-              dryRunStatus={dryRunStatus}
-              previewRefCount={previewRefCount}
-              showApproveReject={showApproveReject}
-              onOpenDetail={onOpenDetail}
-              onCreatePreview={onCreatePreview}
-              onApprove={onApprove}
-              onReject={onReject}
-              onDryRun={onDryRun}
-              onClearDryRun={onClearDryRun}
-              toolRequirements={toolRequirements}
-              actionDrafts={actionDrafts}
-            />
-          </section>
+    <>
+      {/* ─── Compact right panel (always visible) ──────────── */}
+      <aside className={styles.rightPanel}>
+        <EntryPane
+          viewModel={viewModel}
+          executionViewer={executionViewer}
+          previewStatus={previewStatus}
+          previewMessage={previewMessage}
+          approvalAction={approvalAction}
+          submitMessage={submitMessage}
+          dryRunStatus={dryRunStatus}
+          previewRefCount={previewRefCount}
+          showApproveReject={showApproveReject}
+          onOpenDetail={onOpenDetail}
+          onCreatePreview={onCreatePreview}
+          onApprove={onApprove}
+          onReject={onReject}
+          onDryRun={onDryRun}
+          onClearDryRun={onClearDryRun}
+          toolRequirements={toolRequirements}
+          actionDrafts={actionDrafts}
+        />
+      </aside>
 
-          {/* ─── Detail Pane ────────────────────────────── */}
-          <section className={styles.actionFieldPane}>
+      {/* ─── Expanded Action Field Focus Layer ────────────── */}
+      {detailOpen ? (
+        <div className={styles.actionFieldFocusLayer}>
+          <button
+            type="button"
+            className={styles.actionFieldFocusBackdrop}
+            aria-label="Close action field detail"
+            onClick={onCloseDetail}
+          />
+          <section className={styles.actionFieldFocusPanel}>
             <DetailPane
               viewModel={viewModel}
               executionViewer={executionViewer}
@@ -92,8 +98,8 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
             />
           </section>
         </div>
-      </div>
-    </aside>
+      ) : null}
+    </>
   )
 }
 
