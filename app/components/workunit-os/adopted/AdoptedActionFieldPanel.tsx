@@ -85,11 +85,29 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
               <button type="button" className={styles.actionFieldViewerCloseBtn} onClick={onCloseDetail}>&times;</button>
             </header>
             <div className={styles.actionFieldViewerBody}>
-              <section className={styles.actionFieldViewerPlaceholderCard}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#d0d0d0" }}>External Action Approval</h3>
-                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginBottom: 8 }}>This viewer will host WorkUnit-specific approval variants.</p>
-                <p style={{ fontSize: 11, color: "var(--color-warning, #ffb454)" }}>&#9888; External Execution: BLOCKED</p>
-              </section>
+              <h3 className={styles.approvalViewerMainLabel}>External Action Approval</h3>
+
+              <ApprovalSectionCard icon="DB" iconColor="#b8ff9b" title="Database Action">
+                <ApprovalCodePreview label="Mutation Preview" code={`-- Database Mutation Preview
+UPDATE customer_records
+SET account_status = 'active',
+    last_contact_date = NOW()
+WHERE subscription_id = 'SUBS-773-8912'
+  AND status_flag = 'pending_approval';`} />
+                <ApprovalFieldRow label="Affected Rows Estimate" value="15 records (approx.)" />
+                <ApprovalWarningRow text="Warning: This operation modifies sensitive customer data. Please verify subscription IDs carefully." />
+              </ApprovalSectionCard>
+
+              <ApprovalSectionCard icon="@" iconColor="#ffb454" title="Email Action">
+                <ApprovalFieldRow label="Recipients" value="customers@acmecorp.com, billing@acmecorp.com" />
+                <ApprovalFieldRow label="Subject" value="Important Account Update - Action Required" />
+                <ApprovalFieldRow label="Body Preview">
+                  <span className={`${styles.approvalChip} ${styles.approvalChipRed}`} style={{ marginBottom: 8, display: "inline-block" }}>Customer-facing Communication</span>
+                  <div className={styles.approvalTextareaBox} style={{ minHeight: 56, whiteSpace: "pre-wrap" }}>Dear Customer,{"\n\n"}Your account status has been successfully updated. Please review the changes in your dashboard.{"\n\n"}Regards,{"\n"}The WorkUnit Team.</div>
+                </ApprovalFieldRow>
+              </ApprovalSectionCard>
+
+              <p style={{ fontSize: 11, color: "var(--color-warning, #ffb454)", padding: "8px 0" }}>&#9888; External Execution: BLOCKED</p>
             </div>
             <footer className={styles.actionFieldViewerFooter}>
               <button type="button" className={styles.actionFieldViewerBtnPrimary}
@@ -448,4 +466,50 @@ function CompactAuditList({ title, rows }: { title: string; rows: DashboardAudit
       {rows.map((row) => (<li key={row.id} className={styles.compactItem}><div className={styles.compactTitle}>{row.title}</div><div className={styles.compactMeta}>{row.timestamp}{row.summary ? ` | ${row.summary}` : ""}</div></li>))}
     </ul></div>
   )
+}
+
+// ─── Approval Viewer Primitives ────────────────────────────────
+
+function ApprovalSectionCard(props: { icon?: string; iconColor?: string; title: string; children: React.ReactNode }) {
+  return (
+    <div className={styles.approvalSectionCard}>
+      <div className={styles.approvalSectionCardHeader}>
+        {props.icon ? <span className={styles.approvalCardIcon} style={{ background: props.iconColor ?? "rgba(255,255,255,0.1)" }}>{props.icon}</span> : null}
+        <span className={styles.approvalCardTitle}>{props.title}</span>
+      </div>
+      {props.children}
+    </div>
+  )
+}
+
+function ApprovalFieldRow({ label, value, children }: { label: string; value?: string; children?: React.ReactNode }) {
+  return (
+    <div className={styles.approvalFieldRow}>
+      <span className={styles.approvalFieldLabel}>{label}</span>
+      {children ?? <span className={styles.approvalFieldValue}>{value ?? "—"}</span>}
+    </div>
+  )
+}
+
+function ApprovalCodePreview({ label, code }: { label: string; code: string }) {
+  return (
+    <div className={styles.approvalCodePreview}>
+      <div className={styles.approvalCodeHeader}>
+        <span>{label}</span>
+        <div className={styles.approvalCodeHeaderActions}>
+          <button type="button" title="Copy">📋</button>
+          <button type="button" title="Edit">✏️</button>
+        </div>
+      </div>
+      <div className={styles.approvalCodeContent}>{code}</div>
+    </div>
+  )
+}
+
+function ApprovalWarningRow({ text }: { text: string }) {
+  return <div className={styles.approvalWarningRow}>⚠ {text}</div>
+}
+
+function ApprovalSuccessRow({ text }: { text: string }) {
+  return <div className={styles.approvalSuccessRow}>✓ {text}</div>
 }
