@@ -415,6 +415,8 @@ export function AdoptedWorkUnitDashboard() {
                   setDryRunMessage(null)
                   setDryRunActionCount(0)
                   setDryRunActionType(null)
+                  setDraftFieldOverrides({})
+                  setActionFieldMode("entry")
                 }}
               >
                 <span className={styles.unitIcon} style={{ backgroundColor: workUnit.iconBg }}>

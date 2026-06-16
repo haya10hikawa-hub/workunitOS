@@ -76,26 +76,29 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
             aria-label="Close action field detail"
             onClick={onCloseDetail}
           />
-          <section className={styles.actionFieldFocusPanel}>
-            <DetailPane
-              viewModel={viewModel}
-              executionViewer={executionViewer}
-              previewStatus={previewStatus}
-              approvalAction={approvalAction}
-              dryRunStatus={dryRunStatus}
-              previewRefCount={previewRefCount}
-              showApproveReject={showApproveReject}
-              onCloseDetail={onCloseDetail}
-              onApprove={onApprove}
-              onReject={onReject}
-              onDryRun={onDryRun}
-              onClearDryRun={onClearDryRun}
-              toolRequirements={toolRequirements}
-              actionDrafts={actionDrafts}
-              draftFieldOverrides={draftFieldOverrides}
-              onDraftFieldChange={onDraftFieldChange}
-              onResetDrafts={onResetDrafts}
-            />
+          <section className={styles.actionFieldViewerPanel}>
+            <header className={styles.actionFieldViewerHeader}>
+              <div>
+                <h2 className={styles.actionFieldViewerTitle}>Action Field Viewer</h2>
+                <p className={styles.actionFieldViewerSubtitle}>AI-powered decision engine &ldquo;WorkUnit OS&rdquo;</p>
+              </div>
+              <button type="button" className={styles.actionFieldViewerCloseBtn} onClick={onCloseDetail}>&times;</button>
+            </header>
+            <div className={styles.actionFieldViewerBody}>
+              <section className={styles.actionFieldViewerPlaceholderCard}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#d0d0d0" }}>External Action Approval</h3>
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginBottom: 8 }}>This viewer will host WorkUnit-specific approval variants.</p>
+                <p style={{ fontSize: 11, color: "var(--color-warning, #ffb454)" }}>&#9888; External Execution: BLOCKED</p>
+              </section>
+            </div>
+            <footer className={styles.actionFieldViewerFooter}>
+              <button type="button" className={styles.actionFieldViewerBtnPrimary}
+                onClick={onApprove} disabled={!showApproveReject || approvalAction === "submitting"}>
+                {approvalAction === "submitting" ? "Submitting..." : "Approve and Send/Execute"}
+              </button>
+              <button type="button" className={styles.actionFieldViewerBtnSecondary} disabled>Edit</button>
+              <button type="button" className={styles.actionFieldViewerBtnSecondary} onClick={onCloseDetail}>Cancel</button>
+            </footer>
           </section>
         </div>
       ) : null}
