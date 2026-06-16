@@ -850,7 +850,7 @@
   inset: 0;
   z-index: 10000;
   background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(1px);
+  backdrop-filter: blur(3px);
 }
 
 .drawer {
@@ -859,7 +859,7 @@
   top: 0;
   height: 100%;
   width: 100%;
-  max-width: 540px;
+  max-width: min(720px, 46vw);
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--color-border-light);
@@ -1115,6 +1115,26 @@
 
 .drawerBtnApprove:hover:not(:disabled) {
   background: rgba(76, 227, 43, 0.18);
+}
+
+.drawerBtnReject {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: 1px solid rgba(224, 82, 82, 0.4);
+  background: rgba(224, 82, 82, 0.08);
+  color: var(--color-error);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.drawerBtnReject:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.drawerBtnReject:hover:not(:disabled) {
+  background: rgba(224, 82, 82, 0.14);
 }
 
 .drawerBtnEdit {

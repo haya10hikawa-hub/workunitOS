@@ -117,7 +117,7 @@ export function AdoptedActionApprovalDrawer(props: AdoptedActionApprovalDrawerPr
           </button>
           <button
             type="button"
-            className={styles.drawerBtnCancel}
+            className={styles.drawerBtnReject}
             onClick={onReject}
             disabled={approvalAction === "submitting" || previewStatus !== "created"}
           >

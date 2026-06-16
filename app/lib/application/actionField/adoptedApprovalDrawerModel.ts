@@ -6,6 +6,7 @@
  */
 
 import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
+import type { ToolRequirementSummary } from "./toolRequirementModel"
 
 export type ApprovalDrawerVariant =
   | "db_email"
@@ -170,4 +171,27 @@ function buildDatabaseAction(wu: InboxWorkUnit): ApprovalDrawerActionInfo {
     tags: ["write", "audit-log", "rollback-ready"],
     bodyPreview: wu.title ?? "",
   }
+}
+
+// ─── Tool-based variant derivation ──────────────────────────
+
+export function deriveVariantFromTools(tools: ToolRequirementSummary): ApprovalDrawerVariant {
+  const dbRequired = tools.database.necessity === "required"
+  const dbRecommended = tools.database.necessity === "recommended"
+  const emailRequired = tools.email.necessity === "required"
+  const emailRecommended = tools.email.necessity === "recommended"
+  const slackRequired = tools.slack.necessity === "required"
+  const slackRecommended = tools.slack.necessity === "recommended"
+  const githubRequired = tools.github.necessity === "required"
+  const githubRecommended = tools.github.necessity === "recommended"
+  const calendarRequired = tools.calendar.necessity === "required"
+  const calendarRecommended = tools.calendar.necessity === "recommended"
+
+  if ((dbRequired || dbRecommended) && (emailRequired || emailRecommended)) return "db_email"
+  if ((slackRequired || slackRecommended) && (githubRequired || githubRecommended)) return "slack_github"
+  if ((calendarRequired || calendarRecommended) && (emailRequired || emailRecommended)) return "calendar_email"
+  if (slackRequired || slackRecommended) return "slack"
+  if (emailRequired || emailRecommended) return "email"
+  if (dbRequired || dbRecommended) return "database"
+  return "slack"
 }

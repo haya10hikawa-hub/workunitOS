@@ -176,6 +176,7 @@ export function AdoptedWorkUnitDashboard() {
     return wu ? buildApprovalDrawerVariantInfo(wu) : null
   }, [dashboardState.workUnits, selectedWorkUnitId])
 
+
   const handleCreatePreview = async () => {
     setPreviewMessage("")
     if (!viewModel.actionField.canCreatePreview) {
