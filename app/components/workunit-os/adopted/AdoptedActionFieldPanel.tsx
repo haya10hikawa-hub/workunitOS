@@ -44,6 +44,8 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
 
   const viewerVariant = toolRequirements
     ? (toolRequirements.slack.necessity === "required" && toolRequirements.github.necessity === "required" ? "slack_github"
+      : toolRequirements.calendar.necessity === "required" && toolRequirements.email.necessity === "recommended" ? "calendar_email"
+      : toolRequirements.calendar.necessity === "required" ? "calendar_email"
       : toolRequirements.slack.necessity === "required" ? "slack"
       : toolRequirements.email.necessity === "required" ? "email"
       : toolRequirements.database.necessity === "blocked" ? "database"
@@ -55,12 +57,14 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
     email: "Email送信 承認ドロワー詳細",
     database: "Database更新 承認ドロワー詳細",
     slack_github: "Slack/GitHub連携 承認ドロワー詳細",
+    calendar_email: "Calendar/Email連携 承認ドロワー詳細",
   }
   const LABELS: Record<string, string> = {
     slack: "External Action Approval: Slack Reply",
     email: "External Action Approval: Email Send",
     database: "External Action Approval: Database Update",
     slack_github: "External Action Approval: Slack Reply & GitHub Issue",
+    calendar_email: "External Action Approval: Calendar Block & Email Notification",
   }
   const viewerTitle = TITLES[viewerVariant] ?? "Action Field Viewer"
   const viewerLabel = LABELS[viewerVariant] ?? "External Action Approval"
@@ -110,6 +114,9 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
             <div className={styles.actionFieldViewerBody}>
               <h3 className={styles.approvalViewerMainLabel}>{viewerLabel}</h3>
 
+              {viewerVariant === "calendar_email" ? (
+                <CalendarEmailApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
+              ) : null}
               {viewerVariant === "slack" ? (
                 <SlackVariantContent actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
               ) : null}
@@ -524,6 +531,76 @@ function SlackGithubApprovalVariant(props: {
         <span className={`${styles.approvalChip} ${styles.approvalChipRed}`}>priority:high</span>
       </ApprovalFieldRow>
       <ApprovalFieldRow label="Assignee" value="@dev-team" />
+    </ApprovalSectionCard>
+  </>)
+}
+
+// ─── Calendar + Email Variant ──────────────────────────────────
+
+function CalendarEmailApprovalVariant(props: {
+  readonly actionDrafts?: ActionDraftSet | null
+  readonly draftFieldOverrides?: Record<string, string>
+  readonly onDraftFieldChange?: (draftId: string, fieldKey: string, value: string) => void
+}) {
+  const { actionDrafts, draftFieldOverrides, onDraftFieldChange } = props
+  const calDraft = actionDrafts?.drafts.find((d) => d.tool === "calendar")
+  const emailDraft = actionDrafts?.drafts.find((d) => d.tool === "email")
+  const fv = (draft: ActionDraft | undefined, key: string, fallback: string) => {
+    const f = draft?.editableFields.find((f) => f.key === key)
+    const gen = f?.value ?? fallback
+    const ok = draft && draftFieldOverrides?.[`${draft.id}:${key}`]
+    return { value: ok !== undefined ? ok : gen, dirty: !!(ok !== undefined && ok !== gen) }
+  }
+  const attendees = fv(calDraft, "attendees", "yamada@acmecorp.com, suzuki@acmecorp.com")
+  const dateTime = fv(calDraft, "due_date", "2025-06-09 (月) 14:00 - 15:00 (JST)")
+  const duration = fv(calDraft, "duration", "60分")
+  const purpose = fv(calDraft, "event_title", "セキュリティレビュー対応ミーティング")
+  const desc = fv(calDraft, "description", "セキュリティレビュー指摘事項の対応方針決定ミーティングです。\n事前に資料の確認をお願いいたします。")
+  const emailRecipients = fv(emailDraft, "recipients", "yamada@acmecorp.com, suzuki@acmecorp.com")
+  const emailSubject = fv(emailDraft, "subject", "[ミーティング招集] セキュリティレビュー対応について")
+  const emailBody = fv(emailDraft, "body", "お疲れ様です。\nセキュリティレビュー対応に関するミーティングを下記の通り設定しました。\nご確認ください。")
+
+  return (<>
+    <ApprovalSectionCard icon="📅" iconColor="#ff6b6b" title="Calendar Action">
+      <ApprovalFieldRow label="Attendees">
+        {attendees.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={attendees.value}
+          onChange={(e) => calDraft && onDraftFieldChange?.(calDraft.id, "attendees", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Date / Time">
+        {dateTime.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={dateTime.value}
+          onChange={(e) => calDraft && onDraftFieldChange?.(calDraft.id, "due_date", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Duration">{duration.value}</ApprovalFieldRow>
+      <ApprovalFieldRow label="Purpose">
+        {purpose.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={purpose.value}
+          onChange={(e) => calDraft && onDraftFieldChange?.(calDraft.id, "event_title", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Description">
+        {desc.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <textarea className={styles.approvalTextareaBox} rows={3} value={desc.value}
+          onChange={(e) => calDraft && onDraftFieldChange?.(calDraft.id, "description", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalSuccessRow text="参加者全員の予定を確認済み" />
+    </ApprovalSectionCard>
+    <ApprovalSectionCard icon="@" iconColor="#ffb454" title="Email Action">
+      <ApprovalFieldRow label="Recipients">
+        {emailRecipients.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={emailRecipients.value}
+          onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "recipients", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Subject">
+        {emailSubject.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <input className={styles.approvalInputBox} value={emailSubject.value}
+          onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "subject", e.target.value)} />
+      </ApprovalFieldRow>
+      <ApprovalFieldRow label="Body Preview">
+        {emailBody.dirty ? <span className={styles.draftDirty} style={{ marginBottom: 2, display: "inline-block" }}>edited</span> : null}
+        <textarea className={styles.approvalTextareaBox} rows={3} value={emailBody.value}
+          onChange={(e) => emailDraft && onDraftFieldChange?.(emailDraft.id, "body", e.target.value)} />
+      </ApprovalFieldRow>
     </ApprovalSectionCard>
   </>)
 }
