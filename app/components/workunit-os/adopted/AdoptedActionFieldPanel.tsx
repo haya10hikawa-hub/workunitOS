@@ -79,19 +79,15 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
           <section className={styles.actionFieldViewerPanel}>
             <header className={styles.actionFieldViewerHeader}>
               <div>
-                <h2 className={styles.actionFieldViewerTitle}>Email送信 承認ドロワー詳細</h2>
+                <h2 className={styles.actionFieldViewerTitle}>Database更新 承認ドロワー詳細</h2>
                 <p className={styles.actionFieldViewerSubtitle}>AI-powered decision engine &ldquo;WorkUnit OS&rdquo;</p>
               </div>
               <button type="button" className={styles.actionFieldViewerCloseBtn} onClick={onCloseDetail}>&times;</button>
             </header>
             <div className={styles.actionFieldViewerBody}>
-              <h3 className={styles.approvalViewerMainLabel}>External Action Approval: Email Send</h3>
+              <h3 className={styles.approvalViewerMainLabel}>External Action Approval: Database Update</h3>
 
-              <EmailApprovalVariant
-                actionDrafts={actionDrafts}
-                draftFieldOverrides={draftFieldOverrides}
-                onDraftFieldChange={onDraftFieldChange}
-              />
+              <DatabaseApprovalVariant />
 
               <p style={{ fontSize: 11, color: "var(--color-warning, #ffb454)", padding: "8px 0" }}>&#9888; External Execution: BLOCKED</p>
             </div>
@@ -571,6 +567,27 @@ function EmailApprovalVariant(props: {
       <ApprovalSuccessRow text="顧客向けではない" />
       <ApprovalSuccessRow text="添付ファイルなし" />
       <ApprovalSuccessRow text="外部送信内容を確認済み" />
+    </ApprovalSectionCard>
+  )
+}
+
+// ─── Database Variant ──────────────────────────────────────────
+
+function DatabaseApprovalVariant() {
+  return (
+    <ApprovalSectionCard icon="DB" iconColor="#b8ff9b" title="Database Action">
+      <ApprovalCodePreview label="Mutation Preview" code={`-- Database Mutation Preview
+UPDATE user_preferences
+SET email_notifications = true,
+    updated_at = NOW()
+WHERE user_id = 'USR-88921';`} />
+      <ApprovalFieldRow label="Affected Rows Estimate" value="1 record (approx.)" />
+      <ApprovalFieldRow label="Target Table" value="user_preferences" />
+      <ApprovalWarningRow text="Warning: This operation updates user preferences. No sensitive data modification." />
+      <ApprovalSuccessRow text="可能（トランザクション内で実行）" />
+      <p style={{ fontSize: 11, color: "var(--color-warning, #ffb454)", padding: "6px 0" }}>
+        &#9888; Database execution remains blocked in this release.
+      </p>
     </ApprovalSectionCard>
   )
 }
