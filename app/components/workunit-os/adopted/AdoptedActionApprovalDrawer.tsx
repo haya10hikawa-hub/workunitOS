@@ -1,51 +1,35 @@
 "use client"
 
-import type { ApprovalDrawerVariantInfo, ApprovalDrawerActionInfo } from "@/lib/application/actionField/adoptedApprovalDrawerModel"
+import type { ActionPlanModel, ActionPlanStep } from "@/lib/application/actionField/actionPlanModel"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
-
-// ─── Props ─────────────────────────────────────────────────────
 
 type AdoptedActionApprovalDrawerProps = {
   readonly open: boolean
-  readonly variantInfo: ApprovalDrawerVariantInfo | null
-  readonly workUnitTitle: string
-  readonly sourceProvider: string
-  readonly previewRefCount: number
+  readonly actionPlan: ActionPlanModel | null
   readonly previewStatus: "idle" | "creating" | "created" | "failed"
   readonly approvalAction: "idle" | "submitting" | "approved" | "rejected" | "failed"
-  readonly canApprove: boolean
+  readonly dryRunStatus: "idle" | "running" | "verified" | "blocked" | "not_ready" | "failed"
   readonly onClose: () => void
   readonly onApprove: () => void | Promise<void>
   readonly onReject: () => void | Promise<void>
+  readonly onDryRun?: () => void | Promise<void>
 }
-
-// ─── Component ─────────────────────────────────────────────────
 
 export function AdoptedActionApprovalDrawer(props: AdoptedActionApprovalDrawerProps) {
   const {
-    open,
-    variantInfo,
-    workUnitTitle,
-    sourceProvider,
-    previewRefCount,
-    previewStatus,
-    approvalAction,
-    canApprove,
-    onClose,
-    onApprove,
-    onReject,
+    open, actionPlan, previewStatus, approvalAction, dryRunStatus,
+    onClose, onApprove, onReject, onDryRun,
   } = props
 
-  if (!open || !variantInfo) return null
+  if (!open || !actionPlan) return null
 
   return (
     <div className={styles.drawerOverlay} onClick={onClose}>
       <aside className={styles.drawer} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <header className={styles.drawerHeader}>
           <div>
-            <h2 className={styles.drawerTitle}>{variantInfo.title}</h2>
-            <p className={styles.drawerSubtitle}>AI-powered decision engine &ldquo;WorkUnit OS&rdquo;</p>
+            <h2 className={styles.drawerTitle}>{actionPlan.title}</h2>
+            <p className={styles.drawerSubtitle}>{actionPlan.subtitle}</p>
           </div>
           <div className={styles.drawerHeaderRight}>
             <span className={styles.drawerStatusBadge}>
@@ -55,98 +39,108 @@ export function AdoptedActionApprovalDrawer(props: AdoptedActionApprovalDrawerPr
           </div>
         </header>
 
-        {/* Source info */}
         <div className={styles.drawerSourceRow}>
-          <span className={styles.drawerSourceLabel}>Source:</span>
-          <span className={styles.drawerSourceValue}>{sourceProvider}</span>
-          <span className={styles.drawerSourceLabel}>WorkUnit:</span>
-          <span className={styles.drawerSourceValue}>{workUnitTitle}</span>
-          <span className={styles.drawerSourceLabel}>Previews:</span>
-          <span className={styles.drawerSourceValue}>{previewRefCount}</span>
+          <span className={styles.drawerSourceLabel}>Context:</span>
+          <span className={styles.drawerSourceValue}>{actionPlan.contextSummary}</span>
         </div>
 
-        {/* Actions */}
+        {actionPlan.recommendedDecision ? (
+          <div className={styles.drawerSourceRow} style={{ borderBottom: "none" }}>
+            <span className={styles.drawerSourceLabel}>Recommended:</span>
+            <span className={styles.drawerSourceValue}>{actionPlan.recommendedDecision}</span>
+          </div>
+        ) : null}
+
         <div className={styles.drawerBody}>
-          {variantInfo.actions.map((action, i) => (
-            <div key={i} className={styles.drawerActionBlock}>
-              <ActionHeader action={action} />
-              <ActionFieldRow label={action.destinationLabel} value={action.destination} />
-              <ActionFieldRow label={action.primaryField} value={workUnitTitle} />
-              <ActionTags tags={action.tags} />
-              <ActionBodyBox label="Body Preview" content={action.bodyPreview} />
+          <h3 className={styles.drawerSectionTitle}>ACTION PLAN STEPS</h3>
+          {actionPlan.steps.map((step, i) => (
+            <StepCard key={step.id} step={step} index={i + 1} />
+          ))}
+        </div>
+
+        <div className={styles.drawerSafetySection}>
+          <h4 className={styles.drawerSafetyTitle}>SAFETY CHECKS</h4>
+          {actionPlan.safetyChecks.map((check, i) => (
+            <div key={i} className={styles.drawerSafetyRow}>
+              <span className={styles.checkPass}>✓</span> {check}
             </div>
           ))}
         </div>
 
-        {/* Safety checks */}
-        <div className={styles.drawerSafetySection}>
-          <h4 className={styles.drawerSafetyTitle}>Safety Checks</h4>
-          <div className={styles.drawerSafetyRow}>
-            <span className={styles.checkPass}>✓</span> RBAC enforced
+        {actionPlan.warnings.length > 0 ? (
+          <div className={styles.drawerWarning}>
+            {actionPlan.warnings.join(" ")}
           </div>
-          <div className={styles.drawerSafetyRow}>
-            <span className={styles.checkPass}>✓</span> Preview hash verified
-          </div>
-          <div className={styles.drawerSafetyRow}>
-            <span className={styles.checkPass}>✓</span> Tenant isolation active
-          </div>
-        </div>
+        ) : null}
 
-        {/* Warning */}
-        <div className={styles.drawerWarning}>
-          ⚠ External execution remains disabled in this release.
-        </div>
-
-        {/* Footer */}
         <footer className={styles.drawerFooter}>
           <button
             type="button"
             className={styles.drawerBtnApprove}
             onClick={onApprove}
-            disabled={!canApprove || approvalAction === "submitting" || previewStatus !== "created"}
+            disabled={!actionPlan.canApprovePlan || approvalAction === "submitting"}
           >
-            {approvalAction === "submitting" ? "Submitting..." : "Approve and Send/Execute"}
+            {approvalAction === "submitting" ? "Submitting..." : "Approve Action Plan"}
           </button>
-          <button
-            type="button"
-            className={styles.drawerBtnEdit}
-            disabled
-            title="Edit is not available in this release."
-          >
-            Edit
+          <button type="button" className={styles.drawerBtnEdit} disabled title="Edit is not available in this release.">
+            Edit Draft
           </button>
-          <button
-            type="button"
-            className={styles.drawerBtnCancel}
-            onClick={onReject}
-            disabled={approvalAction === "submitting" || previewStatus !== "created"}
-          >
+          <button type="button" className={styles.drawerBtnCancel} onClick={onReject}
+            disabled={approvalAction === "submitting" || !actionPlan.canApprovePlan}>
             Reject
           </button>
-          <button
-            type="button"
-            className={styles.drawerBtnCancel}
-            onClick={onClose}
-          >
+          <button type="button" className={styles.drawerBtnCancel} onClick={onClose}>
             Cancel
           </button>
+          {onDryRun && actionPlan.canApprovePlan ? (
+            <button
+              type="button"
+              className={styles.drawerBtnApprove}
+              onClick={onDryRun}
+              disabled={dryRunStatus === "running"}
+              style={{ flex: "0 0 auto", fontSize: 12 }}
+            >
+              {dryRunStatus === "running" ? "Verifying..." : "Verify Execution"}
+            </button>
+          ) : null}
         </footer>
       </aside>
     </div>
   )
 }
 
-// ─── Sub-components ────────────────────────────────────────────
+function StepCard({ step, index }: { step: ActionPlanStep; index: number }) {
+  const riskColor = step.riskLevel === "high" ? "var(--color-error)"
+    : step.riskLevel === "medium" ? "var(--color-warning, #ffb454)"
+    : "var(--color-success)"
+  const accent = step.kind === "slack_reply" ? "#69ff47"
+    : step.kind === "github_issue" ? "#5aa7f7"
+    : step.kind === "calendar_block" ? "#ff6b6b"
+    : step.kind === "email_send" ? "#ffb454"
+    : step.kind === "database_update" ? "#b8ff9b"
+    : "#d0d0d0"
 
-function ActionHeader({ action }: { action: ApprovalDrawerActionInfo }) {
   return (
-    <div className={styles.drawerActionHeader} style={{ borderColor: action.accent }}>
-      <span className={styles.drawerActionIcon} style={{ borderColor: action.accent, color: action.accent }}>
-        {action.icon}
-      </span>
-      <span className={styles.drawerActionLabel} style={{ color: action.accent }}>
-        Action: {action.label}
-      </span>
+    <div className={styles.drawerActionBlock}>
+      <div className={styles.drawerActionHeader} style={{ borderColor: accent }}>
+        <span className={styles.drawerActionIcon} style={{ borderColor: accent, color: accent }}>
+          {index}
+        </span>
+        <span className={styles.drawerActionLabel} style={{ color: accent }}>
+          {step.title}
+        </span>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: riskColor, fontWeight: 600 }}>
+          {step.riskLevel.toUpperCase()}
+        </span>
+      </div>
+      <ActionFieldRow label="Target" value={step.targetLabel} />
+      <ActionFieldRow label="Kind" value={step.kind} />
+      {step.previewText ? (
+        <div className={styles.drawerBodySection}>
+          <span className={styles.drawerBodyLabel}>Preview</span>
+          <div className={styles.drawerBodyBox}>{step.previewText}</div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -156,25 +150,6 @@ function ActionFieldRow({ label, value }: { label: string; value: string }) {
     <div className={styles.drawerFieldRow}>
       <span className={styles.drawerFieldLabel}>{label}</span>
       <span className={styles.drawerFieldValue}>{value}</span>
-    </div>
-  )
-}
-
-function ActionTags({ tags }: { tags: string[] }) {
-  return (
-    <div className={styles.drawerTagsRow}>
-      {tags.map((tag) => (
-        <span key={tag} className={styles.drawerTag}>{tag}</span>
-      ))}
-    </div>
-  )
-}
-
-function ActionBodyBox({ label, content }: { label: string; content: string }) {
-  return (
-    <div className={styles.drawerBodySection}>
-      <span className={styles.drawerBodyLabel}>{label}</span>
-      <div className={styles.drawerBodyBox}>{content}</div>
     </div>
   )
 }

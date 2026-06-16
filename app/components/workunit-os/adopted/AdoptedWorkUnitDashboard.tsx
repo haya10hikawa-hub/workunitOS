@@ -37,7 +37,7 @@ import { runDashboardExecutionDryRun } from "@/lib/application/dashboard/dashboa
 import { buildExecutionResultViewer } from "@/lib/application/dashboard/executionResultViewerModel"
 import { AdoptedActionFieldPanel } from "./AdoptedActionFieldPanel"
 import { AdoptedActionApprovalDrawer } from "./AdoptedActionApprovalDrawer"
-import { buildApprovalDrawerVariantInfo } from "@/lib/application/actionField/adoptedApprovalDrawerModel"
+import { buildActionPlan, type ActionPlanModel } from "@/lib/application/actionField/actionPlanModel"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
 
 type LoadStatus = "loading" | "loaded" | "error" | "empty"
@@ -171,10 +171,15 @@ export function AdoptedWorkUnitDashboard() {
     dryRunActionType,
   }), [dryRunStatus, dryRunMessage, dryRunActionCount, dryRunActionType])
 
-  const approvalDrawerVariantInfo = useMemo(() => {
+  const actionPlan = useMemo((): ActionPlanModel | null => {
     const wu = dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId)
-    return wu ? buildApprovalDrawerVariantInfo(wu) : null
-  }, [dashboardState.workUnits, selectedWorkUnitId])
+    if (!wu) return null
+    return buildActionPlan({
+      wu,
+      previewRefCount: previewRefs.length,
+      previewStatus,
+    })
+  }, [dashboardState.workUnits, selectedWorkUnitId, previewRefs.length, previewStatus])
 
   const handleCreatePreview = async () => {
     setPreviewMessage("")
@@ -509,16 +514,14 @@ export function AdoptedWorkUnitDashboard() {
         {/* ─── Approval Drawer ──────────────────────────── */}
         <AdoptedActionApprovalDrawer
           open={approvalDrawerOpen}
-          variantInfo={approvalDrawerVariantInfo}
-          workUnitTitle={dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId)?.title ?? ""}
-          sourceProvider={dashboardState.workUnits.find((w) => w.id === selectedWorkUnitId)?.sourceProvider ?? ""}
-          previewRefCount={previewRefs.length}
+          actionPlan={actionPlan}
           previewStatus={previewStatus}
           approvalAction={approvalAction}
-          canApprove={showApproveReject()}
+          dryRunStatus={dryRunStatus}
           onClose={() => setApprovalDrawerOpen(false)}
           onApprove={handleApprove}
           onReject={handleReject}
+          onDryRun={handleDryRun}
         />
       </div>
     </div>
