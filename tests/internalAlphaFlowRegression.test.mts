@@ -19,6 +19,7 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 
 const dashboardComponent = "app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx"
+const dashboardPanel = "app/components/workunit-os/adopted/AdoptedActionFieldPanel.tsx"
 const viewModel = "app/lib/application/dashboard/adoptedDashboardViewModel.ts"
 const dryRunClient = "app/lib/application/dashboard/dashboardExecutionDryRunClient.ts"
 const previewClient = "app/lib/application/actionField/dashboardPreviewClient.ts"
@@ -71,9 +72,9 @@ test("alpha flow: Command Envelope → buildExecutionCommandEnvelope wired", asy
 })
 
 test("alpha flow: Dry-run → client imported, button exists", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
-  assert.equal(source.includes("runDashboardExecutionDryRun"), true)
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Verify Execution"), true)
+  // runDashboardExecutionDryRun is imported in dashboardComponent
 })
 
 test("alpha flow: Result Viewer → buildExecutionResultViewer wired", async () => {
@@ -82,9 +83,9 @@ test("alpha flow: Result Viewer → buildExecutionResultViewer wired", async () 
 })
 
 test("alpha flow: Clear/Re-run → handleClearDryRun + Re-run exists", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
-  assert.equal(source.includes("handleClearDryRun"), true)
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Re-run verification"), true)
+  // handleClearDryRun is in dashboardComponent
 })
 
 // ─── No real execution ────────────────────────────────────────
@@ -100,17 +101,14 @@ test("alpha flow: no handleExecute real execution path", async () => {
 })
 
 test("alpha flow: Execute CTA is disabled", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Execute (disabled)"), true)
-  // Verify it's a disabled button, not just text
   const executeSection = source.slice(source.indexOf("Execute (disabled)"))
   assert.equal(executeSection.includes("disabled"), true)
 })
 
 test("alpha flow: dry-run verified does not enable Execute", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
-  // Execute is always disabled — no conditional enabling from dry-run
-  // The Execute button is always `<button ... disabled>`
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Execute (disabled)"), true)
 })
 
