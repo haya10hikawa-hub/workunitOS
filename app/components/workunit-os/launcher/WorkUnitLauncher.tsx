@@ -1,71 +1,104 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { fetchDashboardWorkUnits } from "@/lib/application/dashboard/dashboardDataClient"
+import {
+  deriveActionFieldEditorDraft,
+  deriveLauncherReadinessCards,
+} from "@/lib/application/launcher/actionFieldEditorDraftModel"
+import { getLauncherKeyIntent, nextLauncherIndex } from "@/lib/application/launcher/keyboardNavigationModel"
+import { getSafePaletteCommands } from "@/lib/application/launcher/paletteCommandRegistry"
+import { deriveWorkUnitTreeMap } from "@/lib/application/launcher/workUnitTreeModel"
 import {
   clampLauncherActiveIndex,
+  fallbackLauncherWorkUnits,
   filterLauncherWorkUnits,
   getActiveLauncherWorkUnit,
+  mapInboxWorkUnitToLauncherWorkUnit,
   type LauncherWorkUnit,
 } from "@/lib/application/launcher/workUnitSelectionModel"
+import { ActionFieldView } from "./ActionFieldView"
 import { CommandPaletteView } from "./CommandPaletteView"
 import styles from "./WorkUnitLauncher.module.css"
 
 export type WorkUnitLauncherMode = "palette" | "action-field"
 
-const PLACEHOLDER_WORK_UNITS: readonly LauncherWorkUnit[] = [
-  { id: "wu-review-request", title: "Review request needs PM focus", source: "GitHub", status: "READY", roi: 91.2, summary: "Current-awareness item prepared for focused review." },
-  { id: "wu-team-follow-up", title: "Team follow-up waiting on decision", source: "Team", status: "NEEDS REVIEW", roi: 84.5, summary: "Open item can be selected without provider mutation." },
-  { id: "wu-calendar-deadline", title: "Deadline checkpoint approaching", source: "Calendar", status: "DRAFT", roi: 76.0, summary: "Timing context is available for navigation only." },
-]
-
 export function WorkUnitLauncher() {
   const [isOpen, setIsOpen] = useState(false)
   const [mode, setMode] = useState<WorkUnitLauncherMode>("palette")
   const [query, setQuery] = useState("")
-  const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | null>(PLACEHOLDER_WORK_UNITS[0]?.id ?? null)
+  const [workUnits, setWorkUnits] = useState<LauncherWorkUnit[]>(() => fallbackLauncherWorkUnits())
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "fallback">("loading")
+  const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | null>(workUnits[0]?.id ?? null)
   const [activeIndex, setActiveIndex] = useState(0)
 
   const filteredWorkUnits = useMemo(
-    () => filterLauncherWorkUnits(PLACEHOLDER_WORK_UNITS, query),
-    [query],
+    () => filterLauncherWorkUnits(workUnits, query),
+    [query, workUnits],
   )
   const clampedActiveIndex = clampLauncherActiveIndex(activeIndex, filteredWorkUnits.length)
+  const activeWorkUnit = getActiveLauncherWorkUnit(filteredWorkUnits, clampedActiveIndex)
+  const selectedWorkUnit = workUnits.find((workUnit) => workUnit.id === selectedWorkUnitId) ?? activeWorkUnit ?? null
+  const commands = useMemo(() => getSafePaletteCommands(filteredWorkUnits), [filteredWorkUnits])
+  const treeMap = useMemo(() => deriveWorkUnitTreeMap(selectedWorkUnit), [selectedWorkUnit])
+  const draft = useMemo(() => deriveActionFieldEditorDraft(selectedWorkUnit), [selectedWorkUnit])
+  const readinessCards = useMemo(() => deriveLauncherReadinessCards(selectedWorkUnit), [selectedWorkUnit])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchDashboardWorkUnits("all")
+      .then((result) => {
+        if (cancelled) return
+        if (result.ok && result.workUnits.length > 0) {
+          const mapped = result.workUnits.map(mapInboxWorkUnitToLauncherWorkUnit)
+          setWorkUnits(mapped)
+          setSelectedWorkUnitId((current) => current && mapped.some((workUnit) => workUnit.id === current) ? current : mapped[0]?.id ?? null)
+          setLoadState("ready")
+          return
+        }
+        setLoadState("fallback")
+      })
+      .catch(() => setLoadState("fallback"))
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const wantsPalette = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"
-      if (wantsPalette) {
+      const intent = getLauncherKeyIntent(event)
+      if (intent === "open_palette") {
         event.preventDefault()
         setIsOpen(true)
         setMode("palette")
         return
       }
       if (!isOpen) return
-      if (event.key === "Escape") {
+      if (intent === "close") {
         event.preventDefault()
         setIsOpen(false)
         setMode("palette")
         return
       }
-      if (event.key === "Enter") {
+      if (intent === "confirm" && mode === "palette") {
         const active = getActiveLauncherWorkUnit(filteredWorkUnits, clampedActiveIndex)
         if (!active) return
         event.preventDefault()
         setSelectedWorkUnitId(active.id)
         setMode("action-field")
       }
-      if (event.key === "ArrowDown") {
+      if (intent === "next" && mode === "palette") {
         event.preventDefault()
-        setActiveIndex((current) => clampLauncherActiveIndex(current + 1, filteredWorkUnits.length))
+        setActiveIndex((current) => nextLauncherIndex(current, "next", filteredWorkUnits.length))
       }
-      if (event.key === "ArrowUp") {
+      if (intent === "previous" && mode === "palette") {
         event.preventDefault()
-        setActiveIndex((current) => clampLauncherActiveIndex(current - 1, filteredWorkUnits.length))
+        setActiveIndex((current) => nextLauncherIndex(current, "previous", filteredWorkUnits.length))
       }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [clampedActiveIndex, filteredWorkUnits, isOpen])
+  }, [clampedActiveIndex, filteredWorkUnits, isOpen, mode])
 
   return (
     <main className={styles.root}>
@@ -86,21 +119,39 @@ export function WorkUnitLauncher() {
       </section>
       {isOpen ? (
         <div className={styles.overlay}>
-          <CommandPaletteView
-            mode={mode}
-            query={query}
-            workUnits={filteredWorkUnits}
-            selectedWorkUnitId={selectedWorkUnitId}
-            activeIndex={clampedActiveIndex}
-            onQueryChange={setQuery}
-            onActiveIndexChange={setActiveIndex}
-            onSelectWorkUnit={setSelectedWorkUnitId}
-            onOpenActionField={() => setMode("action-field")}
-            onClose={() => {
-              setIsOpen(false)
-              setMode("palette")
-            }}
-          />
+          {mode === "palette" ? (
+            <CommandPaletteView
+              query={query}
+              workUnits={filteredWorkUnits}
+              commands={commands}
+              selectedWorkUnitId={selectedWorkUnitId}
+              activeIndex={clampedActiveIndex}
+              loadState={loadState}
+              onQueryChange={(nextQuery) => {
+                setQuery(nextQuery)
+                setActiveIndex(0)
+              }}
+              onActiveIndexChange={setActiveIndex}
+              onSelectWorkUnit={setSelectedWorkUnitId}
+              onOpenActionField={() => setMode("action-field")}
+              onClose={() => {
+                setIsOpen(false)
+                setMode("palette")
+              }}
+            />
+          ) : (
+            <ActionFieldView
+              workUnit={selectedWorkUnit}
+              treeMap={treeMap}
+              draft={draft}
+              readinessCards={readinessCards}
+              onBackToPalette={() => setMode("palette")}
+              onClose={() => {
+                setIsOpen(false)
+                setMode("palette")
+              }}
+            />
+          )}
         </div>
       ) : null}
     </main>

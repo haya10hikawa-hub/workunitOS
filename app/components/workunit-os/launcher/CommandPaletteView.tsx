@@ -1,15 +1,16 @@
 "use client"
 
+import type { PaletteCommand } from "@/lib/application/launcher/paletteCommandRegistry"
 import type { LauncherWorkUnit } from "@/lib/application/launcher/workUnitSelectionModel"
-import type { WorkUnitLauncherMode } from "./WorkUnitLauncher"
 import styles from "./WorkUnitLauncher.module.css"
 
 type Props = {
-  readonly mode: WorkUnitLauncherMode
   readonly query: string
   readonly workUnits: readonly LauncherWorkUnit[]
+  readonly commands: readonly PaletteCommand[]
   readonly selectedWorkUnitId: string | null
   readonly activeIndex: number
+  readonly loadState: "loading" | "ready" | "fallback"
   readonly onQueryChange: (query: string) => void
   readonly onActiveIndexChange: (index: number) => void
   readonly onSelectWorkUnit: (id: string) => void
@@ -20,29 +21,10 @@ type Props = {
 export function CommandPaletteView(props: Props) {
   const activeWorkUnit = props.workUnits[props.activeIndex] ?? null
 
-  if (props.mode === "action-field") {
-    return (
-      <section className={`${styles.palettePanel} ${styles.actionFieldPanel}`} role="dialog" aria-label="Action Field">
-        <header className={styles.actionHeader}>
-          <div>
-            <p className={styles.eyebrow}>Focused WorkUnit</p>
-            <h2 className={styles.actionTitle}>Action Field</h2>
-          </div>
-          <button type="button" className={styles.closeButton} onClick={props.onClose}>Esc</button>
-        </header>
-        <div className={styles.actionPlaceholder}>
-          <p className={styles.placeholderTitle}>{activeWorkUnit?.title ?? "No WorkUnit selected"}</p>
-          <p>WorkUnit Tree and editable draft editor will appear here.</p>
-          <p>External execution is not available from the launcher.</p>
-        </div>
-      </section>
-    )
-  }
-
   return (
     <section className={styles.palettePanel} role="dialog" aria-label="WorkUnit command palette">
       <div className={styles.searchRow}>
-        <span className={styles.searchIcon}>⌘</span>
+        <span className={styles.searchIcon}>⌘K</span>
         <input
           className={styles.searchInput}
           value={props.query}
@@ -50,6 +32,7 @@ export function CommandPaletteView(props: Props) {
           placeholder="Search WorkUnits"
           autoFocus
         />
+        <span className={styles.loadPill}>{props.loadState}</span>
       </div>
       <div className={styles.paletteBody}>
         <div className={styles.resultList} role="listbox" aria-label="WorkUnit results">
@@ -65,10 +48,12 @@ export function CommandPaletteView(props: Props) {
               }}
               onDoubleClick={props.onOpenActionField}
             >
-              <span className={styles.resultSource}>{workUnit.source}</span>
+              <span className={styles.resultIcon}>{workUnit.source.slice(0, 2).toUpperCase()}</span>
               <span className={styles.resultMain}>
                 <span className={styles.resultTitle}>{workUnit.title}</span>
-                <span className={styles.resultMeta}>ROI {workUnit.roi.toFixed(1)} · {workUnit.status}</span>
+                <span className={styles.resultMeta}>
+                  ROI {workUnit.roi.toFixed(1)} · {workUnit.status} · {workUnit.source}
+                </span>
               </span>
             </button>
           ))}
@@ -83,6 +68,11 @@ export function CommandPaletteView(props: Props) {
             <div><dt>ROI</dt><dd>{activeWorkUnit ? activeWorkUnit.roi.toFixed(1) : "—"}</dd></div>
           </dl>
           <p className={styles.previewSummary}>{activeWorkUnit?.summary ?? "Select a WorkUnit to inspect the compact preview."}</p>
+          <div className={styles.safeCommandStrip} aria-label="Safe launcher commands">
+            {props.commands.slice(0, 4).map((command) => (
+              <span key={command.id}>{command.label}</span>
+            ))}
+          </div>
         </aside>
       </div>
       <footer className={styles.footerRow}>
