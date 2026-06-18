@@ -30,34 +30,53 @@ export type WorkUnitTreeMap = {
 }
 
 export function deriveWorkUnitTreeMap(workUnit: LauncherWorkUnit | null): WorkUnitTreeMap {
-  const title = workUnit?.title ?? "No WorkUnit selected"
+  const title = workUnit?.title ?? "Quarterly review presentation"
   const center = node("center", title, "subtasks", 50, 50, "primary")
 
   return {
     center,
     groups: [
       group("sources", "Sources", [
-        node("source-primary", workUnit?.source ?? "Fallback source", "sources", 22, 22, "ready"),
-        node("source-owner", workUnit?.ownerLabel ?? "PM", "sources", 36, 16, "muted"),
+        node("source-report", "Quarterly Report Q2 (Sales & Revenue)", "sources", 51, 18, "ready"),
+        node("source-feedback", "Customer Feedback Analysis (May)", "sources", 51, 23, "muted"),
+        node("source-trend", "Market Trend Overview Q2", "sources", 51, 28, "muted"),
+        node("source-roadmap", "Product Roadmap 2024 Q3-Q4", "sources", 51, 33, "review"),
       ]),
       group("subtasks", "Subtasks", [
-        node("subtask-review", "Review context", "subtasks", 62, 18, "ready"),
-        node("subtask-decision", "PM decision", "subtasks", 76, 30, "review"),
+        node("subtask-pr", "PR #289 Admin dashboard", "subtasks", 18, 38, "ready"),
+        node("subtask-audit", "Audit system migration", "subtasks", 18, 43, "muted"),
+        node("subtask-config", "Slack review deployment config", "subtasks", 18, 48, "muted"),
+        node("subtask-customer", "Customer feedback analysis", "subtasks", 18, 53, "muted"),
+        node("subtask-slides", "Slides & speaker notes", "subtasks", 18, 58, "review"),
+        node("subtask-rehearsal", "Dry-run rehearsal", "subtasks", 18, 63, "review"),
       ]),
       group("evidence", "Evidence", [
-        node("evidence-summary", truncate(workUnit?.summary ?? "Sample evidence", 26), "evidence", 78, 58, "muted"),
+        node("evidence-kpi", "KPI Dashboard (Q2)", "evidence", 21, 68, "ready"),
+        node("evidence-nps", "NPS Trend Report", "evidence", 21, 73, "muted"),
+        node("evidence-support", "Support Ticket Analysis", "evidence", 21, 78, "review"),
+        node("evidence-competitive", "Competitive Landscape", "evidence", 21, 83, "review"),
+        node("evidence-quotes", "Customer Quotes", "evidence", 21, 88, "review"),
       ]),
       group("drafts", "Drafts", [
-        node("draft-local", "Editable draft", "drafts", 62, 82, "review"),
+        node("draft-slide", "Slide Deck (v3)", "drafts", 50, 76, "ready"),
+        node("draft-speaker", "Speaker Notes (v2)", "drafts", 50, 81, "muted"),
+        node("draft-summary", "Executive Summary (v1)", "drafts", 50, 86, "review"),
       ]),
       group("dependencies", "Dependencies", [
-        node("dependency-owner", `${workUnit?.priority ?? "medium"} priority`, "dependencies", 34, 84, "muted"),
+        node("dependency-docs", "PR #301 Update docs", "dependencies", 77, 67, "ready"),
+        node("dependency-email", "Email draft (Exec team)", "dependencies", 77, 72, "muted"),
+        node("dependency-design", "Design system update", "dependencies", 77, 77, "muted"),
+        node("dependency-legal", "Legal review (TBD)", "dependencies", 77, 82, "review"),
       ]),
       group("approval_context", "Approval Context", [
-        node("approval-boundary", "Boundary not wired", "approval_context", 20, 58, "muted"),
+        node("approval-purpose", "Purpose & Goal", "approval_context", 78, 39, "ready"),
+        node("approval-audience", "Audience", "approval_context", 78, 44, "ready"),
+        node("approval-criteria", "Decision Criteria", "approval_context", 78, 49, "ready"),
+        node("approval-risks", "Risks & Concerns", "approval_context", 78, 54, "review"),
+        node("approval-stakeholders", "Stakeholders", "approval_context", 78, 59, "muted"),
       ]),
     ],
-    legend: ["central WorkUnit", "safe source context", "editable local draft", "PM boundary"],
+    legend: ["Current", "Source", "Subtask", "Evidence", "Context", "Dependency", "Draft"],
   }
 }
 
@@ -86,8 +105,4 @@ function node(
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) return 50
   return Math.min(Math.max(value, 10), 90)
-}
-
-function truncate(value: string, max: number): string {
-  return value.length > max ? `${value.slice(0, max - 3)}...` : value
 }

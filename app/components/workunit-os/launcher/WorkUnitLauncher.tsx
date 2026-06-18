@@ -1,20 +1,17 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { fetchDashboardWorkUnits } from "@/lib/application/dashboard/dashboardDataClient"
 import {
   deriveActionFieldEditorDraft,
   deriveLauncherReadinessCards,
 } from "@/lib/application/launcher/actionFieldEditorDraftModel"
 import { getLauncherKeyIntent, nextLauncherIndex } from "@/lib/application/launcher/keyboardNavigationModel"
-import { getSafePaletteCommands } from "@/lib/application/launcher/paletteCommandRegistry"
 import { deriveWorkUnitTreeMap } from "@/lib/application/launcher/workUnitTreeModel"
 import {
   clampLauncherActiveIndex,
   fallbackLauncherWorkUnits,
   filterLauncherWorkUnits,
   getActiveLauncherWorkUnit,
-  mapInboxWorkUnitToLauncherWorkUnit,
   type LauncherWorkUnit,
 } from "@/lib/application/launcher/workUnitSelectionModel"
 import { ActionFieldView } from "./ActionFieldView"
@@ -24,11 +21,10 @@ import styles from "./WorkUnitLauncher.module.css"
 export type WorkUnitLauncherMode = "palette" | "action-field"
 
 export function WorkUnitLauncher() {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(true)
   const [mode, setMode] = useState<WorkUnitLauncherMode>("palette")
   const [query, setQuery] = useState("")
-  const [workUnits, setWorkUnits] = useState<LauncherWorkUnit[]>(() => fallbackLauncherWorkUnits())
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "fallback">("loading")
+  const workUnits = useMemo<LauncherWorkUnit[]>(() => fallbackLauncherWorkUnits(), [])
   const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | null>(workUnits[0]?.id ?? null)
   const [activeIndex, setActiveIndex] = useState(0)
 
@@ -39,30 +35,9 @@ export function WorkUnitLauncher() {
   const clampedActiveIndex = clampLauncherActiveIndex(activeIndex, filteredWorkUnits.length)
   const activeWorkUnit = getActiveLauncherWorkUnit(filteredWorkUnits, clampedActiveIndex)
   const selectedWorkUnit = workUnits.find((workUnit) => workUnit.id === selectedWorkUnitId) ?? activeWorkUnit ?? null
-  const commands = useMemo(() => getSafePaletteCommands(filteredWorkUnits), [filteredWorkUnits])
   const treeMap = useMemo(() => deriveWorkUnitTreeMap(selectedWorkUnit), [selectedWorkUnit])
   const draft = useMemo(() => deriveActionFieldEditorDraft(selectedWorkUnit), [selectedWorkUnit])
   const readinessCards = useMemo(() => deriveLauncherReadinessCards(selectedWorkUnit), [selectedWorkUnit])
-
-  useEffect(() => {
-    let cancelled = false
-    fetchDashboardWorkUnits("all")
-      .then((result) => {
-        if (cancelled) return
-        if (result.ok && result.workUnits.length > 0) {
-          const mapped = result.workUnits.map(mapInboxWorkUnitToLauncherWorkUnit)
-          setWorkUnits(mapped)
-          setSelectedWorkUnitId((current) => current && mapped.some((workUnit) => workUnit.id === current) ? current : mapped[0]?.id ?? null)
-          setLoadState("ready")
-          return
-        }
-        setLoadState("fallback")
-      })
-      .catch(() => setLoadState("fallback"))
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -102,10 +77,19 @@ export function WorkUnitLauncher() {
 
   return (
     <main className={styles.root}>
-      <section className={styles.landingShell}>
-        <p className={styles.eyebrow}>WorkUnit OS</p>
-        <h1>Current-awareness launcher</h1>
-        <p>Press ⌘K to open</p>
+      <header className={styles.backgroundBrand}>
+        <span className={styles.logoMark} />
+        <strong>WorkUnit OS</strong>
+      </header>
+      <div className={styles.backgroundBoard} aria-hidden="true">
+        {workUnits.map((workUnit) => (
+          <span key={workUnit.id}>
+            <i style={workUnit.iconSrc ? { backgroundImage: `url(${workUnit.iconSrc})` } : undefined} />
+            {workUnit.title}
+          </span>
+        ))}
+      </div>
+      {!isOpen ? (
         <button
           type="button"
           className={styles.primaryButton}
@@ -116,17 +100,15 @@ export function WorkUnitLauncher() {
         >
           Open Command Palette
         </button>
-      </section>
+      ) : null}
       {isOpen ? (
         <div className={styles.overlay}>
           {mode === "palette" ? (
             <CommandPaletteView
               query={query}
               workUnits={filteredWorkUnits}
-              commands={commands}
               selectedWorkUnitId={selectedWorkUnitId}
               activeIndex={clampedActiveIndex}
-              loadState={loadState}
               onQueryChange={(nextQuery) => {
                 setQuery(nextQuery)
                 setActiveIndex(0)

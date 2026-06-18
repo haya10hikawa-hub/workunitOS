@@ -10,16 +10,15 @@ type Props = {
 export function ReadinessCards({ cards }: Props) {
   return (
     <section className={styles.readinessPanel} aria-label="Readiness cards">
-      <header>
-        <p className={styles.eyebrow}>Verification</p>
-        <h3>Readiness Cards</h3>
-      </header>
+      <h3>Readiness</h3>
       <div className={styles.readinessGrid}>
         {cards.map((card) => (
           <article key={card.id} className={`${styles.readinessCard} ${styles[`readiness-${card.state}`]}`}>
-            <span>{card.state}</span>
-            <strong>{card.label}</strong>
-            <p>{card.detail}</p>
+            <div>
+              <span>{card.label}</span>
+              <strong>{card.detail}</strong>
+            </div>
+            <i>{card.score}</i>
           </article>
         ))}
       </div>

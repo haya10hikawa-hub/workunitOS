@@ -46,6 +46,15 @@ test("WorkUnitOSDashboard renders launcher by default with legacy flag fallback"
   assert.equal(entry.includes("useLegacyDashboard ? <AdoptedWorkUnitDashboard /> : <WorkUnitLauncher />"), true)
 })
 
+test("launcher keyboard behavior remains represented", async () => {
+  const launcher = await source("app/components/workunit-os/launcher/WorkUnitLauncher.tsx")
+  const keyboard = await source("app/lib/application/launcher/keyboardNavigationModel.ts")
+  assert.equal(keyboard.includes('return "open_palette"'), true)
+  assert.equal(keyboard.includes('return "confirm"'), true)
+  assert.equal(launcher.includes('setMode("action-field")'), true)
+  assert.equal(launcher.includes('setMode("palette")'), true)
+})
+
 test("launcher files do not include forbidden command strings or tools route", async () => {
   const combined = (await Promise.all(launcherFiles.map(source))).join("\n")
   const forbidden = [
@@ -64,6 +73,29 @@ test("launcher files do not include forbidden command strings or tools route", a
     "Direct" + " provider" + " mutation",
   ]
   for (const term of forbidden) assert.equal(combined.includes(term), false, term)
+})
+
+test("Action Field and WorkUnit Tree include required final UI structure", async () => {
+  const editor = await source("app/components/workunit-os/launcher/ActionFieldEditor.tsx")
+  const treeModel = await source("app/lib/application/launcher/workUnitTreeModel.ts")
+  const actionField = await source("app/components/workunit-os/launcher/ActionFieldView.tsx")
+  const combined = `${editor}\n${treeModel}\n${actionField}`
+  for (const label of ["Sources", "Subtasks", "Evidence", "Drafts", "Dependencies", "Approval Context"]) {
+    assert.equal(treeModel.includes(label), true, label)
+  }
+  assert.equal(editor.includes("AI-generated draft — editable"), true)
+  assert.equal(editor.includes(">Edit<"), true)
+  assert.equal(editor.includes(">Preview<"), true)
+  for (const forbidden of ["Action Summary", "Evidence Capsule", "Detected Tools", "Decision Trace"]) {
+    assert.equal(combined.includes(forbidden), false, forbidden)
+  }
+})
+
+test("launcher icon usage is local and does not add external icon packages", async () => {
+  const packageJson = await source("package.json")
+  const selection = await source("app/lib/application/launcher/workUnitSelectionModel.ts")
+  assert.equal(packageJson.includes("lucide-react"), false)
+  assert.equal(selection.includes("/workunit-ui-icons/"), true)
 })
 
 test("generated artifacts are not tracked", () => {

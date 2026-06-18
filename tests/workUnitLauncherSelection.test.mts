@@ -100,5 +100,5 @@ test("action field draft model marks generated draft editable", () => {
   assert.equal(draft.editable, true)
   assert.equal(draft.aiGenerated, true)
   assert.equal(draft.editableLabel, "AI-generated draft — editable")
-  assert.equal(deriveLauncherReadinessCards(workUnits[0]).length, 4)
+  assert.equal(deriveLauncherReadinessCards(workUnits[0]).length, 5)
 })

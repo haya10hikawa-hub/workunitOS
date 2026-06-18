@@ -26,7 +26,7 @@ export function ActionFieldView(props: Props) {
           <h2 className={styles.actionTitle}>Action Field</h2>
         </div>
         <div className={styles.headerActions}>
-          <span className={styles.headerStatus}>{props.workUnit?.status ?? "NO SELECTION"}</span>
+          <span className={styles.headerStatus}>BLOCKED</span>
           <button type="button" className={styles.secondaryButton} onClick={props.onBackToPalette}>⌘K</button>
           <button type="button" className={styles.closeButton} onClick={props.onClose}>Esc</button>
         </div>
