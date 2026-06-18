@@ -16,6 +16,8 @@ export type ApprovalDrawerVariant =
   | "database"
   | "email"
 
+export type ActionFieldViewerVariant = ApprovalDrawerVariant | "fallback"
+
 export type ApprovalDrawerVariantInfo = {
   variant: ApprovalDrawerVariant
   title: string
@@ -176,22 +178,35 @@ function buildDatabaseAction(wu: InboxWorkUnit): ApprovalDrawerActionInfo {
 // ─── Tool-based variant derivation ──────────────────────────
 
 export function deriveVariantFromTools(tools: ToolRequirementSummary): ApprovalDrawerVariant {
-  const dbRequired = tools.database.necessity === "required"
-  const dbRecommended = tools.database.necessity === "recommended"
-  const emailRequired = tools.email.necessity === "required"
-  const emailRecommended = tools.email.necessity === "recommended"
-  const slackRequired = tools.slack.necessity === "required"
-  const slackRecommended = tools.slack.necessity === "recommended"
-  const githubRequired = tools.github.necessity === "required"
-  const githubRecommended = tools.github.necessity === "recommended"
-  const calendarRequired = tools.calendar.necessity === "required"
-  const calendarRecommended = tools.calendar.necessity === "recommended"
+  const variant = deriveActionFieldViewerVariant({ toolRequirements: tools })
+  return variant === "fallback" ? "slack" : variant
+}
 
-  if ((dbRequired || dbRecommended) && (emailRequired || emailRecommended)) return "db_email"
-  if ((slackRequired || slackRecommended) && (githubRequired || githubRecommended)) return "slack_github"
-  if ((calendarRequired || calendarRecommended) && (emailRequired || emailRecommended)) return "calendar_email"
-  if (slackRequired || slackRecommended) return "slack"
-  if (emailRequired || emailRecommended) return "email"
-  if (dbRequired || dbRecommended) return "database"
-  return "slack"
+export function deriveActionFieldViewerVariant(params: {
+  readonly toolRequirements: ToolRequirementSummary
+}): ActionFieldViewerVariant {
+  const { toolRequirements: tools } = params
+  const slack = isReviewable(tools, "slack")
+  const github = isReviewable(tools, "github")
+  const calendar = isReviewable(tools, "calendar")
+  const email = isReviewable(tools, "email")
+  const database = isActiveDatabaseReview(tools)
+
+  if (slack && github) return "slack_github"
+  if (calendar && email) return "calendar_email"
+  if (database && email) return "db_email"
+  if (email) return "email"
+  if (database) return "database"
+  if (slack) return "slack"
+  return "fallback"
+}
+
+function isReviewable(tools: ToolRequirementSummary, tool: ToolRequirementSummary["allTools"][number]["tool"]): boolean {
+  return tools.reviewableTools.some((req) => req.tool === tool)
+}
+
+function isActiveDatabaseReview(tools: ToolRequirementSummary): boolean {
+  if (!isReviewable(tools, "database")) return false
+  if (tools.database.necessity !== "blocked") return true
+  return !tools.database.reason.toLowerCase().includes("blocked by default")
 }

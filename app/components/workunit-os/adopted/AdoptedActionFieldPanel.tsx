@@ -5,6 +5,7 @@ import type { AdoptedDashboardViewModel, DashboardAuditLogView, DashboardIntegra
 import type { ExecutionResultViewerModel } from "@/lib/application/dashboard/executionResultViewerModel"
 import type { ToolRequirementSummary } from "@/lib/application/actionField/toolRequirementModel"
 import type { ActionDraftSet, ActionDraft } from "@/lib/application/actionField/actionDraftModel"
+import { deriveActionFieldViewerVariant, type ActionFieldViewerVariant } from "@/lib/application/actionField/adoptedApprovalDrawerModel"
 import styles from "./AdoptedWorkUnitDashboard.module.css"
 
 type AdoptedActionFieldPanelProps = {
@@ -43,34 +44,29 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
   } = props
 
   const viewerVariant = toolRequirements
-    ? (toolRequirements.slack.necessity === "required" && toolRequirements.github.necessity === "required" ? "slack_github"
-      : toolRequirements.calendar.necessity === "required" && toolRequirements.email.necessity === "recommended" ? "calendar_email"
-      : toolRequirements.calendar.necessity === "required" ? "calendar_email"
-      : toolRequirements.database.necessity === "blocked" && toolRequirements.email.necessity !== "not_needed" ? "db_email"
-      : toolRequirements.slack.necessity === "required" ? "slack"
-      : toolRequirements.email.necessity === "required" ? "email"
-      : toolRequirements.database.necessity === "blocked" ? "database"
-      : "slack") as string
-    : "slack"
+    ? deriveActionFieldViewerVariant({ toolRequirements })
+    : "fallback"
 
-  const TITLES: Record<string, string> = {
+  const TITLES: Record<ActionFieldViewerVariant, string> = {
     slack: "Slack返信 承認ドロワー詳細",
     email: "Email送信 承認ドロワー詳細",
     database: "Database更新 承認ドロワー詳細",
     slack_github: "Slack/GitHub連携 承認ドロワー詳細",
     calendar_email: "Calendar/Email連携 承認ドロワー詳細",
     db_email: "DB/Email連携 承認ドロワー詳細",
+    fallback: "Action Field Viewer",
   }
-  const LABELS: Record<string, string> = {
+  const LABELS: Record<ActionFieldViewerVariant, string> = {
     slack: "External Action Approval: Slack Reply",
     email: "External Action Approval: Email Send",
     database: "External Action Approval: Database Update",
     slack_github: "External Action Approval: Slack Reply & GitHub Issue",
     calendar_email: "External Action Approval: Calendar Block & Email Notification",
     db_email: "External Action Approval: Database & Email",
+    fallback: "External Action Approval",
   }
-  const viewerTitle = TITLES[viewerVariant] ?? "Action Field Viewer"
-  const viewerLabel = LABELS[viewerVariant] ?? "External Action Approval"
+  const viewerTitle = TITLES[viewerVariant]
+  const viewerLabel = LABELS[viewerVariant]
 
   return (
     <>
@@ -135,13 +131,16 @@ export function AdoptedActionFieldPanel(props: AdoptedActionFieldPanelProps) {
               {viewerVariant === "slack_github" ? (
                 <SlackGithubApprovalVariant actionDrafts={actionDrafts} draftFieldOverrides={draftFieldOverrides} onDraftFieldChange={onDraftFieldChange} />
               ) : null}
+              {viewerVariant === "fallback" ? (
+                <div className={styles.actionFieldViewerPlaceholderCard}>No reviewable external action variant is available.</div>
+              ) : null}
 
               <p style={{ fontSize: 11, color: "var(--color-warning, #ffb454)", padding: "8px 0" }}>&#9888; External Execution: BLOCKED</p>
             </div>
             <footer className={styles.actionFieldViewerFooter}>
               <button type="button" className={styles.actionFieldViewerBtnPrimary}
                 onClick={onApprove} disabled={!showApproveReject || approvalAction === "submitting"}>
-                {approvalAction === "submitting" ? "Submitting..." : "Approve and Send/Execute"}
+                {approvalAction === "submitting" ? "Submitting..." : "Approve Draft"}
               </button>
               <button type="button" className={styles.actionFieldViewerBtnSecondary} disabled>Edit</button>
               <button type="button" className={styles.actionFieldViewerBtnSecondary} onClick={onCloseDetail}>Cancel</button>
