@@ -1,6 +1,7 @@
 "use client"
 
 import type { LauncherWorkUnit } from "@/lib/application/launcher/workUnitSelectionModel"
+import { SourceAppIcon } from "./SourceAppIcon"
 import styles from "./WorkUnitLauncher.module.css"
 
 type Props = {
@@ -46,10 +47,7 @@ export function CommandPaletteView(props: Props) {
                 }}
                 onDoubleClick={props.onOpenActionField}
               >
-                <span
-                  className={styles.resultPhotoIcon}
-                  style={workUnit.iconSrc ? { backgroundImage: `url(${workUnit.iconSrc})` } : undefined}
-                />
+                <SourceAppIcon icon={workUnit.sourceIcon} size="lg" />
                 <span className={styles.resultMain}>
                   <span className={styles.resultTitle}>{workUnit.title}</span>
                   <span className={styles.resultMeta}>{workUnit.summary}</span>
@@ -69,10 +67,13 @@ export function CommandPaletteView(props: Props) {
         </div>
         <aside className={styles.previewPane}>
           <div className={styles.previewHeading}>
-            <span
-              className={styles.previewPhotoIcon}
-              style={activeWorkUnit?.iconSrc ? { backgroundImage: `url(${activeWorkUnit.iconSrc})` } : undefined}
-            />
+            <SourceAppIcon icon={activeWorkUnit?.sourceIcon ?? {
+              id: "unknown",
+              label: "Unknown source",
+              assetPath: null,
+              fallbackBadge: "WU",
+              sourceType: "fallback_badge",
+            }} size="lg" />
             <h2 className={styles.previewTitle}>{activeWorkUnit?.title ?? "No selection"}</h2>
             {activeWorkUnit ? (
               <span className={`${styles.statusBadge} ${styles[`status-${activeWorkUnit.statusTone ?? "gray"}`]}`}>

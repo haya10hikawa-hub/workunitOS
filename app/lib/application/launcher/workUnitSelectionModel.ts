@@ -1,4 +1,5 @@
 import type { InboxWorkUnit } from "@/lib/application/workunitInbox/types"
+import { resolveSourceAppIcon, type SourceAppIconView } from "./sourceAppIconModel.ts"
 
 export type LauncherWorkUnit = {
   readonly id: string
@@ -11,7 +12,7 @@ export type LauncherWorkUnit = {
   readonly kind: string
   readonly priority: string
   readonly ownerLabel: string
-  readonly iconSrc?: string
+  readonly sourceIcon: SourceAppIconView
   readonly statusTone?: "green" | "yellow" | "blue" | "purple" | "gray"
   readonly sourceDetail?: string
   readonly urgency?: string
@@ -30,7 +31,7 @@ export function mapInboxWorkUnitToLauncherWorkUnit(workUnit: InboxWorkUnit): Lau
     kind: workUnit.kind.replace(/_/g, " "),
     priority: workUnit.priority,
     ownerLabel: workUnit.assignee ?? workUnit.actor ?? workUnit.repository ?? "PM",
-    iconSrc: iconForWorkUnit(workUnit),
+    sourceIcon: resolveSourceAppIcon(workUnit),
     statusTone: toneForWorkUnit(workUnit),
     sourceDetail: `${providerLabel(workUnit.sourceProvider)} signal`,
     urgency: workUnit.priority === "high" ? "High impact" : "Normal priority",
@@ -51,7 +52,7 @@ export function fallbackLauncherWorkUnits(): LauncherWorkUnit[] {
       kind: "review waiting",
       priority: "high",
       ownerLabel: "PM",
-      iconSrc: "/workunit-ui-icons/github.png",
+      sourceIcon: resolveSourceAppIcon({ sourceProvider: "github", repository: "acme/admin", title: "PR #289" }),
       statusTone: "green",
       sourceDetail: "GitHub · pull request #289",
       urgency: "High impact · Requested by stakeholders",
@@ -68,7 +69,7 @@ export function fallbackLauncherWorkUnits(): LauncherWorkUnit[] {
       kind: "decision memo",
       priority: "medium",
       ownerLabel: "PM",
-      iconSrc: "/workunit-ui-icons/notion.png",
+      sourceIcon: resolveSourceAppIcon({ sourceProvider: "notion", title: "Postgres analytics memo" }),
       statusTone: "yellow",
       sourceDetail: "Notion · architecture memo",
       urgency: "Medium impact · Planning dependency",
@@ -85,7 +86,7 @@ export function fallbackLauncherWorkUnits(): LauncherWorkUnit[] {
       kind: "deadline",
       priority: "medium",
       ownerLabel: "PM",
-      iconSrc: "/workunit-ui-icons/slides.png",
+      sourceIcon: resolveSourceAppIcon({ kind: "presentation", title: "Quarterly review presentation" }),
       statusTone: "gray",
       sourceDetail: "Slides · quarterly review",
       urgency: "Executive review · This week",
@@ -102,7 +103,7 @@ export function fallbackLauncherWorkUnits(): LauncherWorkUnit[] {
       kind: "missed response",
       priority: "low",
       ownerLabel: "SRE",
-      iconSrc: "/workunit-ui-icons/slack.png",
+      sourceIcon: resolveSourceAppIcon({ sourceProvider: "slack", title: "#deployments incident follow-up" }),
       statusTone: "blue",
       sourceDetail: "Team · #deployments",
       urgency: "Informational · Service review",
@@ -119,7 +120,7 @@ export function fallbackLauncherWorkUnits(): LauncherWorkUnit[] {
       kind: "assigned issue",
       priority: "medium",
       ownerLabel: "Platform",
-      iconSrc: "/workunit-ui-icons/jira.png",
+      sourceIcon: resolveSourceAppIcon({ sourceProvider: "jira", title: "TASK-612" }),
       statusTone: "purple",
       sourceDetail: "Jira · TASK-612",
       urgency: "Medium impact · Reliability work",
@@ -136,7 +137,7 @@ export function fallbackLauncherWorkUnits(): LauncherWorkUnit[] {
       kind: "draft",
       priority: "low",
       ownerLabel: "People Ops",
-      iconSrc: "/workunit-ui-icons/docs.png",
+      sourceIcon: resolveSourceAppIcon({ sourceProvider: "docs", title: "Onboarding plan for Q2" }),
       statusTone: "gray",
       sourceDetail: "Docs · onboarding plan",
       urgency: "Low impact · Draft review",
@@ -210,13 +211,6 @@ function calculateLauncherRoi(workUnit: InboxWorkUnit): number {
           : 0
   const statusDelta = workUnit.status === "later" ? -9 : workUnit.status === "not_useful" ? -64 : 0
   return Math.max(0, Number((priorityBase + kindBonus + statusDelta).toFixed(1)))
-}
-
-function iconForWorkUnit(workUnit: InboxWorkUnit): string {
-  if (workUnit.sourceProvider === "github") return "/workunit-ui-icons/github.png"
-  if (workUnit.sourceProvider === "calendar") return "/workunit-ui-icons/slides.png"
-  if (workUnit.kind === "missed_response") return "/workunit-ui-icons/slack.png"
-  return "/workunit-ui-icons/docs.png"
 }
 
 function toneForWorkUnit(workUnit: InboxWorkUnit): LauncherWorkUnit["statusTone"] {

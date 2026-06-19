@@ -143,8 +143,11 @@ test("Action Field toolbar controls are code-based, grouped, and accessible", as
 test("launcher icon usage is local and does not add external icon packages", async () => {
   const packageJson = await source("package.json")
   const selection = await source("app/lib/application/launcher/workUnitSelectionModel.ts")
+  const sourceIcon = await source("app/components/workunit-os/launcher/SourceAppIcon.tsx")
   assert.equal(packageJson.includes("lucide-react"), false)
-  assert.equal(selection.includes("/workunit-ui-icons/"), true)
+  assert.equal(selection.includes("sourceIcon: resolveSourceAppIcon"), true)
+  assert.equal(selection.includes("iconSrc"), false)
+  assert.equal(sourceIcon.includes("isLocalSourceAppIconAssetPath"), true)
 })
 
 test("generated artifacts are not tracked", () => {

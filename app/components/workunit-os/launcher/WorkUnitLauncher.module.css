@@ -194,6 +194,52 @@
   height: 31px;
 }
 
+.sourceAppIcon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid rgba(120, 135, 131, 0.24);
+  border-radius: 7px;
+  background: #11191a;
+  color: #dce5e0;
+}
+
+.sourceAppIconImage {
+  width: 68%;
+  height: 68%;
+  object-fit: contain;
+  filter: invert(1) brightness(0.92);
+}
+
+.sourceAppIconFallback {
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.sourceAppIconSm {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+}
+
+.sourceAppIconSm .sourceAppIconFallback {
+  font-size: 6px;
+}
+
+.sourceAppIconMd {
+  width: 24px;
+  height: 24px;
+}
+
+.sourceAppIconLg {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
 .resultMain {
   display: grid;
   gap: 5px;

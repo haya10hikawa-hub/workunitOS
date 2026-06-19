@@ -1,4 +1,5 @@
 import type { LauncherWorkUnit } from "./workUnitSelectionModel.ts"
+import { resolveSourceAppIcon, type SourceAppIconView } from "./sourceAppIconModel.ts"
 
 export type WorkUnitTreeGroupId =
   | "sources"
@@ -15,6 +16,7 @@ export type WorkUnitTreeNode = {
   readonly x: number
   readonly y: number
   readonly tone: "primary" | "ready" | "review" | "muted"
+  readonly sourceIcon: SourceAppIconView
 }
 
 export type WorkUnitTreeGroup = {
@@ -99,6 +101,7 @@ function node(
     x: clampPercent(x),
     y: clampPercent(y),
     tone,
+    sourceIcon: resolveSourceAppIcon({ kind: groupId, title: label }),
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import type { WorkUnitTreeGroupId, WorkUnitTreeMap as WorkUnitTreeMapView } from "@/lib/application/launcher/workUnitTreeModel"
+import { SourceAppIcon } from "./SourceAppIcon"
 import styles from "./WorkUnitLauncher.module.css"
 
 type Props = {
@@ -78,7 +79,7 @@ export function WorkUnitTreeMap({ treeMap }: Props) {
             <ul>
               {group.nodes.map((node) => (
                 <li key={node.id}>
-                  <span className={`${styles.nodeDot} ${styles[`node-${node.tone}`]}`} />
+                  <SourceAppIcon icon={node.sourceIcon} size="sm" />
                   {node.label}
                 </li>
               ))}

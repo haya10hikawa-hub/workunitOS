@@ -16,6 +16,7 @@ import {
 } from "@/lib/application/launcher/workUnitSelectionModel"
 import { ActionFieldView } from "./ActionFieldView"
 import { CommandPaletteView } from "./CommandPaletteView"
+import { SourceAppIcon } from "./SourceAppIcon"
 import styles from "./WorkUnitLauncher.module.css"
 
 export type WorkUnitLauncherMode = "palette" | "action-field"
@@ -84,7 +85,7 @@ export function WorkUnitLauncher() {
       <div className={styles.backgroundBoard} aria-hidden="true">
         {workUnits.map((workUnit) => (
           <span key={workUnit.id}>
-            <i style={workUnit.iconSrc ? { backgroundImage: `url(${workUnit.iconSrc})` } : undefined} />
+            <SourceAppIcon icon={workUnit.sourceIcon} size="sm" />
             {workUnit.title}
           </span>
         ))}
