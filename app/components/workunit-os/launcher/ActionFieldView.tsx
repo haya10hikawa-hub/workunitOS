@@ -20,17 +20,6 @@ type Props = {
 export function ActionFieldView(props: Props) {
   return (
     <section className={`${styles.palettePanel} ${styles.actionFieldPanel}`} role="dialog" aria-label="Action Field">
-      <header className={styles.actionHeader}>
-        <div>
-          <p className={styles.eyebrow}>Focused WorkUnit</p>
-          <h2 className={styles.actionTitle}>Action Field</h2>
-        </div>
-        <div className={styles.headerActions}>
-          <span className={styles.headerStatus}>BLOCKED</span>
-          <button type="button" className={styles.secondaryButton} onClick={props.onBackToPalette}>⌘K</button>
-          <button type="button" className={styles.closeButton} onClick={props.onClose}>Esc</button>
-        </div>
-      </header>
       <div className={styles.actionBody}>
         <WorkUnitTreeMap treeMap={props.treeMap} />
         <div className={styles.actionEditorStack}>

@@ -87,6 +87,7 @@ test("keyboard navigation model resolves launcher keys", () => {
 test("workUnit tree model keeps nodes inside bounds", () => {
   const tree = deriveWorkUnitTreeMap(workUnits[0])
   assert.deepEqual(tree.groups.map((group) => group.title), ["Sources", "Subtasks", "Evidence", "Drafts", "Dependencies", "Approval Context"])
+  assert.equal(new Set(tree.groups.map((group) => group.id)).size, tree.groups.length)
   for (const group of tree.groups) {
     for (const node of group.nodes) {
       assert.equal(node.x >= 10 && node.x <= 90, true)

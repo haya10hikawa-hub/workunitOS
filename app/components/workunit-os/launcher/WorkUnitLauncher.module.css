@@ -361,52 +361,19 @@
 .actionFieldPanel {
   width: min(1564px, calc(100vw - 20px));
   height: min(970px, calc(100vh - 20px));
-  min-height: 720px;
+  min-height: 0;
   display: grid;
-  grid-template-rows: 54px minmax(0, 1fr);
-}
-
-.actionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(120, 135, 131, 0.17);
-  padding: 0 22px;
-}
-
-.eyebrow {
-  margin: 0;
-  color: #7fdc8f;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.actionTitle {
-  margin: 2px 0 0;
-  color: #f2f5f3;
-  font-size: 17px;
-}
-
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headerStatus {
-  border: 1px solid rgba(246, 182, 47, 0.42);
-  border-radius: 999px;
-  color: #f4bd35;
-  padding: 4px 9px;
-  font-size: 11px;
-  font-weight: 800;
+  grid-template-rows: minmax(0, 1fr);
+  padding: 0;
+  border-color: rgba(120, 135, 131, 0.22);
 }
 
 .actionBody {
   display: grid;
-  grid-template-columns: 45.5% 54.5%;
+  grid-template-columns: minmax(0, 46%) minmax(0, 54%);
+  gap: 4px;
   min-height: 0;
+  padding: 0;
 }
 
 .treePanel,
@@ -414,13 +381,14 @@
   min-width: 0;
   min-height: 0;
   background: rgba(14, 20, 23, 0.72);
+  border: 1px solid rgba(120, 135, 131, 0.24);
+  border-radius: 8px;
 }
 
 .treePanel {
   display: grid;
-  grid-template-rows: 56px 36px 44px minmax(0, 1fr) 95px 46px;
-  gap: 12px;
-  border-right: 1px solid rgba(120, 135, 131, 0.19);
+  grid-template-rows: 52px 34px 42px minmax(0, 1fr) 94px 44px;
+  gap: 10px;
   padding: 0 20px;
 }
 
@@ -448,7 +416,7 @@
   grid-template-columns: 22px minmax(0, 1fr) 22px;
   align-items: center;
   width: 60%;
-  min-width: 400px;
+  min-width: 360px;
   border: 1px solid rgba(120, 135, 131, 0.25);
   border-radius: 5px;
   background: rgba(11, 16, 19, 0.64);
@@ -468,7 +436,7 @@
 .treeControls {
   display: flex;
   align-items: center;
-  gap: 38px;
+  gap: 34px;
   color: #d4dbd8;
   font-size: 13px;
 }
@@ -500,7 +468,7 @@
 
 .treeCanvas {
   position: relative;
-  min-height: 560px;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -511,16 +479,16 @@
   height: 100%;
   fill: none;
   stroke: #54c86b;
-  stroke-width: 0.18;
-  opacity: 0.82;
+  stroke-width: 0.16;
+  opacity: 0.74;
 }
 
 .centerNode {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 128px;
-  height: 106px;
+  width: 130px;
+  height: 108px;
   display: grid;
   place-items: center;
   align-content: center;
@@ -553,7 +521,7 @@
 
 .treeGroupCard {
   position: absolute;
-  width: 158px;
+  width: 150px;
   overflow: hidden;
   border: 1px solid rgba(120, 135, 131, 0.25);
   border-radius: 7px;
@@ -564,7 +532,7 @@
   display: flex;
   justify-content: space-between;
   border-bottom: 1px solid rgba(120, 135, 131, 0.16);
-  padding: 9px 12px;
+  padding: 7px 10px;
 }
 
 .treeGroupCard strong {
@@ -579,9 +547,9 @@
 
 .treeGroupCard ul {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   margin: 0;
-  padding: 10px 12px 11px;
+  padding: 8px 10px 9px;
   list-style: none;
 }
 
@@ -590,40 +558,45 @@
   align-items: center;
   gap: 7px;
   color: #d5ddda;
-  font-size: 10px;
-  line-height: 1.25;
+  overflow: hidden;
+  font-size: 9px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .treeGroupSources {
-  left: 42%;
-  top: 3%;
+  left: 50%;
+  top: 2%;
+  transform: translateX(-50%);
 }
 
 .treeGroupSubtasks {
-  left: 3%;
-  top: 29%;
+  left: 4%;
+  top: 22%;
 }
 
 .treeGroupEvidence {
-  left: 6%;
-  top: 74%;
+  left: 7%;
+  top: 99%;
   transform: translateY(-100%);
 }
 
 .treeGroupDrafts {
-  left: 41%;
-  bottom: 4%;
+  left: 50%;
+  bottom: 3%;
+  transform: translateX(-50%);
 }
 
 .treeGroupDependencies {
   right: 7%;
-  top: 74%;
+  top: 98%;
   transform: translateY(-100%);
 }
 
 .treeGroupApproval {
   right: 6%;
-  top: 31%;
+  top: 30%;
 }
 
 .nodeDot {
@@ -691,14 +664,14 @@
 
 .actionEditorStack {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) 91px;
   min-height: 0;
 }
 
 .editorPanel {
   display: grid;
-  grid-template-rows: 56px 48px 61px 83px 34px minmax(0, 1fr) 54px auto;
-  padding: 0 22px 20px;
+  grid-template-rows: 52px 45px 58px 77px 31px minmax(0, 1fr) 50px auto;
+  padding: 0 22px 14px;
 }
 
 .editorHeader {
@@ -774,7 +747,7 @@
 }
 
 .objectiveField textarea {
-  height: 61px;
+  height: 58px;
   resize: none;
   line-height: 1.55;
 }
@@ -805,7 +778,7 @@
 .draftBox {
   min-height: 0;
   display: grid;
-  grid-template-rows: 39px minmax(0, 1fr) 34px;
+  grid-template-rows: 38px minmax(0, 1fr) 32px;
   overflow: hidden;
   border: 1px solid rgba(120, 135, 131, 0.25);
   border-radius: 5px;
@@ -841,10 +814,10 @@
   resize: none;
   background: transparent;
   color: #d4deda;
-  padding: 16px;
+  padding: 15px 16px;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.48;
   white-space: pre-wrap;
 }
 
@@ -864,22 +837,22 @@
 }
 
 .notesField {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .verificationState {
-  margin: 7px 0 0;
+  margin: 5px 0 0;
   color: #899692;
   font-size: 12px;
 }
 
 .readinessPanel {
   border-top: 1px solid rgba(120, 135, 131, 0.16);
-  padding: 14px 22px 18px;
+  padding: 6px 22px 8px;
 }
 
 .readinessPanel h3 {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   font-size: 14px;
   font-weight: 500;
 }
@@ -891,14 +864,14 @@
 }
 
 .readinessCard {
-  min-height: 58px;
+  min-height: 46px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border: 1px solid rgba(120, 135, 131, 0.23);
   border-radius: 6px;
   background: rgba(17, 24, 27, 0.66);
-  padding: 10px 12px;
+  padding: 7px 12px;
 }
 
 .readinessCard span {

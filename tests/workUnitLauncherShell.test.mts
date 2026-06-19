@@ -80,6 +80,7 @@ test("Action Field and WorkUnit Tree include required final UI structure", async
   const treeModel = await source("app/lib/application/launcher/workUnitTreeModel.ts")
   const actionField = await source("app/components/workunit-os/launcher/ActionFieldView.tsx")
   const combined = `${editor}\n${treeModel}\n${actionField}`
+  assert.equal(actionField.includes("Focused WorkUnit"), false)
   for (const label of ["Sources", "Subtasks", "Evidence", "Drafts", "Dependencies", "Approval Context"]) {
     assert.equal(treeModel.includes(label), true, label)
   }
@@ -89,6 +90,14 @@ test("Action Field and WorkUnit Tree include required final UI structure", async
   for (const forbidden of ["Action Summary", "Evidence Capsule", "Detected Tools", "Decision Trace"]) {
     assert.equal(combined.includes(forbidden), false, forbidden)
   }
+})
+
+test("Action Field layout uses sibling cards without dominant global header", async () => {
+  const css = await source("app/components/workunit-os/launcher/WorkUnitLauncher.module.css")
+  const actionField = await source("app/components/workunit-os/launcher/ActionFieldView.tsx")
+  assert.equal(actionField.includes("actionHeader"), false)
+  assert.equal(css.includes("grid-template-columns: minmax(0, 46%) minmax(0, 54%)"), true)
+  assert.equal(css.includes(".treePanel,\n.editorPanel"), true)
 })
 
 test("launcher icon usage is local and does not add external icon packages", async () => {
