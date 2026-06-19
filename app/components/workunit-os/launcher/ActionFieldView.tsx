@@ -4,7 +4,6 @@ import type { ActionFieldEditorDraft, LauncherReadinessCard } from "@/lib/applic
 import type { WorkUnitTreeMap as WorkUnitTreeMapView } from "@/lib/application/launcher/workUnitTreeModel"
 import type { LauncherWorkUnit } from "@/lib/application/launcher/workUnitSelectionModel"
 import { ActionFieldEditor } from "./ActionFieldEditor"
-import { ReadinessCards } from "./ReadinessCards"
 import { WorkUnitTreeMap } from "./WorkUnitTreeMap"
 import styles from "./WorkUnitLauncher.module.css"
 
@@ -22,10 +21,7 @@ export function ActionFieldView(props: Props) {
     <section className={`${styles.palettePanel} ${styles.actionFieldPanel}`} role="dialog" aria-label="Action Field">
       <div className={styles.actionBody}>
         <WorkUnitTreeMap treeMap={props.treeMap} />
-        <div className={styles.actionEditorStack}>
-          <ActionFieldEditor draft={props.draft} />
-          <ReadinessCards cards={props.readinessCards} />
-        </div>
+        <ActionFieldEditor draft={props.draft} readinessCards={props.readinessCards} />
       </div>
     </section>
   )

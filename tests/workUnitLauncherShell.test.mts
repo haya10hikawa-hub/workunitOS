@@ -100,6 +100,18 @@ test("Action Field layout uses sibling cards without dominant global header", as
   assert.equal(css.includes(".treePanel,\n.editorPanel"), true)
 })
 
+test("Action Field toolbar controls are grouped and accessible", async () => {
+  const editor = await source("app/components/workunit-os/launcher/ActionFieldEditor.tsx")
+  const css = await source("app/components/workunit-os/launcher/WorkUnitLauncher.module.css")
+  for (const label of ["Text style", "Bold", "Italic", "Bulleted list", "Numbered list", "Code", "Quote", "Reference", "Link", "Mention", "Annotation"]) {
+    assert.equal(editor.includes(`label: "${label}"`), true, label)
+  }
+  assert.equal(editor.includes("aria-label={tool.label}"), true)
+  assert.equal(editor.includes("title={tool.label}"), true)
+  assert.equal(css.includes(".toolbarGroup + .toolbarGroup"), true)
+  assert.equal(css.includes(".toolbar button:focus-visible"), true)
+})
+
 test("launcher icon usage is local and does not add external icon packages", async () => {
   const packageJson = await source("package.json")
   const selection = await source("app/lib/application/launcher/workUnitSelectionModel.ts")

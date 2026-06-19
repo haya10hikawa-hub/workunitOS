@@ -1,14 +1,48 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import type { ActionFieldEditorDraft } from "@/lib/application/launcher/actionFieldEditorDraftModel"
+import type { ActionFieldEditorDraft, LauncherReadinessCard } from "@/lib/application/launcher/actionFieldEditorDraftModel"
+import { ReadinessCards } from "./ReadinessCards"
 import styles from "./WorkUnitLauncher.module.css"
 
 type Props = {
   readonly draft: ActionFieldEditorDraft
+  readonly readinessCards: readonly LauncherReadinessCard[]
 }
 
-export function ActionFieldEditor({ draft }: Props) {
+type ToolbarTool = {
+  readonly label: string
+  readonly icon: string
+  readonly mode?: boolean
+  readonly strong?: boolean
+  readonly italic?: boolean
+}
+
+const TOOLBAR_GROUPS: readonly (readonly ToolbarTool[])[] = [
+  [
+    { label: "Text style", icon: "Normal", mode: true },
+  ],
+  [
+    { label: "Bold", icon: "B", strong: true },
+    { label: "Italic", icon: "I", italic: true },
+  ],
+  [
+    { label: "Bulleted list", icon: "≡" },
+    { label: "Numbered list", icon: "☷" },
+  ],
+  [
+    { label: "Code", icon: "</>" },
+    { label: "Quote", icon: "❞" },
+  ],
+  [
+    { label: "Reference", icon: "◎" },
+    { label: "Link", icon: "↗" },
+    { label: "Mention", icon: "@" },
+    { label: "Annotation", icon: "⌘" },
+  ],
+] as const
+
+export function ActionFieldEditor({ draft, readinessCards }: Props) {
   const [tab, setTab] = useState<"edit" | "preview">("edit")
   const [title, setTitle] = useState(draft.title)
   const [objective, setObjective] = useState(draft.objective)
@@ -51,17 +85,24 @@ export function ActionFieldEditor({ draft }: Props) {
       </div>
       <div className={styles.draftBox}>
         <div className={styles.toolbar} aria-label="Markdown toolbar">
-          <button type="button">Normal⌄</button>
-          <button type="button">B</button>
-          <button type="button"><em>I</em></button>
-          <button type="button">☷</button>
-          <button type="button">☰</button>
-          <button type="button">&lt;/&gt;</button>
-          <button type="button">“”</button>
-          <button type="button">◉</button>
-          <button type="button">↗</button>
-          <button type="button">@</button>
-          <button type="button">⛓</button>
+          {TOOLBAR_GROUPS.map((group, groupIndex) => (
+            <span key={groupIndex} className={styles.toolbarGroup}>
+              {group.map((tool) => (
+                <button
+                  key={tool.label}
+                  type="button"
+                  aria-label={tool.label}
+                  title={tool.label}
+                  className={tool.mode ? styles.toolbarMode : undefined}
+                >
+                  <span className={tool.strong ? styles.toolbarStrong : tool.italic ? styles.toolbarItalic : undefined}>
+                    {tool.icon}
+                  </span>
+                  {tool.mode ? <i aria-hidden="true">⌄</i> : null}
+                </button>
+              ))}
+            </span>
+          ))}
         </div>
         {tab === "edit" ? (
           <textarea className={styles.draftTextarea} value={body} onChange={(event) => setBody(event.target.value)} />
@@ -73,6 +114,7 @@ export function ActionFieldEditor({ draft }: Props) {
           <span>{wordCount} words</span>
         </footer>
       </div>
+      <ReadinessCards cards={readinessCards} />
       <label className={styles.notesField}>
         Notes (optional)
         <input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Add a note for reviewers..." />

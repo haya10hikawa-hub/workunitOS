@@ -387,8 +387,8 @@
 
 .treePanel {
   display: grid;
-  grid-template-rows: 52px 34px 42px minmax(0, 1fr) 94px 44px;
-  gap: 10px;
+  grid-template-rows: 51px 34px 40px minmax(0, 1fr) 92px 42px;
+  gap: 9px;
   padding: 0 20px;
 }
 
@@ -404,7 +404,8 @@
 .readinessPanel h3 {
   margin: 0;
   color: #f2f5f3;
-  font-size: 18px;
+  font-size: 17px;
+  font-weight: 720;
 }
 
 .treeHeader span {
@@ -418,7 +419,7 @@
   width: 60%;
   min-width: 360px;
   border: 1px solid rgba(120, 135, 131, 0.25);
-  border-radius: 5px;
+  border-radius: 6px;
   background: rgba(11, 16, 19, 0.64);
   padding: 0 10px;
   color: #9ca7a3;
@@ -436,7 +437,7 @@
 .treeControls {
   display: flex;
   align-items: center;
-  gap: 34px;
+  gap: 36px;
   color: #d4dbd8;
   font-size: 13px;
 }
@@ -524,7 +525,7 @@
   width: 150px;
   overflow: hidden;
   border: 1px solid rgba(120, 135, 131, 0.25);
-  border-radius: 7px;
+  border-radius: 6px;
   background: rgba(17, 24, 27, 0.88);
 }
 
@@ -532,6 +533,7 @@
   display: flex;
   justify-content: space-between;
   border-bottom: 1px solid rgba(120, 135, 131, 0.16);
+  min-height: 32px;
   padding: 7px 10px;
 }
 
@@ -624,10 +626,10 @@
   display: flex;
   align-content: flex-start;
   flex-wrap: wrap;
-  gap: 13px 24px;
+  gap: 12px 22px;
   border: 1px solid rgba(120, 135, 131, 0.24);
-  border-radius: 7px;
-  padding: 13px 14px;
+  border-radius: 6px;
+  padding: 12px 14px;
   color: #b4beba;
   font-size: 11px;
 }
@@ -649,7 +651,7 @@
 .treeSelectionBar {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 27px;
   border-top: 1px solid rgba(120, 135, 131, 0.16);
   color: #adb7b3;
   font-size: 13px;
@@ -662,16 +664,10 @@
   font: inherit;
 }
 
-.actionEditorStack {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) 91px;
-  min-height: 0;
-}
-
 .editorPanel {
   display: grid;
-  grid-template-rows: 52px 45px 58px 77px 31px minmax(0, 1fr) 50px auto;
-  padding: 0 22px 14px;
+  grid-template-rows: 52px 44px 58px 75px 31px minmax(0, 1fr) 96px 58px 16px;
+  padding: 0 22px 12px;
 }
 
 .editorHeader {
@@ -702,7 +698,7 @@
 }
 
 .editorTabs button {
-  height: 36px;
+  height: 35px;
   border: 0;
   border-bottom: 1px solid transparent;
   background: transparent;
@@ -719,7 +715,7 @@
 
 .editorMetaGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 228px;
+  grid-template-columns: minmax(0, 1fr) 210px;
   gap: 20px;
 }
 
@@ -747,7 +743,7 @@
 }
 
 .objectiveField textarea {
-  height: 58px;
+  height: 57px;
   resize: none;
   line-height: 1.55;
 }
@@ -778,7 +774,7 @@
 .draftBox {
   min-height: 0;
   display: grid;
-  grid-template-rows: 38px minmax(0, 1fr) 32px;
+  grid-template-rows: 39px minmax(0, 1fr) 32px;
   overflow: hidden;
   border: 1px solid rgba(120, 135, 131, 0.25);
   border-radius: 5px;
@@ -788,21 +784,75 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 0;
   border-bottom: 1px solid rgba(120, 135, 131, 0.17);
-  padding: 0 16px;
+  padding: 0 14px;
+}
+
+.toolbarGroup {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.toolbarGroup + .toolbarGroup {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(120, 135, 131, 0.16);
 }
 
 .toolbar button {
+  min-width: 28px;
+  height: 28px;
+  display: inline-grid;
+  grid-auto-flow: column;
+  place-items: center;
+  align-items: center;
+  gap: 5px;
   border: 0;
+  border-radius: 5px;
   background: transparent;
   color: #b9c3bf;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 7px;
 }
 
-.toolbar button:first-child {
-  margin-right: 10px;
+.toolbar button:hover {
+  background: rgba(120, 135, 131, 0.12);
+  color: #eff4f1;
+}
+
+.toolbar button:focus-visible {
+  outline: 1px solid rgba(98, 217, 118, 0.84);
+  outline-offset: 1px;
+}
+
+.toolbar button:active {
+  background: rgba(98, 217, 118, 0.13);
+  color: #62d976;
+}
+
+.toolbarMode {
+  min-width: 82px;
+  justify-content: start;
+}
+
+.toolbarMode i {
+  color: #899692;
+  font-style: normal;
+}
+
+.toolbarStrong {
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.toolbarItalic {
+  font-style: italic;
+  font-weight: 700;
+  font-size: 14px;
 }
 
 .draftTextarea,
@@ -847,31 +897,30 @@
 }
 
 .readinessPanel {
-  border-top: 1px solid rgba(120, 135, 131, 0.16);
-  padding: 6px 22px 8px;
+  padding: 10px 0 9px;
 }
 
 .readinessPanel h3 {
-  margin-bottom: 6px;
-  font-size: 14px;
+  margin-bottom: 9px;
+  font-size: 13px;
   font-weight: 500;
 }
 
 .readinessGrid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  gap: 9px;
 }
 
 .readinessCard {
-  min-height: 46px;
+  min-height: 49px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border: 1px solid rgba(120, 135, 131, 0.23);
   border-radius: 6px;
   background: rgba(17, 24, 27, 0.66);
-  padding: 7px 12px;
+  padding: 8px 12px;
 }
 
 .readinessCard span {
