@@ -100,16 +100,44 @@ test("Action Field layout uses sibling cards without dominant global header", as
   assert.equal(css.includes(".treePanel,\n.editorPanel"), true)
 })
 
-test("Action Field toolbar controls are grouped and accessible", async () => {
+test("Action Field toolbar controls are code-based, grouped, and accessible", async () => {
   const editor = await source("app/components/workunit-os/launcher/ActionFieldEditor.tsx")
   const css = await source("app/components/workunit-os/launcher/WorkUnitLauncher.module.css")
-  for (const label of ["Text style", "Bold", "Italic", "Bulleted list", "Numbered list", "Code", "Quote", "Reference", "Link", "Mention", "Annotation"]) {
+  for (const label of ["Text style", "Bold", "Italic", "Underline", "Ordered list", "Bullet list", "Code", "Quote", "Link", "Mention", "More"]) {
     assert.equal(editor.includes(`label: "${label}"`), true, label)
   }
+  assert.equal(editor.includes("function ToolbarIcon"), true)
+  assert.equal(editor.includes("<svg"), true)
+  assert.equal(editor.includes("<img"), false)
+  assert.equal(editor.includes(".png"), false)
+  assert.equal(editor.includes(".jpg"), false)
   assert.equal(editor.includes("aria-label={tool.label}"), true)
+  assert.equal(editor.includes("aria-pressed={tool.toggle ? isActive : undefined}"), true)
   assert.equal(editor.includes("title={tool.label}"), true)
-  assert.equal(css.includes(".toolbarGroup + .toolbarGroup"), true)
-  assert.equal(css.includes(".toolbar button:focus-visible"), true)
+  for (const className of [
+    ".editorToolbar",
+    ".editorToolbarGroup",
+    ".editorToolbarSelect",
+    ".editorToolbarButton",
+    ".editorToolbarButtonActive",
+    ".editorToolbarSeparator",
+    ".editorToolbarIcon",
+  ]) {
+    assert.equal(css.includes(className), true, className)
+  }
+  assert.equal(css.includes(".editorToolbarButton:focus-visible"), true)
+  assert.equal(css.includes("stroke: currentColor"), true)
+  const forbiddenLabels = [
+    "Send" + " Email",
+    "Post" + " Slack",
+    "Create" + " GitHub" + " Issue",
+    "Create" + " Calendar" + " Event",
+    "Database" + " Update",
+    "External" + " Execute",
+  ]
+  for (const forbidden of forbiddenLabels) {
+    assert.equal(editor.includes(forbidden), false, forbidden)
+  }
 })
 
 test("launcher icon usage is local and does not add external icon packages", async () => {

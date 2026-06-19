@@ -781,34 +781,48 @@
   background: #0e1417;
 }
 
-.toolbar {
+.editorToolbar {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-bottom: 1px solid rgba(120, 135, 131, 0.17);
-  padding: 0 14px;
+  padding: 0 12px;
+  scrollbar-width: none;
 }
 
-.toolbarGroup {
+.editorToolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.editorToolbarGroup {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex: none;
 }
 
-.toolbarGroup + .toolbarGroup {
-  margin-left: 10px;
-  padding-left: 10px;
-  border-left: 1px solid rgba(120, 135, 131, 0.16);
+.editorToolbarGroup + .editorToolbarGroup {
+  margin-left: 9px;
 }
 
-.toolbar button {
-  min-width: 28px;
+.editorToolbarSeparator {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px 0 0;
+  background: rgba(120, 135, 131, 0.16);
+}
+
+.editorToolbarButton {
+  min-width: 30px;
   height: 28px;
   display: inline-grid;
   grid-auto-flow: column;
   place-items: center;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   border: 0;
   border-radius: 5px;
   background: transparent;
@@ -816,43 +830,49 @@
   font: inherit;
   font-size: 12px;
   line-height: 1;
-  padding: 0 7px;
+  padding: 0 6px;
+  cursor: pointer;
 }
 
-.toolbar button:hover {
+.editorToolbarButton:hover {
   background: rgba(120, 135, 131, 0.12);
   color: #eff4f1;
 }
 
-.toolbar button:focus-visible {
+.editorToolbarButton:focus-visible {
   outline: 1px solid rgba(98, 217, 118, 0.84);
   outline-offset: 1px;
 }
 
-.toolbar button:active {
+.editorToolbarButton:active,
+.editorToolbarButtonActive {
   background: rgba(98, 217, 118, 0.13);
   color: #62d976;
 }
 
-.toolbarMode {
-  min-width: 82px;
+.editorToolbarButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.editorToolbarSelect {
+  min-width: 84px;
   justify-content: start;
 }
 
-.toolbarMode i {
+.editorToolbarSelect i {
   color: #899692;
   font-style: normal;
 }
 
-.toolbarStrong {
-  font-weight: 800;
-  font-size: 14px;
-}
-
-.toolbarItalic {
-  font-style: italic;
-  font-weight: 700;
-  font-size: 14px;
+.editorToolbarIcon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .draftTextarea,
