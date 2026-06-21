@@ -27,10 +27,11 @@ UI
 ### Canonical (active)
 | Path | Role |
 |------|------|
+| `docs/CANONICAL_DECISION_INDEX.md` | Product UI source of truth: WorkUnit Launcher + WorkUnit Graph + Action Field |
 | `app/page.tsx` | Root page: renders `WorkUnitOSDashboard` only |
-| `app/components/workunit-os/WorkUnitOSDashboard.tsx` | Canonical dashboard entry; wraps the adopted v0 implementation |
-| `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` | Adopted v0 three-pane dashboard shell and visual source of truth; now fetches real WorkUnits, integration status, and recent audit logs through application clients |
-| `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.module.css` | Adopted v0 CSS Module with preserved visual values |
+| `app/components/workunit-os/WorkUnitOSDashboard.tsx` | Current UI entry; implementation name may lag canonical UI terms |
+| `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` | Current legacy/dashboard-named implementation shell; not product terminology source of truth |
+| `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.module.css` | Current implementation CSS Module |
 
 ### Deprecated / reference only
 | Path | Status |
@@ -45,14 +46,14 @@ UI
 |------|------|
 | `app/lib/application/actionField/dashboardPreviewClient.ts` | Canonical client-safe Preview / Approval UI client |
 | `app/lib/application/actionField/errorState.ts` | Canonical Action Field error-state mapper |
-| `app/lib/application/dashboard/dashboardDataClient.ts` | Canonical client-safe dashboard fetch helper for inbox, integration status, and recent audit logs |
+| `app/lib/application/dashboard/dashboardDataClient.ts` | Legacy-named client-safe UI fetch helper for WorkUnits, integration status, and recent audit logs |
 | `app/lib/application/dashboard/dashboardStatusClient.ts` | Compatibility re-export for older dashboard status/audit imports |
-| `app/lib/application/dashboard/adoptedDashboardViewModel.ts` | Canonical mapping from inbox/status/audit API data into the adopted v0 shell view model; empty states do not fabricate sample WorkUnits |
+| `app/lib/application/dashboard/adoptedDashboardViewModel.ts` | Current UI mapping from inbox/status/audit API data; empty states do not fabricate sample WorkUnits |
 | `app/lib/application/dashboard/selectedWorkUnitPreviewModel.ts` | Canonical selected-WorkUnit-to-preview-group mapper; extracts safe fields only (no hashes, tokens, secrets); gates on decision selection |
-| `app/lib/application/dashboard/approvalDecisionTraceModel.ts` | Canonical pure-function mapper from approval status to Decision Trace entries; drives the Approval Completed readiness gate via `isApprovalCompleted()` |
+| `app/lib/application/dashboard/approvalDecisionTraceModel.ts` | Pure-function mapper from approval status to safe UI trace entries; drives approval completion via `isApprovalCompleted()` |
 | `app/lib/application/dashboard/executionReadinessModel.ts` | Canonical pure-function execution readiness model; computes whether external execution is ready |
 | `app/lib/application/dashboard/executionCommandModel.ts` | Canonical pure-function safe execution command envelope builder; blocked/dry_run only |
-| `app/lib/application/dashboard/workUnitDashboardModel.ts` | UI-only dashboard model for WorkUnit Explorer, Decision Trace, Evidence Capsule, and Readiness Gates; `getPrimaryActionPreviewGroup` is legacy/demo only |
+| `app/lib/application/dashboard/workUnitDashboardModel.ts` | Legacy UI-only model; `getPrimaryActionPreviewGroup` is legacy/demo only |
 | `app/lib/application/workunitInbox/*` | Canonical inbox-facing application logic |
 | `app/lib/actionField/*.ts` | Legacy compatibility exports only |
 
@@ -205,7 +206,7 @@ page.tsx
 ### Current audit coverage
 - Feedback writes audit events through persisted repository paths when available.
 - Inbox fetch can append `workunit.inbox.fetch` audit entries with `{ source, count }`.
-- `GET /api/audit/recent` is the canonical dashboard audit read path.
+- `GET /api/audit/recent` is the current UI audit read path.
 - Audit response metadata is sanitized before leaving the server.
 
 ### Usage ownership
@@ -232,7 +233,7 @@ page.tsx
 ## 9. High-risk architecture debt
 
 - Legacy surface reporting lives in `scripts/report-legacy-surface.mjs`; it reports compatibility imports without failing.
-- `tests/architectureLegacySurface.test.mts` locks the current root page, swap-file, adopted dashboard, and legacy import baseline.
+- `tests/architectureLegacySurface.test.mts` locks the current root page, swap-file, legacy/dashboard-named implementation, and legacy import baseline.
 - `app/api/workunit/inbox/route.ts` still mixes route, source orchestration, and persistence responsibilities.
 - `app/lib/workunitInbox/actionFieldClient.ts` and `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` remain legacy compatibility modules.
 - Control DB schema ownership exists, but active repository routing still goes through `TENANT_DB_DEFAULT` rather than a future workspace auth chain.

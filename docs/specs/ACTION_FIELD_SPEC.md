@@ -6,13 +6,13 @@
 
 The Action Field is the central workspace attached to a WorkUnit.
 
-Current canonical UI location:
+Current implementation location:
 
 * `app/components/workunit-os/WorkUnitOSDashboard.tsx`
 * `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`
 
-The adopted v0 dashboard shell is now the official frontend design. It preserves the existing Preview / Approval API client boundary while keeping the accepted visual shell intact.
-The adopted shell now binds the left WorkUnit list to `/api/workunit/inbox` and derives center/right pane content from the selected WorkUnit through application-level view-model mapping. This changes frontend data binding only; it does not change server trust boundaries.
+The product UI source of truth is `docs/CANONICAL_DECISION_INDEX.md`: WorkUnit Launcher, WorkUnit Graph, and the right-side Action Field. Current files may still use dashboard-oriented implementation names; those names are not product terminology.
+The current shell binds WorkUnit data from `/api/workunit/inbox` and derives Action Field content from the selected WorkUnit through application-level view-model mapping. This changes frontend data binding only; it does not change server trust boundaries.
 
 It is where the user:
 
@@ -190,31 +190,22 @@ States shown:
 * `expired` — approval expired (requires re-request)
 * `used` — approval was consumed by execution
 
-The adopted dashboard now includes minimal Approve/Reject controls in the
-CTA area. They appear only after a real Action Preview has been created and
-the server approval status is `none` or `pending`. Controls are hidden for
-approved, rejected, expired, used, and error states. Approve/Reject actions
-call the existing `approveDashboardActionPreviews` client helper which sends
-only `actionPreviewId` and `decision` — no hashes, tenant, role, or status.
-After approve/reject, approval status is refreshed from the server and the
-Decision Trace and Readiness Gates reflect the server-derived state.
+Explicit human approval/rejection can call the existing
+`approveDashboardActionPreviews` client helper, which sends only
+`actionPreviewId` and `decision` — no hashes, tenant, role, or status.
+After approve/reject, approval status is refreshed from the server and any
+visible status reflects the server-derived state.
 
 External execution remains blocked by default regardless of approval state.
 
-Dashboard Readiness Gates now include dynamic execution readiness through
-`executionReadinessModel.ts`. The "External Execution" gate shows the current
-readiness state from `computeExecutionReadiness()`. The model accepts an
-`externalExecutionEnabled` flag (set to `false` in the view model by default).
-When the flag is `false`, readiness always shows `execution_blocked` after
-approval completes. A disabled Execute placeholder CTA appears only when
-approval is complete but external execution is blocked. No real execution is
-triggered — the placeholder explains: "Execution is ready but external
-execution is disabled in this release." No `/api/workunit/tools` calls are
-made from the dashboard.
+Execution readiness may be computed through `executionReadinessModel.ts` for
+internal status, but WorkUnit Launcher, WorkUnit Graph, Command Palette,
+Tool Pin, and editable Action Field text must not expose execution-looking
+controls. No real execution is triggered and no `/api/workunit/tools` calls
+are made from UI for real external execution.
 
-A safe, non-executing Execution Command envelope is displayed near the
-disabled Execute CTA. The envelope is built from `executionCommandModel.ts`
-in the view model and shows only display-safe metadata: mode, reason,
+A safe, non-executing Execution Command envelope may be built from
+`executionCommandModel.ts` for internal transparency and shows only display-safe metadata: mode, reason,
 previewRefCount, and requestedActionType. Approval IDs are not displayed.
 No hashes, tenant/user/role, tokens, secrets, or raw payloads are rendered.
 The envelope is for transparency/debuggability only and does not trigger
@@ -567,44 +558,43 @@ Detailed error model deferred to `ERROR_MODEL.md`.
 
 ### What Exists Today
 
-The current UI (`app/components/workunit-os/WorkUnitOSDashboard.tsx`) implements a three-pane OS console:
+The accepted product UI is:
 
-* left: WorkUnit Explorer
-* center: Decomposition / Judgment Console
-* right: Action Field Entry
-* `Decision Trace` replaces AI-reasoning wording and records auditable judgment state.
-* The right pane uses an Evidence Capsule instead of a raw Source Context reader.
-* Readiness Gates replace vague Push Readiness scoring.
-* The primary CTA is `Create Action Preview`; no `Execute External Action` button is exposed.
+* WorkUnit Launcher for search/open
+* WorkUnit Graph for Node relationships and Node selection
+* right-side Action Field for selected Node work
+* bottom/status surfaces such as Safety Protocol, Finalization Queue, and System Logs
 
-### CTA Wiring (Create Action Preview)
+Implementation files still contain dashboard-oriented names. Treat those as implementation history, not UI direction.
 
-The adopted dashboard CTA connects to the existing Action Preview API through the following path:
+### Preview Wiring
+
+The current preview flow connects to the existing Action Preview API through the following path:
 
 ```
 selected InboxWorkUnit
   → selectedWorkUnitPreviewModel.ts  (buildPreviewGroupFromSelectedWorkUnit)
     → adoptedDashboardViewModel.ts   (buildActionFieldView → canCreatePreview gate)
-      → AdoptedWorkUnitDashboard.tsx  (handleCreatePreview → createDashboardActionPreviews)
+      → AdoptedWorkUnitDashboard.tsx  (current implementation handler)
         → dashboardPreviewClient.ts  (buildDashboardPreviewRequests → strip forbidden keys)
           → POST /api/workunit/:id/action-preview
 ```
 
 Key behavior:
-- CTA is disabled when: no WorkUnit selected, no decision selected, preview already in-progress, or WorkUnit cannot produce a safe preview group.
-- Active preview group is derived from the currently selected real WorkUnit in the sidebar.
-- `getPrimaryActionPreviewGroup()` (in workUnitDashboardModel.ts) is legacy/demo only — not used in the active CTA path.
-- Server errors are mapped to safe user-facing messages (`mapSafePreviewError` in adopted dashboard).
+- Preview creation is unavailable when: no WorkUnit selected, no decision selected, preview already in-progress, or WorkUnit cannot produce a safe preview group.
+- Active preview group is derived from the currently selected real WorkUnit.
+- `getPrimaryActionPreviewGroup()` (in workUnitDashboardModel.ts) is legacy/demo only — not used as an active preview authority.
+- Server errors are mapped to safe user-facing messages (`mapSafePreviewError` in the current UI implementation).
 - No new backend route was added; client-owned hashes/status/tenant/role remain forbidden.
 
 Remaining debt:
-- Approval status needs API-backed dashboard binding (no GET approval-by-workunit endpoint exists yet).
+- Approval status needs API-backed UI binding where absent.
 - Real external execution remains blocked.
 - OAuth/token storage still not implemented.
 
 ### Correction (2026-06-15): Truth/Security Gap Fix
 
-The initial CTA wiring had several truth/security mismatches with the server-side model:
+The initial preview wiring had several truth/security mismatches with the server-side model:
 
 1. **Decision mapping**: `selectedDecision` was gated but never placed in the preview payload. `workUnit.nextAction` was incorrectly used as the `decision` field. Fixed: `decision` now carries the user-selected decision string; `recommendedAction` carries `nextAction`.
 
@@ -614,11 +604,11 @@ The initial CTA wiring had several truth/security mismatches with the server-sid
 
 4. **Approval status endpoint**: No API endpoint existed for querying approval status by WorkUnit. Added: `GET /api/workunit/:id/approval/status` returns a safe status summary (`none`, `pending`, `approved`, `rejected`, `expired`, `used`) without exposing hashes or tenant internals.
 
-5. **Dashboard binding**: Approval Completed gate was hardcoded `false`. Fixed: gate now reflects real server-derived approval status, refreshed on work unit selection and after preview/approval actions.
+5. **UI binding**: Approval completion was hardcoded `false`. Fixed: state now reflects real server-derived approval status, refreshed on WorkUnit selection and after preview/approval actions.
 
-6. **Approve/Reject UI**: Minimal Approve/Reject buttons appear after successful preview creation, calling the existing `approveDashboardActionPreviews()` client helper. No client-owned hash/status/tenant fields are sent.
+6. **Approval UI**: Explicit approval/rejection calls the existing `approveDashboardActionPreviews()` client helper. No client-owned hash/status/tenant fields are sent.
 
-The older `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` also exists. It is retained as a migration reference, but it is not the adopted desktop UI path. The adopted MVP UI path is `WorkUnitOSDashboard`; the Action Field Entry uses the canonical dashboard preview client to create ActionPreviews through existing APIs.
+The older `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` also exists. It is retained as a migration reference. Product UI direction is WorkUnit Launcher + WorkUnit Graph + Action Field.
 
 ### Gaps vs This Spec
 
@@ -626,13 +616,13 @@ The older `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` also exi
 | --- | ------------- | ------------ |
 | Status values | `draft_ready`, `draft_saved`, `approved` (UI-only) | Domain-aligned: `draft_workspace`, `preview_ready`, `approval_required`, `approved`, `executing`, `executed` |
 | Action type names | `email_send`, `calendar_block`, `database_update` | `gmail_reply`, `calendar_event`; remove `database_update` |
-| Approval flow | Action Field Entry can create ActionPreviews; approval completion remains a separate visible gate | Execution-time verification now uses persisted `ActionPreview` + repository-backed `ApprovalStore` |
+| Approval flow | Action Field can create ActionPreviews; approval completion remains server-derived | Execution-time verification uses persisted `ActionPreview` + repository-backed `ApprovalStore` |
 | Payload hash binding | Preview / Approval APIs persist `targetHash` + `payloadHash`; tools route verifies against them | Add edit-after-approval invalidation UI |
 | Edit invalidates approval | No invalidation logic | Hash comparison triggers invalidation |
 | Workspace vs payload separation | All in same editable drawer | Section-based model (4.1-4.9) |
-| Execution | Disabled from the drawer | `ExecutionCommand` + `ExecutionResult` after approval |
-| UI path integration | Adopted right pane owns Action Field Entry; old component remains as reference | Remove deprecated component after migration is complete |
-| Data source | WorkUnit list and selected Action Field content bind through dashboard API clients; preview/approval state still partly local | Fully API-driven approval status and execution result display |
+| Execution | Not exposed as UI execution control | Future `ExecutionCommand` + `ExecutionResult` only after explicit approval and server policy |
+| UI path integration | Action Field is the right-side selected-Node work surface; old component remains as reference | Remove deprecated component after migration is complete |
+| Data source | WorkUnit and selected Action Field content bind through legacy-named UI clients; preview/approval state still partly local | Fully API-driven approval status and execution result display |
 
 ### Migration Path
 
@@ -648,4 +638,4 @@ The older `app/components/legacy/workunitInbox/WorkUnitActionField.tsx` also exi
 9. Remove `database_update` action type
 10. Rename `email_send` → `gmail_reply`, `calendar_block` → `calendar_event`
 
-Internal Alpha hardening unifies execution-time approval verification through the persisted approval adapter and removes misleading sample WorkUnit states from the adopted dashboard critical path. It does not enable external execution, OAuth, billing, provider token storage, or legacy UI deletion.
+Internal Alpha hardening unifies execution-time approval verification through the persisted approval adapter and removes misleading sample WorkUnit states from the current UI critical path. It does not enable external execution, OAuth, billing, provider token storage, or legacy UI deletion.

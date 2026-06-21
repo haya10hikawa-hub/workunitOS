@@ -29,7 +29,7 @@ UI
 
 | Feature | Read these files first |
 |---|---|
-| Dashboard UI | `app/components/workunit-os/WorkUnitOSDashboard.tsx`, `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`, `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.module.css`, `app/lib/application/dashboard/*` |
+| WorkUnit UI implementation | `app/components/workunit-os/WorkUnitOSDashboard.tsx`, `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`, `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.module.css`, `app/lib/application/dashboard/*` |
 | Action Field | `app/lib/application/actionField/dashboardPreviewClient.ts`, `app/lib/application/actionField/errorState.ts`, `app/lib/application/dashboard/selectedWorkUnitPreviewModel.ts`, `app/lib/application/dashboard/dashboardApprovalStatusClient.ts`, `app/lib/application/dashboard/approvalDecisionTraceModel.ts` |
 | WorkUnit Inbox | `app/lib/application/workunitInbox/*` |
 | Provider reads | `app/lib/infrastructure/external/github/*`, `app/lib/infrastructure/external/slack/*`, `app/lib/infrastructure/external/calendar/*` |
@@ -53,13 +53,13 @@ UI
 
 | Task | Minimal context |
 |---|---|
-| UI work | `docs/CONTEXT_INDEX.md`, `WorkUnitOSDashboard`, adopted dashboard shell, dashboard clients/view models, relevant API response shape only |
+| UI work | `docs/CANONICAL_DECISION_INDEX.md`, `docs/CONTEXT_INDEX.md`, current WorkUnit UI implementation files, client-safe view models, relevant API response shape only |
 | Auth work | `docs/security/SECURITY_MODEL.md`, `app/lib/application/auth/*`, `app/lib/security/session.ts`, control repositories |
 | Persistence work | `docs/DEPENDENCY_MAP.md`, target route file, `routeRepositories.ts`, `repositoryResolver.ts`, target repository implementation |
 | LLM work | `app/lib/llm/sanitize.ts`, `app/lib/llm/budget.ts`, `app/lib/llm/prompts.ts`, `app/lib/llm/processWorkSignal.ts` |
 | Integration work | Target `app/lib/infrastructure/external/<provider>` folder, `app/lib/application/workunitInbox/*`, relevant API route |
 
-Dashboard truthfulness rule: empty, loading, error, disconnected, unapproved, and unpreviewed states must be labeled as such. Do not show sample WorkUnits, sample audit rows, or sample provider status as live data.
+UI truthfulness rule: empty, loading, error, disconnected, unapproved, and unpreviewed states must be labeled as such. Do not show sample WorkUnits, sample audit rows, or sample provider status as live data.
 
 ## 7. Legacy status table
 
@@ -70,8 +70,8 @@ Dashboard truthfulness rule: empty, loading, error, disconnected, unapproved, an
 | `app/lib/actionField/*` | Compatibility | Re-exports canonical Action Field helpers | Zero imports from active code/tests |
 | `app/components/workunitInbox/*` | Compatibility | Re-exports legacy WorkUnit Inbox UI | Zero active imports |
 | `app/components/legacy/workunitInbox/*` | Legacy | Physical old standalone inbox/detail/action-field UI | Compatibility exports removed and no active imports |
-| Old pre-v0 `app/components/workunit-os/*` panes | Transitional | Retained after adopted v0 shell became canonical | Adopted shell fully owns needed behavior and tests no longer read old model |
-| Hopper / Studio / Decision prototype folders | Prototype / unknown | Not canonical dashboard root | PM decision to archive, migrate, or delete |
+| Old pre-v0 `app/components/workunit-os/*` panes | Transitional | Retained for implementation history only; not canonical UI direction | Current implementation catches up to WorkUnit Launcher / Graph / Action Field |
+| Hopper / Studio / Decision prototype folders | Prototype / unknown | Not canonical WorkUnit UI root | PM decision to archive, migrate, or delete |
 
 ## 8. Rule for future prompts
 

@@ -9,9 +9,9 @@ Current active structure is still hybrid:
 - `docs/CONTEXT_INDEX.md`
   - first-read AI context map for canonical files, legacy surfaces, and minimal reading bundles
 - `app/components/`
-  - canonical dashboard UI
-  - adopted v0 dashboard shell under `workunit-os/adopted/`
-  - transitional pre-v0 dashboard panes retained but not rendered from `app/page.tsx`
+  - current WorkUnit UI implementation
+  - legacy/dashboard-named implementation shell under `workunit-os/adopted/`
+  - transitional pre-v0 panes retained but not rendered from `app/page.tsx`
   - legacy WorkUnit Inbox UI compatibility exports
 - `app/api/`
   - route handlers for inbox, feedback, integration status, preview, approval, tools
@@ -20,7 +20,7 @@ Current active structure is still hybrid:
 - `app/lib/application/`
   - canonical home for application-layer orchestration helpers going forward
   - `application/auth/` now owns auth adapter resolution and session resolution
-  - `application/dashboard/` now owns client-safe adopted dashboard fetch helpers and view-model mapping
+  - `application/dashboard/` owns legacy-named client-safe UI fetch helpers and view-model mapping
   - `application/workunitInbox/` now owns inbox-facing transforms, read models, and persistence mapping
 - `app/lib/domain/`
   - pure domain types and lifecycle/state-machine logic
@@ -103,7 +103,7 @@ Forbidden:
 - UI importing D1 repositories directly
 - UI importing raw external clients
 - repository implementations importing UI
-- external clients importing dashboard components
+- external clients importing UI components
 - API routes containing raw SQL directly
 - client code creating `tenantId`, `actorUserId`, approval hashes, approval status, or tokens
 
@@ -111,11 +111,12 @@ Forbidden:
 
 | Concern | Canonical module / area | Notes |
 |--------|--------------------------|-------|
-| Main UI shell | `app/components/workunit-os/WorkUnitOSDashboard.tsx` | Active page entry; wraps the adopted v0 shell |
-| Adopted visual shell | `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` | Official v0-generated frontend design |
-| Canonical Action Field UI | `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` | Right pane entry inside the adopted shell |
-| Adopted dashboard fetch client | `app/lib/application/dashboard/dashboardDataClient.ts` | Reads `/api/workunit/inbox`, `/api/integrations/status`, `/api/audit/recent` |
-| Adopted dashboard view-model | `app/lib/application/dashboard/adoptedDashboardViewModel.ts` | Maps real API data into preserved v0 shell density; empty/loading/error states do not fabricate live WorkUnits |
+| Canonical UI direction | `docs/CANONICAL_DECISION_INDEX.md` | WorkUnit Launcher + WorkUnit Graph + Action Field |
+| Current UI shell | `app/components/workunit-os/WorkUnitOSDashboard.tsx` | Active page entry; implementation name may lag canonical UI terms |
+| Current visual implementation | `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` | Legacy/dashboard-named implementation path; not product terminology source of truth |
+| Current Action Field implementation | `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` | Right-side Action Field area in current implementation |
+| UI fetch client | `app/lib/application/dashboard/dashboardDataClient.ts` | Reads `/api/workunit/inbox`, `/api/integrations/status`, `/api/audit/recent` |
+| UI view-model | `app/lib/application/dashboard/adoptedDashboardViewModel.ts` | Maps real API data into current shell; empty/loading/error states do not fabricate live WorkUnits |
 | Canonical Preview / Approval client | `app/lib/application/actionField/dashboardPreviewClient.ts` | Client-safe application helper |
 | Pre-v0 dashboard presentation model | `app/lib/application/dashboard/workUnitDashboardModel.ts` | Transitional model retained for older pane components and tests |
 | Legacy Preview / Approval client | `app/lib/workunitInbox/actionFieldClient.ts` | Kept for standalone legacy component |
@@ -146,9 +147,9 @@ Transitional modules still in repository:
 - `app/lib/workunitInbox/sources/**`
   - compatibility exports pointing to infrastructure/external
 - `app/components/workunit-os/{WorkUnitExplorerPane,DecompositionConsole,DecisionTracePanel,ActionFieldEntryPanel}.tsx`
-  - retained pre-adoption shell components; no longer rendered from the root page
+  - retained old shell components; no longer rendered from the root page
 
-These remain to avoid breaking the current MVP while canonical ownership moves to `app/lib/application/actionField/`.
+These remain to avoid breaking the current MVP while canonical ownership moves to `app/lib/application/actionField/`. Product UI direction is defined in `docs/CANONICAL_DECISION_INDEX.md`.
 
 Phase 1 reduction adds `scripts/report-legacy-surface.mjs` and `tests/architectureLegacySurface.test.mts` to track this surface before deletion.
 
@@ -168,5 +169,5 @@ Current architecture debt that remains intentionally deferred:
 3. Use `app/lib/application/` for new orchestration helpers.
 4. Move new provider clients into `app/lib/infrastructure/external/` rather than expanding route handlers.
 5. Migrate imports away from compatibility paths before deleting files.
-6. After the Action Field Entry pane fully absorbs the old standalone flow, remove legacy Action Field modules.
+6. After the canonical Action Field flow fully absorbs the old standalone flow, remove legacy Action Field modules.
 7. After Production Auth lands, route tenant DB resolution through control DB membership ownership.

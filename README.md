@@ -1,22 +1,22 @@
 # WorkUnit OS
 
-AI work orchestration OS for converting scattered work signals into previewed, approved, and safely verified WorkUnits.
+AI work OS for converting scattered work signals into reviewable WorkUnit Nodes and safe Action Field work.
 
 ## Overview
 
-WorkUnit OS ingests work signals from multiple sources (Slack, GitHub, Calendar), normalizes them into WorkUnits, and provides a safe preparation loop: preview → approve → dry-run verify. Real external execution is intentionally disabled in the current release.
+WorkUnit OS ingests work signals from multiple sources (Slack, GitHub, Calendar), normalizes them into WorkUnit candidates, and provides a safe preparation loop: draft → preview → human/server approval → dry-run verification. Real external execution is intentionally disabled in the current release.
 
 ## Current Internal Alpha Capabilities
 
-- **WorkUnit Inbox** — multi-source signal ingestion (mock GitHub, Slack, Calendar)
+- **WorkUnit Launcher / Graph foundation** — multi-source signal ingestion (mock GitHub, Slack, Calendar) feeding WorkUnit candidates
 - **Action Preview** — server-generated preview with SHA-256 hashes (hashes never returned to browser)
 - **Approve / Reject** — server-side approval records with tenant isolation
 - **Approval Status** — `GET /api/workunit/:id/approval/status` returns safe summary (none/pending/approved/rejected/expired/used)
-- **Decision Trace** — API-backed dashboard trace using `approvalDecisionTraceModel.ts`
+- **Approval Status Trace** — API-backed approval trace using `approvalDecisionTraceModel.ts`
 - **Execution Readiness** — pure model gating on server-derived approval status + `externalExecutionEnabled` flag
 - **Execution Command Envelope** — safe blocked-envelope display (mode, reason, previewRefCount, requestedActionType)
 - **Execution Dry-run Route** — `POST /api/workunit/:id/execution/dry-run` verifies persisted approval, hashes, tenant, and kill switch without side effects
-- **Dashboard Verify Execution** — calls dry-run only, never real execution
+- **UI Dry-run Verification** — calls dry-run only, never real execution
 - **Dry-run Result Viewer** — `executionResultViewerModel.ts` displays verified/blocked/not_ready/failed
 - **Clear / Re-run Controls** — local-only state management, no API calls for Clear
 - **Internal Alpha Flow Regression** — 34 regression tests locking the complete alpha loop
@@ -27,8 +27,8 @@ WorkUnit OS ingests work signals from multiple sources (Slack, GitHub, Calendar)
 - The system supports preview, approval, readiness, command envelope display, and dry-run verification only.
 - Dry-run **does not call external providers** (no Slack, Gmail, GitHub, Calendar).
 - Dry-run **does not mark approvals as used**.
-- Execute CTA **remains disabled** in the dashboard.
-- Dashboard **must not call** `/api/workunit/tools`.
+- Execution-looking UI controls must not be exposed from WorkUnit Launcher, WorkUnit Graph, Command Palette, Tool Pin, or editable Action Field text.
+- UI code **must not call** `/api/workunit/tools` for real external execution.
 - Approval hashes (`targetHash`, `payloadHash`) are **never returned to the browser**.
 - `tenantId`, `actorUserId`, `role` are **server-derived** — never trusted from client.
 

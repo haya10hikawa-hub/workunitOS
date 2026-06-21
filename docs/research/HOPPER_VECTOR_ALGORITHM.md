@@ -7,7 +7,7 @@
 目的は2つある。
 
 - PC 上に表示する候補を厳しく絞り、判断負荷を下げる
-- `keep / discard / open` の行動を学習し、将来の選別精度を上げる
+- `open / defer / archive` の行動を学習し、将来の選別精度を上げる
 
 この仕様は `WorkUnit OS` 本体の概要説明ではなく、Hopper の知能コアに関する実装仕様である。
 
@@ -420,7 +420,7 @@ Hopper MVP 全体のコア実装は以下に置く。
 - `Merge`: URL、repo、高類似 embedding、近接時間で候補をクラスタ化する
 - `Rank`: canonical item に対して `HopperAdaptiveFilter` を適用する
 - `Memory`: `V_short`, `V_long`, `M_reject`, `M_open` を判断ログから分離更新する
-- `Judgment`: `keep / discard / open` のログを保存し、後続ランキングの behavior prior に反映する
+- `Judgment`: `open / defer / archive` のログを保存し、後続ランキングの behavior prior に反映する
 - `Display`: accepted item のみをスコア順に並べ、最大5件に制限する
 
 テストは以下に置く。
@@ -432,7 +432,7 @@ Hopper MVP 全体のコア実装は以下に置く。
 - Understand が embedding を正規化し、単一ユーザー関心ベクトルへ潰さないこと
 - Merge が URL / source / embedding 類似度でクラスタ化すること
 - Rank が accepted item のみを最大5件で返すこと
-- `keep / discard / open` が各メモリを分離更新すること
+- `open / defer / archive` が各メモリを分離更新すること
 - adaptive threshold が source / project ごとに分離されること
 - duplicate penalty と reject penalty cap が効くこと
 
@@ -456,7 +456,7 @@ MVP で本当に必要なのは以下だけである。
 - Understand 層による `v_input`、要約、タグの生成
 - Merge 層による最低限の重複排除
 - `V_work`, `V_short`, `V_long`, `M_reject` の4状態
-- `keep / discard / open` のログ
+- `open / defer / archive` のログ
 - 複合スコアによる候補選別
 - source / project 別の動的しきい値
 - 移動平均と分位点による上位 `1% - 10%` 抽出
@@ -488,7 +488,7 @@ Hopper の参入障壁は、UI ではなくログと文脈統合にある。
 中核要素:
 
 - 現在の作業文脈
-- keep / discard / open の判断ログ
+- open / defer / archive の判断ログ
 - 再訪データ
 - 下流の task / issue / commit への転換データ
 
