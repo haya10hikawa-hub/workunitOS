@@ -117,6 +117,10 @@ export async function POST(
 
   // ── 6. Load stored previews + approvals ──────────────────────
   const previewIds = previewRefs.map((ref) => ref.previewId)
+  if (previewIds.length === 0) {
+    audit("execution_dry_run_blocked", requestId, { reason: "preview_ref_required" })
+    return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "A stored preview reference is required before dry-run verification.", requestId)
+  }
 
   // Get the latest approval for this WorkUnit
   const approvalRecords = await approvalRepo.findByWorkUnitId(ctx, workUnitId)

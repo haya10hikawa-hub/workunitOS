@@ -1,0 +1,142 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import {
+  deriveActionFieldEditorDraft,
+  deriveLauncherReadinessCards,
+} from "@/lib/application/launcher/actionFieldEditorDraftModel"
+import { getLauncherKeyIntent, nextLauncherIndex } from "@/lib/application/launcher/keyboardNavigationModel"
+import { deriveWorkUnitTreeMap } from "@/lib/application/launcher/workUnitTreeModel"
+import {
+  clampLauncherActiveIndex,
+  fallbackLauncherWorkUnits,
+  filterLauncherWorkUnits,
+  getActiveLauncherWorkUnit,
+  type LauncherWorkUnit,
+} from "@/lib/application/launcher/workUnitSelectionModel"
+import { ActionFieldView } from "./ActionFieldView"
+import { CommandPaletteView } from "./CommandPaletteView"
+import { SourceAppIcon } from "./SourceAppIcon"
+import styles from "./WorkUnitLauncher.module.css"
+
+export type WorkUnitLauncherMode = "palette" | "action-field"
+
+export function WorkUnitLauncher() {
+  const [isOpen, setIsOpen] = useState(true)
+  const [mode, setMode] = useState<WorkUnitLauncherMode>("palette")
+  const [query, setQuery] = useState("")
+  const workUnits = useMemo<LauncherWorkUnit[]>(() => fallbackLauncherWorkUnits(), [])
+  const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | null>(workUnits[0]?.id ?? null)
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  const filteredWorkUnits = useMemo(
+    () => filterLauncherWorkUnits(workUnits, query),
+    [query, workUnits],
+  )
+  const clampedActiveIndex = clampLauncherActiveIndex(activeIndex, filteredWorkUnits.length)
+  const activeWorkUnit = getActiveLauncherWorkUnit(filteredWorkUnits, clampedActiveIndex)
+  const selectedWorkUnit = workUnits.find((workUnit) => workUnit.id === selectedWorkUnitId) ?? activeWorkUnit ?? null
+  const treeMap = useMemo(() => deriveWorkUnitTreeMap(selectedWorkUnit), [selectedWorkUnit])
+  const draft = useMemo(() => deriveActionFieldEditorDraft(selectedWorkUnit), [selectedWorkUnit])
+  const readinessCards = useMemo(() => deriveLauncherReadinessCards(selectedWorkUnit), [selectedWorkUnit])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const intent = getLauncherKeyIntent(event)
+      if (intent === "open_palette") {
+        event.preventDefault()
+        setIsOpen(true)
+        setMode("palette")
+        return
+      }
+      if (!isOpen) return
+      if (intent === "close") {
+        event.preventDefault()
+        setIsOpen(false)
+        setMode("palette")
+        return
+      }
+      if (intent === "confirm" && mode === "palette") {
+        const active = getActiveLauncherWorkUnit(filteredWorkUnits, clampedActiveIndex)
+        if (!active) return
+        event.preventDefault()
+        setSelectedWorkUnitId(active.id)
+        setMode("action-field")
+      }
+      if (intent === "next" && mode === "palette") {
+        event.preventDefault()
+        setActiveIndex((current) => nextLauncherIndex(current, "next", filteredWorkUnits.length))
+      }
+      if (intent === "previous" && mode === "palette") {
+        event.preventDefault()
+        setActiveIndex((current) => nextLauncherIndex(current, "previous", filteredWorkUnits.length))
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [clampedActiveIndex, filteredWorkUnits, isOpen, mode])
+
+  return (
+    <main className={styles.root}>
+      <header className={styles.backgroundBrand}>
+        <span className={styles.logoMark} />
+        <strong>WorkUnit OS</strong>
+      </header>
+      <div className={styles.backgroundBoard} aria-hidden="true">
+        {workUnits.map((workUnit) => (
+          <span key={workUnit.id}>
+            <SourceAppIcon icon={workUnit.sourceIcon} size="sm" />
+            {workUnit.title}
+          </span>
+        ))}
+      </div>
+      {!isOpen ? (
+        <button
+          type="button"
+          className={styles.primaryButton}
+          onClick={() => {
+            setIsOpen(true)
+            setMode("palette")
+          }}
+        >
+          Open Command Palette
+        </button>
+      ) : null}
+      {isOpen ? (
+        <div className={styles.overlay}>
+          {mode === "palette" ? (
+            <CommandPaletteView
+              query={query}
+              workUnits={filteredWorkUnits}
+              selectedWorkUnitId={selectedWorkUnitId}
+              activeIndex={clampedActiveIndex}
+              onQueryChange={(nextQuery) => {
+                setQuery(nextQuery)
+                setActiveIndex(0)
+              }}
+              onActiveIndexChange={setActiveIndex}
+              onSelectWorkUnit={setSelectedWorkUnitId}
+              onOpenActionField={() => setMode("action-field")}
+              onClose={() => {
+                setIsOpen(false)
+                setMode("palette")
+              }}
+            />
+          ) : (
+            <ActionFieldView
+              workUnit={selectedWorkUnit}
+              treeMap={treeMap}
+              draft={draft}
+              readinessCards={readinessCards}
+              onBackToPalette={() => setMode("palette")}
+              onClose={() => {
+                setIsOpen(false)
+                setMode("palette")
+              }}
+            />
+          )}
+        </div>
+      ) : null}
+    </main>
+  )
+}

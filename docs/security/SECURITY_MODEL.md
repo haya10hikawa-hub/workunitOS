@@ -32,20 +32,20 @@ Each level carries a different trust:
 ## Architecture boundary notes
 
 - Client code does not own `tenantId`, `actorUserId`, approval hashes, approval status, or tokens.
-- Canonical dashboard Preview / Approval requests are assembled in `app/lib/application/actionField/dashboardPreviewClient.ts`.
-- Canonical dashboard Action Field Entry shows only an Evidence Capsule and Readiness Gates; it does not expose raw provider payloads or an external execution CTA.
-- Canonical adopted dashboard data reads happen through `app/lib/application/dashboard/dashboardDataClient.ts` and `adoptedDashboardViewModel.ts`; UI components still do not import repositories, route internals, or raw external clients.
-- Dashboard preview groups are derived from selected real WorkUnits via `app/lib/application/dashboard/selectedWorkUnitPreviewModel.ts`; the mapper never includes client-owned hashes, status, tenant, role, or tokens.
-- Server errors from preview creation are mapped to safe user-facing messages (`mapSafePreviewError`) in the adopted dashboard component; raw server error JSON is never displayed.
-- The static `getPrimaryActionPreviewGroup()` in `workUnitDashboardModel.ts` is legacy/demo only and is not used in the active dashboard CTA path.
+- Preview / Approval requests are assembled in `app/lib/application/actionField/dashboardPreviewClient.ts`.
+- The Action Field is a work surface. It must not expose raw provider payloads or execution-looking controls.
+- Current UI data reads happen through `app/lib/application/dashboard/dashboardDataClient.ts` and `adoptedDashboardViewModel.ts`; UI components still do not import repositories, route internals, or raw external clients.
+- Preview groups are derived from selected real WorkUnits via `app/lib/application/dashboard/selectedWorkUnitPreviewModel.ts`; the mapper never includes client-owned hashes, status, tenant, role, or tokens.
+- Server errors from preview creation are mapped to safe user-facing messages (`mapSafePreviewError`) in the current UI component; raw server error JSON is never displayed.
+- The static `getPrimaryActionPreviewGroup()` in `workUnitDashboardModel.ts` is legacy/demo only and is not used as authority for safe preview creation.
 - `targetHash` and `payloadHash` are **never returned to the browser** in normal API responses from `POST /action-preview` or `POST /approval`. They are stored server-side and used only for approval/execution verification.
 - Approval status is queried through `GET /api/workunit/:id/approval/status` which returns a safe summary (none/pending/approved/rejected/expired/used) without exposing hashes, tenantId, or raw approval internals.
-- The Decision Trace in the dashboard is now API-backed through `approvalDecisionTraceModel.ts`. Server approval status overrides local preview-created assumptions once loaded. No raw server errors, hashes, tenantId, or approval internals are exposed in Decision Trace text.
-- The Approval Completed readiness gate is derived from `isApprovalCompleted()` which checks server status (`approved` + not consumed + not expired), not a local boolean.
-- Minimal Approve/Reject controls are now connected in the adopted dashboard CTA area. They appear only after preview creation and when server status is `none` or `pending`. Approve/Reject calls use the existing `approveDashboardActionPreviews` helper, sending only `actionPreviewId` and `decision`. No hashes, tenantId, role, or status are client-owned. After approve/reject, the dashboard refreshes server approval status — Decision Trace and Readiness Gates always reflect the server-derived state.
-- Execution readiness is visible in Dashboard Readiness Gates via `executionReadinessModel.ts`. The model gates on server-derived approval status and an `externalExecutionEnabled` flag (default false). A disabled Execute placeholder CTA appears when approval is complete but external execution is disabled. No real execution is triggered; no `/api/workunit/tools` calls from dashboard.
-- A safe Execution Command envelope is displayed near the disabled Execute CTA. The envelope is built via `executionCommandModel.ts` in the view model. Displayed fields: mode, reason, previewRefCount, requestedActionType. Approval ID is NOT rendered. No hashes, tenant/user/role, tokens, secrets, or raw payloads are exposed. The envelope is read-only metadata for transparency — it does not trigger execution.
-- Approve/Reject actions use the existing `dashboardPreviewClient.ts` helper and the existing `POST /approval` endpoint; no client-owned fields are sent.
+- Approval status UI is API-backed through `approvalDecisionTraceModel.ts`. Server approval status overrides local preview-created assumptions once loaded. No raw server errors, hashes, tenantId, or approval internals are exposed in UI trace text.
+- Approval completion is derived from `isApprovalCompleted()` which checks server status (`approved` + not consumed + not expired), not a local boolean.
+- Explicit human approval/rejection uses the existing `approveDashboardActionPreviews` helper, sending only `actionPreviewId` and `decision`. No hashes, tenantId, role, or status are client-owned. After approve/reject, UI refreshes server approval status.
+- Execution readiness is a model-level value via `executionReadinessModel.ts`, but the UI must not expose execution-looking controls in WorkUnit Launcher, WorkUnit Graph, Command Palette, Tool Pin, or editable Action Field text. No real execution is triggered; no `/api/workunit/tools` calls from UI for real external execution.
+- A safe Execution Command envelope may be built via `executionCommandModel.ts` for internal transparency only. Approval ID is NOT rendered. No hashes, tenant/user/role, tokens, secrets, or raw payloads are exposed. The envelope is read-only metadata and does not trigger execution.
+- Approval actions use the existing `dashboardPreviewClient.ts` helper and the existing `POST /approval` endpoint; no client-owned fields are sent.
 - Legacy standalone Action Field modules remain for compatibility but are not the canonical UI path.
 
 ## Session and Authentication
@@ -238,18 +238,18 @@ Current persisted route coverage:
 
 - `POST /api/workunit/:id/feedback`
 - `GET /api/workunit/inbox` with summarized metadata only: `{ source, count }`
-- `GET /api/audit/recent` for tenant-scoped dashboard read visibility
+- `GET /api/audit/recent` for tenant-scoped UI read visibility
 
 Audit metadata must stay sanitized. Raw WorkUnits, raw provider payloads, tokens, and secrets are not written to audit rows.
-Dashboard audit reads additionally remove metadata keys such as `token`, `accessToken`, `refreshToken`, `secret`, `authorization`, `cookie`, `rawPayload`, `rawBody`, and `password`.
+UI audit reads additionally remove metadata keys such as `token`, `accessToken`, `refreshToken`, `secret`, `authorization`, `cookie`, `rawPayload`, `rawBody`, and `password`.
 
-## Dashboard Operations Visibility
+## UI Operations Visibility
 
 - `GET /api/integrations/status` requires `canViewIntegrationStatus(session)`
 - `GET /api/audit/recent` requires `canViewAudit(session)`
 - Both routes derive tenant scope from `SessionContext`
 - Neither route exposes provider tokens, secrets, cookies, raw request bodies, or raw provider payloads
-- Dashboard WorkUnit rows come from `/api/workunit/inbox`; empty/loading/error states must be labeled honestly and must not show sample WorkUnits as live work
+- WorkUnit rows come from `/api/workunit/inbox`; empty/loading/error states must be labeled honestly and must not show sample WorkUnits as live work
 - Preview, approval, integration, and audit states must reflect actual API/local state or remain empty/unavailable; static sample operational events must not be presented as real
 
 ## Control DB auth/workspace foundation

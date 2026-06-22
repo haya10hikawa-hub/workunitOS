@@ -19,8 +19,8 @@ UI
 This refactor keeps behavior unchanged and documents the boundary for future phases.
 ┌─────────────────────────────────────────┐
 │              Frontend (React)            │
-│  WorkUnitOSDashboard                    │
-│  Explorer + Judgment Console + Action Field Entry │
+│  WorkUnit Launcher + WorkUnit Graph      │
+│  Action Field                            │
 ├─────────────────────────────────────────┤
 │              API Layer (Next.js)          │
 │  /api/workunit/inbox                     │
@@ -55,20 +55,20 @@ This refactor keeps behavior unchanged and documents the boundary for future pha
 
 ## Current auth foundation state
 
-- The adopted main UI path is `WorkUnitOSDashboard`.
-- `WorkUnitOSDashboard` now wraps the adopted v0 frontend shell in `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`.
-- The adopted dashboard is a three-pane console: WorkUnit Explorer, Decomposition / Judgment Console, and Action Field Entry.
-- The adopted shell now binds live WorkUnit rows from `/api/workunit/inbox` and reads integration status plus recent audit events through `application/dashboard/dashboardDataClient.ts`.
+- The canonical product UI direction is WorkUnit Launcher + WorkUnit Graph + Action Field.
+- `WorkUnitOSDashboard` and `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx` are current implementation names, not product terminology source of truth.
+- The UI must open WorkUnits through Launcher/search, show Node relationships in the WorkUnit Graph, and expand the selected Node into the right-side Action Field.
+- The current shell reads live WorkUnit rows from `/api/workunit/inbox` and reads integration status plus recent audit events through `application/dashboard/dashboardDataClient.ts`.
 - The inbox route can persist sanitized generated WorkUnits when repositories are available.
 - Feedback writes persist feedback, update WorkUnit status, append audit, and record usage.
 - Integration status reads persisted connection metadata and records usage.
-- Canonical dashboard Action Field Entry in the adopted shell keeps the v0 visual layout while still creating previews through the canonical client helper.
-- The Create Action Preview CTA uses the selected real WorkUnit to derive its preview group via `selectedWorkUnitPreviewModel.ts`; the CTA is disabled when no decision is selected and when no WorkUnit is available.
+- The Action Field must remain a work surface, not an execution surface.
+- Preview requests use the selected real WorkUnit to derive a safe preview group via `selectedWorkUnitPreviewModel.ts`; preview creation is unavailable when no safe selected WorkUnit context exists.
 - Action Preview / Approval remains wired through existing APIs. Hashes are server-only in browser-facing responses.
 - A tenant-scoped approval status endpoint (`GET /api/workunit/:id/approval/status`) returns safe metadata without exposing hashes or tenant internals.
-- Minimal Approve/Reject UI uses the existing dashboardPreviewClient helper calling the existing POST /approval endpoint. Controls are gated on preview creation and server approval status (none/pending). After approve/reject, server status is refreshed.
+- Approval uses the existing `dashboardPreviewClient` helper calling the existing POST /approval endpoint. Approval state is server-derived and refreshed after any explicit human decision.
 - Execution-time approval verification now reads persisted ActionPreview hashes and ApprovalRecord rows through the repository-backed ApprovalStore adapter; in-memory approval stores remain dev/test only.
-- The adopted dashboard no longer presents fallback WorkUnit rows, audit events, or provider status as live data in empty/error states.
+- The UI must not present fallback WorkUnit rows, audit events, or provider status as live data in empty/error states.
 - Control DB auth/workspace schema and repositories now exist.
 - SessionContext and route-side role helpers now derive `tenantId` and `actorUserId` from the server session only.
 - Real authentication provider wiring is still deferred.
@@ -112,15 +112,15 @@ This refactor keeps behavior unchanged and documents the boundary for future pha
 |--------|---------------|
 | `application/actionField/dashboardPreviewClient.ts` | Canonical client-safe Preview / Approval flow helper |
 | `application/actionField/errorState.ts` | Canonical Action Field error-state mapping |
-| `application/dashboard/dashboardDataClient.ts` | Canonical client-safe dashboard fetch helper for inbox, status, and audit |
+| `application/dashboard/dashboardDataClient.ts` | Legacy-named client-safe UI fetch helper for WorkUnits, status, and audit |
 | `application/dashboard/dashboardStatusClient.ts` | Compatibility re-export for older status/audit imports |
-| `application/dashboard/dashboardApprovalStatusClient.ts` | Canonical client-safe approval status fetch helper for dashboard binding |
-| `application/dashboard/approvalDecisionTraceModel.ts` | Canonical pure-function mapper from approval status to Decision Trace entries; drives the Approval Completed readiness gate via `isApprovalCompleted()` |
+| `application/dashboard/dashboardApprovalStatusClient.ts` | Legacy-named client-safe approval status fetch helper |
+| `application/dashboard/approvalDecisionTraceModel.ts` | Pure-function mapper from approval status to safe UI trace entries; drives approval completion via `isApprovalCompleted()` |
 | `application/dashboard/executionReadinessModel.ts` | Canonical pure-function execution readiness model; computes whether external execution is ready from server-derived state — always blocked while kill switch is active |
 | `application/dashboard/executionCommandModel.ts` | Canonical pure-function execution command envelope builder; produces blocked/dry_run envelopes with safe fields only — never calls external APIs |
-| `application/dashboard/adoptedDashboardViewModel.ts` | Canonical adopted-shell view-model mapping |
+| `application/dashboard/adoptedDashboardViewModel.ts` | Current implementation view-model mapping |
 | `application/dashboard/selectedWorkUnitPreviewModel.ts` | Canonical selected-WorkUnit to safe preview-group mapper; gates on decision |
-| `application/dashboard/workUnitDashboardModel.ts` | UI-only dashboard model for explorer, trace, evidence, and gates |
+| `application/dashboard/workUnitDashboardModel.ts` | Legacy UI-only model |
 | `application/auth/authAdapter.ts` | Verified identity interface |
 | `application/auth/resolveAuthAdapter.ts` | Adapter selection |
 | `application/auth/devAuthAdapter.ts` | Explicit dev identity adapter |

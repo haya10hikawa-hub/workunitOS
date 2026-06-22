@@ -21,11 +21,11 @@ const INSERT_SQL = `
 `
 
 const FIND_BY_ID_SQL = `
-  SELECT * FROM approval_records WHERE id = ?
+  SELECT * FROM approval_records WHERE tenant_id = ? AND id = ?
 `
 
 const FIND_BY_PREVIEW_ID_SQL = `
-  SELECT * FROM approval_records WHERE action_preview_id = ? ORDER BY created_at DESC LIMIT 1
+  SELECT * FROM approval_records WHERE tenant_id = ? AND action_preview_id = ? ORDER BY created_at DESC LIMIT 1
 `
 
 const FIND_BY_WORK_UNIT_ID_SQL = `
@@ -33,11 +33,11 @@ const FIND_BY_WORK_UNIT_ID_SQL = `
 `
 
 const UPDATE_STATUS_SQL = `
-  UPDATE approval_records SET status = ? WHERE id = ?
+  UPDATE approval_records SET status = ? WHERE tenant_id = ? AND id = ?
 `
 
 const MARK_USED_SQL = `
-  UPDATE approval_records SET status = 'used', used_at = ? WHERE id = ?
+  UPDATE approval_records SET status = 'used', used_at = ? WHERE tenant_id = ? AND id = ?
 `
 
 // ─── Implementation ─────────────────────────────────────────────
@@ -69,15 +69,15 @@ export class D1ApprovalRecordRepository implements ApprovalRecordRepository {
     return row
   }
 
-  async findById(_ctx: TenantDbContext, id: string): Promise<ApprovalRecordRow | null> {
-    const row = await this.db.prepare(FIND_BY_ID_SQL).bind(id).first<Record<string, unknown>>()
+  async findById(ctx: TenantDbContext, id: string): Promise<ApprovalRecordRow | null> {
+    const row = await this.db.prepare(FIND_BY_ID_SQL).bind(ctx.tenantId, id).first<Record<string, unknown>>()
     if (!row) return null
     return this.mapRow(row)
   }
 
-  async findByPreviewId(_ctx: TenantDbContext, actionPreviewId: string): Promise<ApprovalRecordRow | null> {
+  async findByPreviewId(ctx: TenantDbContext, actionPreviewId: string): Promise<ApprovalRecordRow | null> {
     const row = await this.db.prepare(FIND_BY_PREVIEW_ID_SQL)
-      .bind(actionPreviewId)
+      .bind(ctx.tenantId, actionPreviewId)
       .first<Record<string, unknown>>()
     if (!row) return null
     return this.mapRow(row)
@@ -91,14 +91,14 @@ export class D1ApprovalRecordRepository implements ApprovalRecordRepository {
     return result.results.map((row) => this.mapRow(row))
   }
 
-  async updateStatus(_ctx: TenantDbContext, id: string, status: ApprovalRecordRow["status"]): Promise<ApprovalRecordRow | null> {
-    await this.db.prepare(UPDATE_STATUS_SQL).bind(status, id).run()
-    return this.findById(_ctx, id)
+  async updateStatus(ctx: TenantDbContext, id: string, status: ApprovalRecordRow["status"]): Promise<ApprovalRecordRow | null> {
+    await this.db.prepare(UPDATE_STATUS_SQL).bind(status, ctx.tenantId, id).run()
+    return this.findById(ctx, id)
   }
 
-  async markUsed(_ctx: TenantDbContext, id: string, usedAt: string): Promise<ApprovalRecordRow | null> {
-    await this.db.prepare(MARK_USED_SQL).bind(usedAt, id).run()
-    return this.findById(_ctx, id)
+  async markUsed(ctx: TenantDbContext, id: string, usedAt: string): Promise<ApprovalRecordRow | null> {
+    await this.db.prepare(MARK_USED_SQL).bind(usedAt, ctx.tenantId, id).run()
+    return this.findById(ctx, id)
   }
 
   // ── Private ──────────────────────────────────────────────────

@@ -4,10 +4,10 @@
 
 ## 1. Purpose
 
-This document defines the MVP WorkUnit Inbox experience.
+This document defines the MVP WorkUnit signal-to-WorkUnit experience.
 
-The **Inbox** is the first product surface a user sees. It converts normalized tool
-signals (GitHub, Slack, Calendar) into actionable WorkUnits that answer:
+The **WorkUnit Launcher** is the first product surface a user sees. It opens normalized tool
+signals (GitHub, Slack, Calendar) as WorkUnits that answer:
 
 * What is happening?
 * Why does it matter?
@@ -76,30 +76,27 @@ Rules:
 
 ## 7. UI Requirements
 
-### Inbox View
-* Card list — each card shows: title, priority badge, kind label, source, reason, next action
+### WorkUnit Launcher
+* Search/list overlay — each result shows: title, ROI/priority, status, source, urgency, next step
 * Loading / error / empty states
-* AI agents should read `docs/CONTEXT_INDEX.md` before touching dashboard or inbox paths
-* Adopted desktop UI path is `WorkUnitOSDashboard`
-* Adopted dashboard visual implementation lives in `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`
-* Adopted dashboard layout is a three-pane OS console: WorkUnit Explorer, Decomposition / Judgment Console, Action Field Entry
-* The adopted shell now fetches real WorkUnits through `/api/workunit/inbox` and maps them into the preserved v0 layout through `app/lib/application/dashboard/adoptedDashboardViewModel.ts`
-* Some center/right console copy still uses deterministic fallback phrasing when inbox data lacks richer decomposition fields
-* Empty/loading/error states must be explicit; the adopted shell must not show sample WorkUnits as live data
+* AI agents should read `docs/CANONICAL_DECISION_INDEX.md` and `docs/CONTEXT_INDEX.md` before touching UI paths
+* Current implementation path is `WorkUnitOSDashboard`
+* Current visual implementation lives in `app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx`; its dashboard naming is implementation history
+* Accepted UI layout is WorkUnit Launcher + WorkUnit Graph + right-side Action Field
+* The current shell fetches real WorkUnits through `/api/workunit/inbox` and maps them through `app/lib/application/dashboard/adoptedDashboardViewModel.ts`
+* Empty/loading/error states must be explicit; the UI must not show sample WorkUnits as live data
 
-### Detail View
-* Select card → detail panel with: reason, evidence, provider, sourceUrl, actor, assignee, repo, nextAction, priority
+### WorkUnit Graph
+* Open WorkUnit → graph workspace with connected Nodes
+* Select Node → Action Field updates to the selected Node
 * Visual selection indicator
 
 ### Action Field
-* Adopted right pane in the v0 shell is the canonical Action Field Entry UI
-* Canonical dashboard Preview / Approval client lives in `app/lib/application/actionField/dashboardPreviewClient.ts`
-* Source evidence appears as a compact Evidence Capsule, not as a full source reader
-* The adopted center log label is `Decision Trace`
-* Readiness and decision-trace text now derives from selected WorkUnit fields plus deterministic UI-safe fallback wording
-* The primary CTA is `Create Action Preview`
-* CTA is disabled when no WorkUnit selected or no decision taken; preview group is derived from selected real WorkUnit via `selectedWorkUnitPreviewModel.ts`
-* Action Field Entry can create ActionPreviews through existing APIs without changing request trust boundaries
+* Right-side Action Field is the selected Node work surface
+* Preview / Approval client lives in `app/lib/application/actionField/dashboardPreviewClient.ts`
+* Linked context and generated drafts are shown as editable work material, not raw source readers
+* Preview group is derived from selected real WorkUnit via `selectedWorkUnitPreviewModel.ts`
+* Action Field can create ActionPreviews through existing APIs without changing request trust boundaries
 * Approval and execution readiness must not be shown as complete unless preview/approval state exists
 * Older `WorkUnitActionField` remains only as a migration reference
 * External execution is still disabled
@@ -115,9 +112,9 @@ Rules:
 * Inbox fetch records a usage event when the usage repository is available
 * Feedback creation records a usage event when the usage repository is available
 * Integration status reads record a usage event when the usage repository is available
-* Dashboard audit reads are tenant-scoped and sanitize metadata before returning it to the client
+* UI audit reads are tenant-scoped and sanitize metadata before returning it to the client
 * Usage metadata is sanitized and excludes raw payloads, tokens, and secrets
-* Adopted dashboard also reads tenant-scoped integration status and recent audit summaries through client-safe application helpers
+* Current UI also reads tenant-scoped integration status and recent audit summaries through client-safe application helpers
 
 ## 8. Out of Scope
 
@@ -133,8 +130,8 @@ Rules:
 ## 9. Success Metrics
 
 * User sees normalized WorkUnits from mock signals
-* User can browse, select, and inspect WorkUnits
-* Selected WorkUnit contextualizes the Action Field Entry
+* User can search, open, select, and inspect WorkUnits
+* Selected WorkUnit Node contextualizes the Action Field
 * Repeated inbox refresh does not duplicate persisted WorkUnits
 * UI feels responsive and minimal
 * All tests pass (transform + API + UI smoke)

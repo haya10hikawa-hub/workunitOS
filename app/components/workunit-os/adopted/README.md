@@ -1,9 +1,10 @@
-# Adopted WorkUnit Dashboard
+# Current WorkUnit UI Implementation
 
 ## Ownership
-- Canonical visual shell for WorkUnit OS.
+- Current implementation shell for WorkUnit OS.
 - `WorkUnitOSDashboard.tsx` renders this shell.
-- Preserve the adopted v0 layout and CSS values.
+- Product UI source of truth is `docs/CANONICAL_DECISION_INDEX.md`: WorkUnit Launcher + WorkUnit Graph + Action Field.
+- Do not treat dashboard naming in this folder as product terminology.
 
 ## Allowed imports
 - React hooks.
@@ -18,16 +19,16 @@
 - `security/session`.
 - Raw external provider clients.
 
-## Canonical files
+## Current files
 - `AdoptedWorkUnitDashboard.tsx`
 - `AdoptedWorkUnitDashboard.module.css`
 
 ## Legacy warnings
 - Do not import `app/components/workunitInbox/*`.
 - Do not import `app/components/legacy/workunitInbox/*`.
-- Do not revive old pre-v0 panes as the root dashboard.
+- Do not revive old pre-v0 panes as the product UI direction.
 
 ## Common mistakes
-- Redesigning spacing, colors, density, or layout.
+- Introducing UI patterns that conflict with WorkUnit Launcher, WorkUnit Graph, or right-side Action Field.
 - Reading raw provider payloads in the component.
 - Sending tenant, role, hash, approval status, or token fields from the client.

@@ -1,7 +1,7 @@
 # Application Action Field
 
 ## Ownership
-- Client-safe Action Field helpers for dashboard preview creation.
+- Client-safe Action Field helpers for preview creation.
 - Strips forbidden client-owned fields before API calls.
 
 ## Allowed imports

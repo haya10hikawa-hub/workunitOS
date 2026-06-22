@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises"
 const actionPreviewRoute = "app/api/workunit/[id]/action-preview/route.ts"
 const approvalRoute = "app/api/workunit/[id]/approval/route.ts"
 const dashboardComponent = "app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx"
+const dashboardPanel = "app/components/workunit-os/adopted/AdoptedActionFieldPanel.tsx"
 const cssModule = "app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.module.css"
 const auditLogType = "app/lib/security/auditLog.ts"
 
@@ -67,12 +68,12 @@ test("server still stores hashes internally in approval route", async () => {
 // ─── Approve/Reject UI removed ────────────────────────────────────
 
 test("dashboard renders Approve/Reject controls after preview creation", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   // Approve/Reject is now connected — verify it uses the canonical client
-  assert.equal(source.includes("approveDashboardActionPreviews"), true)
-  // Verify the buttons exist
-  assert.equal(source.includes('onClick={handleApprove}'), true)
-  assert.equal(source.includes('onClick={handleReject}'), true)
+  assert.equal(source.includes("approveDashboardActionPreviews"), false) // in dashboard comp
+  // Verify the buttons exist in the panel
+  assert.equal(source.includes('onClick={onApprove}'), true)
+  assert.equal(source.includes('onClick={onReject}'), true)
   // Verify showApproveReject gate exists
   assert.equal(source.includes("showApproveReject"), true)
   // But verify no raw hashes/tenantId sent from the component
@@ -314,13 +315,13 @@ test("dashboard component does not call POST /api/workunit/tools", async () => {
 })
 
 test("dashboard shows external execution blocked notice", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("External Execution"), true)
   assert.equal(source.includes("BLOCKED"), true)
 })
 
 test("execute CTA is disabled and non-executing in dashboard", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   // No real execution handler
   assert.equal(source.includes("handleExecute"), false)
   // Disabled Execute placeholder exists (not a real execution trigger)
@@ -338,7 +339,7 @@ test("view model passes externalExecutionEnabled to readiness input", async () =
 })
 
 test("component does not duplicate readiness conditions locally", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   // Readiness is derived from viewModel.executionReadiness, not local state
   assert.equal(source.includes("viewModel.executionReadiness"), true)
   // Component does NOT compute readiness from local approval state
@@ -423,7 +424,7 @@ test("dashboard component passes previewRefs to view model", async () => {
 })
 
 test("dashboard renders command envelope display", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("COMMAND ENVELOPE"), true)
   assert.equal(source.includes("viewModel.executionCommandPreview.mode"), true)
   assert.equal(source.includes("viewModel.executionCommandPreview.previewRefCount"), true)
@@ -431,24 +432,24 @@ test("dashboard renders command envelope display", async () => {
 })
 
 test("dashboard command envelope does not render approvalId", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("approvalId"), false)
 })
 
 test("dashboard command envelope does not render targetHash/payloadHash", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("targetHash"), false)
   assert.equal(source.includes("payloadHash"), false)
 })
 
 test("dashboard command envelope does not render tenantId/actorUserId/role", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("tenantId"), false)
   assert.equal(source.includes("actorUserId"), false)
 })
 
 test("dashboard command envelope does not render raw payloads or tokens", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("token"), false)
   assert.equal(source.includes("secret"), false)
   assert.equal(source.includes("rawPayload"), false)
@@ -456,7 +457,7 @@ test("dashboard command envelope does not render raw payloads or tokens", async 
 })
 
 test("dashboard command envelope display is gated on execution_blocked", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   // The envelope display only appears when traceStatus is execution_blocked
   // Count occurrences of "execution_blocked" — one for the CTA gate, one for envelope gate
   const blockedMatches = source.match(/execution_blocked/g)
@@ -529,14 +530,14 @@ test("requestedActionTypeModel maps email and gmail to email_send", async () => 
 })
 
 test("dashboard renders Not available for null requestedActionType", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Not available"), true)
   // Uses nullish coalescing for safe fallback
   assert.equal(source.includes("requestedActionType ?? "), true)
 })
 
 test("dashboard does not use nextAction as action type fallback", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   // The command envelope section should not reference nextAction
   const envelopeSection = source.slice(source.indexOf("COMMAND ENVELOPE"), source.indexOf("COMMAND ENVELOPE") + 400)
   assert.equal(envelopeSection.includes("nextAction"), false)
@@ -550,15 +551,15 @@ test("dashboard imports dry-run client helper", async () => {
 })
 
 test("dashboard renders Verify Execution button", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Verify Execution"), true)
-  assert.equal(source.includes("handleDryRun"), true)
+  assert.equal(source.includes("onDryRun"), true)
 })
 
 test("dashboard Verify button is gated on execution_blocked + previewRefs", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
-  // The button only shows when execution_blocked AND previewRefs.length > 0
-  assert.equal(source.includes('previewRefs.length > 0'), true)
+  const source = await readFile(dashboardPanel, "utf8")
+  // The button only shows when execution_blocked AND previewRefCount > 0
+  assert.equal(source.includes('previewRefCount > 0'), true)
 })
 
 test("dashboard calls dry-run only, not tools route", async () => {
@@ -572,7 +573,7 @@ test("dashboard calls dry-run only, not tools route", async () => {
 })
 
 test("dashboard dry-run result display exists", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("executionViewer.title"), true)
   assert.equal(source.includes("executionViewer.statusLabel"), true)
   assert.equal(source.includes("executionViewer.reason"), true)
@@ -599,27 +600,35 @@ test("dashboard dry-run resets state on WorkUnit switch", async () => {
 })
 
 test("dashboard Execute CTA remains disabled", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Execute (disabled)"), true)
   assert.equal(source.includes("handleExecute"), false)
+  assert.equal(source.includes("/api/workunit/tools"), false)
+})
+
+test("dashboard Execute CTA remains disabled with dry-run controls", async () => {
+  const source = await readFile(dashboardPanel, "utf8")
+  assert.equal(source.includes("Execute (disabled)"), true)
+  assert.equal(source.includes("handleExecute"), false)
+  assert.equal(source.includes("/api/workunit/tools"), false)
 })
 
 // ─── Dry-run result detail display regression ─────────────────
 
 test("dry-run result displays Actions checked", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Actions checked:"), true)
-  assert.equal(source.includes("dryRunActionCount"), true)
+  assert.equal(source.includes("executionViewer.actionCount"), true)
 })
 
 test("dry-run result displays Action type", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Action type:"), true)
-  assert.equal(source.includes("dryRunActionType"), true)
+  assert.equal(source.includes("executionViewer.requestedActionTypeLabel"), true)
 })
 
 test("dry-run result null action type renders Not available", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   // Component uses executionViewer.requestedActionTypeLabel from the model
   assert.equal(source.includes("executionViewer.requestedActionTypeLabel"), true)
   // The viewer model handles "Not available" for null action types
@@ -641,12 +650,12 @@ test("dry-run client returns requestedActionType", async () => {
 // ─── Dry-run result controls regression ───────────────────────
 
 test("dashboard has handleClearDryRun function", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
-  assert.equal(source.includes("handleClearDryRun"), true)
+  const source = await readFile(dashboardPanel, "utf8")
+  assert.equal(source.includes("onClearDryRun"), true)
 })
 
 test("Clear result is local-only — no API call", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   // handleClearDryRun only calls setDryRunStatus/idle, setDryRunMessage/null, etc.
   // No fetch, no runDashboardExecutionDryRun inside handleClearDryRun
   const clearFn = source.slice(source.indexOf("handleClearDryRun"), source.indexOf("// ─── Show Approve"))
@@ -655,19 +664,19 @@ test("Clear result is local-only — no API call", async () => {
 })
 
 test("dashboard renders Clear result button", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Clear result"), true)
 })
 
 test("dashboard renders Re-run verification button", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Re-run verification"), true)
 })
 
 test("Re-run verification reuses handleDryRun", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
-  // Both Verify Execution and Re-run verification call handleDryRun
-  assert.equal(source.includes('onClick={handleDryRun}'), true)
+  const source = await readFile(dashboardPanel, "utf8")
+  // Both Verify Execution and Re-run verification call onDryRun
+  assert.equal(source.includes('onClick={onDryRun}'), true)
 })
 
 test("Clear result resets all dry-run state fields", async () => {
@@ -685,7 +694,7 @@ test("dashboard dry-run controls do not expose approvalId", async () => {
 })
 
 test("dashboard Execute CTA remains disabled with dry-run controls", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Execute (disabled)"), true)
   assert.equal(source.includes("handleExecute"), false)
   assert.equal(source.includes("/api/workunit/tools"), false)
@@ -700,7 +709,7 @@ test("dashboard imports executionResultViewerModel", async () => {
 })
 
 test("dashboard renders dry-run result through viewer model", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("executionViewer.kind"), true)
   assert.equal(source.includes("executionViewer.title"), true)
   assert.equal(source.includes("executionViewer.statusLabel"), true)

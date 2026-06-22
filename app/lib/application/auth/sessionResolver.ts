@@ -21,6 +21,16 @@ export async function resolveSession(
     const auth = await (options.adapter ?? resolveAuthAdapter()).verify(request)
     if (!auth.ok) return { ok: false, reason: "unauthorized" }
 
+    // ─── Control-less dev session ───────────────────────────
+    // In dev sandbox with no D1/Control DB, return a session
+    // directly without requiring DB repositories.
+    if (shouldUseControlLessDevSession(auth.identity)) {
+      return {
+        ok: true,
+        session: createControlLessDevSession(auth.identity),
+      }
+    }
+
     const repos = resolveControlRepositories({ runtimeEnv: options.runtimeEnv, d1Binding: options.controlDbBinding })
     if (!repos.ok) return { ok: false, reason: "unauthorized" }
     if (shouldBootstrapDevWorkspace(auth.identity)) await bootstrapDevWorkspace(repos.bundle, auth.identity)
@@ -119,5 +129,40 @@ async function bootstrapDevWorkspace(repos: ControlRepositoryBundle, identity: V
       createdAt: now,
       updatedAt: now,
     })
+  }
+}
+
+// ─── Control-less dev session helpers ───────────────────────
+
+/**
+ * Returns true ONLY when all of these hold:
+ * - non-production environment
+ * - dev auth identity
+ * - ALLOW_DEV_SESSION explicitly enabled
+ * - ALLOW_DEV_CONTROLLESS_SESSION explicitly enabled
+ */
+function shouldUseControlLessDevSession(identity: VerifiedAuthIdentity): boolean {
+  return process.env.NODE_ENV !== "production"
+    && process.env.ALLOW_DEV_SESSION === "true"
+    && process.env.ALLOW_DEV_CONTROLLESS_SESSION === "true"
+    && identity.provider === "dev"
+}
+
+/**
+ * Builds a SessionContext directly — no Control DB lookup.
+ * Only safe because the caller already verified the dev auth identity
+ * and all four env guards in shouldUseControlLessDevSession.
+ */
+function createControlLessDevSession(identity: VerifiedAuthIdentity): SessionContext {
+  const now = new Date()
+  return {
+    userId: "dev-user" as UserId,
+    tenantId: "dev-tenant" as TenantId,
+    role: normalizeRoleInput(process.env.DEV_SESSION_ROLE as Parameters<typeof normalizeRoleInput>[0]),
+    email: identity.email,
+    isDevSession: true,
+    sessionId: `dev:${identity.providerSubject}:${Date.now()}`,
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
   }
 }

@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises"
 const dryRunRoute = "app/api/workunit/[id]/execution/dry-run/route.ts"
 const dryRunClient = "app/lib/application/dashboard/dashboardExecutionDryRunClient.ts"
 const dashboardComponent = "app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx"
+const dashboardPanel = "app/components/workunit-os/adopted/AdoptedActionFieldPanel.tsx"
 
 // ─── Route: session required ───────────────────────────────────
 
@@ -237,7 +238,7 @@ test("dashboard does not call /api/workunit/tools", async () => {
 })
 
 test("dashboard Execute CTA remains disabled", async () => {
-  const source = await readFile(dashboardComponent, "utf8")
+  const source = await readFile(dashboardPanel, "utf8")
   assert.equal(source.includes("Execute (disabled)"), true)
   assert.equal(source.includes("handleExecute"), false)
 })

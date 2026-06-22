@@ -676,7 +676,7 @@ The server:
 1. Resolves the ActionPreview by `actionPreviewId`
 2. Computes `targetHash` and `payloadHash` from the stored preview
 3. Creates `ActionApprovalRecord` with status `pending`
-4. If user has `workunit.approve_external_action` and the action is safe: auto-approves
+4. If the request is an explicit approval decision from an authorized human user, records `approved`
 5. Otherwise: returns `pending` status
 
 ### 10.2 Hash Binding

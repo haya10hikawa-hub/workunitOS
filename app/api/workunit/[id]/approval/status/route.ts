@@ -25,7 +25,6 @@ function errorResponse(requestId: string, code: string, status: number): NextRes
 
 type ApprovalStatusResponse = {
   workUnitId: string
-  latestApprovalId: string | null
   latestActionPreviewId: string | null
   status: "none" | "pending" | "approved" | "rejected" | "expired" | "used"
   approved: boolean
@@ -94,7 +93,6 @@ function computeApprovalStatus(
   if (records.length === 0) {
     return {
       workUnitId,
-      latestApprovalId: null,
       latestActionPreviewId: null,
       status: "none",
       approved: false,
@@ -114,7 +112,6 @@ function computeApprovalStatus(
   if (latest.status === "used") {
     return {
       workUnitId,
-      latestApprovalId: latest.id,
       latestActionPreviewId: latest.actionPreviewId,
       status: "used",
       approved: true, // was approved before being used
@@ -131,7 +128,6 @@ function computeApprovalStatus(
   if (latest.status === "approved" && latest.expiresAt && new Date(latest.expiresAt) < new Date()) {
     return {
       workUnitId,
-      latestApprovalId: latest.id,
       latestActionPreviewId: latest.actionPreviewId,
       status: "expired",
       approved: false,
@@ -148,7 +144,6 @@ function computeApprovalStatus(
   if (latest.status === "rejected") {
     return {
       workUnitId,
-      latestApprovalId: latest.id,
       latestActionPreviewId: latest.actionPreviewId,
       status: "rejected",
       approved: false,
@@ -165,7 +160,6 @@ function computeApprovalStatus(
   if (latest.status === "approved") {
     return {
       workUnitId,
-      latestApprovalId: latest.id,
       latestActionPreviewId: latest.actionPreviewId,
       status: "approved",
       approved: true,
@@ -181,7 +175,6 @@ function computeApprovalStatus(
   // Pending or any other status
   return {
     workUnitId,
-    latestApprovalId: latest.id,
     latestActionPreviewId: latest.actionPreviewId,
     status: "pending",
     approved: false,
