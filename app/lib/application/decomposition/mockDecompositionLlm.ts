@@ -24,6 +24,8 @@ export type MockDecompositionLlmValidationResult =
   | { readonly ok: false; readonly reason: "invalid_mock_llm_output" | "forbidden_mock_llm_output" }
 
 const ALLOWED_OUTPUT_KEYS = new Set(["text", "intent", "outcome", "verifier", "acceptanceCriteria", "confidence"])
+const FORBIDDEN_PROVIDER_PAYLOAD_TEXT =
+  /raw\s+provider\s+(payload|body)|provider-ready\s+payload|provider\s+(raw\s+)?(payload|body)|sendable\s+provider\s+payload/i
 
 export function createStaticMockDecompositionLlm(output: MockDecompositionLlmOutput): MockDecompositionLlm {
   return {
@@ -42,13 +44,18 @@ export function validateMockDecompositionLlmOutput(value: unknown): MockDecompos
   if (candidate.verifier !== undefined && typeof candidate.verifier !== "string") return { ok: false, reason: "invalid_mock_llm_output" }
   if (candidate.acceptanceCriteria !== undefined && !isStringArray(candidate.acceptanceCriteria)) return { ok: false, reason: "invalid_mock_llm_output" }
   if (candidate.confidence !== undefined && !isValidConfidence(candidate.confidence)) return { ok: false, reason: "invalid_mock_llm_output" }
-  const textValues = [candidate.text, candidate.intent, candidate.outcome, candidate.verifier, ...(isStringArray(candidate.acceptanceCriteria) ? candidate.acceptanceCriteria : [])].filter(Boolean)
+  const textValues = [candidate.text, candidate.intent, candidate.outcome, candidate.verifier, ...(isStringArray(candidate.acceptanceCriteria) ? candidate.acceptanceCriteria : [])].filter(isString)
+  if (textValues.some((text) => FORBIDDEN_PROVIDER_PAYLOAD_TEXT.test(text))) return { ok: false, reason: "forbidden_mock_llm_output" }
   if (!scanLlmContextExclusions(textValues).ok) return { ok: false, reason: "forbidden_mock_llm_output" }
   return { ok: true, output: candidate as MockDecompositionLlmOutput }
 }
 
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string")
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string"
 }
 
 function isValidConfidence(value: unknown): value is number {

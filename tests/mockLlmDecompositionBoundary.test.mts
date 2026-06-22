@@ -15,6 +15,19 @@ test("mock LLM schema rejects provider payload and forbidden fields", () => {
   assert.equal(validateMockDecompositionLlmOutput({ text: "safe", rawPayload: "{}" }).ok, false)
   assert.equal(validateMockDecompositionLlmOutput({ text: "safe", confidence: 2 }).ok, false)
   assert.equal(validateMockDecompositionLlmOutput({ text: "approvalId: approval:1" }).ok, false)
+  assert.equal(validateMockDecompositionLlmOutput({ text: "provider-ready payload" }).ok, false)
+  assert.equal(validateMockDecompositionLlmOutput({ text: "raw provider payload body" }).ok, false)
+})
+
+test("orchestrator blocks provider payload text from mock LLM output", () => {
+  const result = runDecompositionOrchestrator({
+    safeInputSummary: "Slack投稿を準備する",
+    sourceRef,
+    mockLlm: createStaticMockDecompositionLlm({ text: "provider-ready payload" }),
+  })
+  assert.equal(result.ok, false)
+  assert.equal(result.reason, "forbidden_mock_llm_output")
+  assert.equal(result.mockCalled, true)
 })
 
 test("mock LLM output cannot become Formal Node directly", () => {
