@@ -68,6 +68,9 @@ test("P0: forbidden summary text blocks before mock LLM call", () => {
   for (const input of [
     { safeInputSummary: "hash: abc123" },
     { safeInputSummary: "role: admin" },
+    { safeInputSummary: "providerPayload" },
+    { safeInputSummary: "sendable body" },
+    { safeInputSummary: "approvedOutboundPayload" },
     { safeInputSummary: "raw provider payload body" },
     { safeInputSummary: "safe", sourceSummary: "provider-ready payload" },
     { safeInputSummary: "safe", evidenceSummaries: ["raw provider payload"] },
@@ -92,6 +95,9 @@ test("P0: forbidden memory summary text blocks before mock LLM call", () => {
   for (const input of [
     { hotMemorySummaries: ["hash: abc123"] },
     { warmMemorySummaries: ["role: admin"] },
+    { hotMemorySummaries: ["providerPayload"] },
+    { warmMemorySummaries: ["sendable body"] },
+    { hotMemorySummaries: ["approvedOutboundPayload"] },
   ]) {
     const result = runDecompositionOrchestrator({ safeInputSummary: "safe summary", sourceRef, mockLlm, ...input })
     assert.equal(result.ok, false)

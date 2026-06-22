@@ -25,7 +25,7 @@ export type MockDecompositionLlmValidationResult =
 
 const ALLOWED_OUTPUT_KEYS = new Set(["text", "intent", "outcome", "verifier", "acceptanceCriteria", "confidence"])
 const FORBIDDEN_PROVIDER_PAYLOAD_TEXT =
-  /raw\s+provider\s+(payload|body)|provider-ready\s+payload|provider\s*(raw\s*)?(payload|body)|sendable\s+provider\s+payload/i
+  /raw\s+provider\s+(payload|body)|provider-ready\s+payload|provider\s*(raw\s*)?(payload|body)|sendable\s+(provider\s+)?(payload|body)|approvedOutboundPayload|approvedOutboundBody|approved\s+outbound\s+(payload|body)/i
 const FORBIDDEN_SECURITY_FIELD_TEXT = /\b(hash|role)\b(?:\s*:|\s+\w+|\b)/i
 
 export function createStaticMockDecompositionLlm(output: MockDecompositionLlmOutput): MockDecompositionLlm {

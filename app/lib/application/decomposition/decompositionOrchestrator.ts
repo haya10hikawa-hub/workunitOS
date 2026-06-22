@@ -38,7 +38,7 @@ type SummaryBoundaryFinding = {
 }
 
 const FORBIDDEN_SUMMARY_TEXT =
-  /\b(hash|role|approvalId|targetHash|payloadHash|tenantId|userId|actorUserId|rawPayload|rawBody|sendableBody|approvedOutboundBody|dbUpdatePayload)\b|raw\s+(provider|slack|gmail|notion|drive|calendar)\s+(payload|body)|provider\s+(raw\s+)?(payload|body)|provider-ready\s+payload/i
+  /\b(hash|role|approvalId|targetHash|payloadHash|tenantId|userId|actorUserId|rawPayload|rawBody|providerPayload|sendableBody|approvedOutboundPayload|approvedOutboundBody|dbUpdatePayload)\b|raw\s+(provider|slack|gmail|notion|drive|calendar)\s+(payload|body)|provider\s*(raw\s*)?(payload|body)|provider-ready\s+payload|sendable\s+(provider\s+)?(payload|body)|approved\s+outbound\s+(payload|body)/i
 
 export type DecompositionOrchestrationResult =
   | {
