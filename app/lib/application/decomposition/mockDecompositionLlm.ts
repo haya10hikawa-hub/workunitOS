@@ -25,7 +25,8 @@ export type MockDecompositionLlmValidationResult =
 
 const ALLOWED_OUTPUT_KEYS = new Set(["text", "intent", "outcome", "verifier", "acceptanceCriteria", "confidence"])
 const FORBIDDEN_PROVIDER_PAYLOAD_TEXT =
-  /raw\s+provider\s+(payload|body)|provider-ready\s+payload|provider\s+(raw\s+)?(payload|body)|sendable\s+provider\s+payload/i
+  /raw\s+provider\s+(payload|body)|provider-ready\s+payload|provider\s*(raw\s*)?(payload|body)|sendable\s+provider\s+payload/i
+const FORBIDDEN_SECURITY_FIELD_TEXT = /\b(hash|role)\b\s*:/i
 
 export function createStaticMockDecompositionLlm(output: MockDecompositionLlmOutput): MockDecompositionLlm {
   return {
@@ -46,6 +47,7 @@ export function validateMockDecompositionLlmOutput(value: unknown): MockDecompos
   if (candidate.confidence !== undefined && !isValidConfidence(candidate.confidence)) return { ok: false, reason: "invalid_mock_llm_output" }
   const textValues = [candidate.text, candidate.intent, candidate.outcome, candidate.verifier, ...(isStringArray(candidate.acceptanceCriteria) ? candidate.acceptanceCriteria : [])].filter(isString)
   if (textValues.some((text) => FORBIDDEN_PROVIDER_PAYLOAD_TEXT.test(text))) return { ok: false, reason: "forbidden_mock_llm_output" }
+  if (textValues.some((text) => FORBIDDEN_SECURITY_FIELD_TEXT.test(text))) return { ok: false, reason: "forbidden_mock_llm_output" }
   if (!scanLlmContextExclusions(textValues).ok) return { ok: false, reason: "forbidden_mock_llm_output" }
   return { ok: true, output: candidate as MockDecompositionLlmOutput }
 }
