@@ -20,6 +20,10 @@ test("mock LLM schema rejects provider payload and forbidden fields", () => {
   assert.equal(validateMockDecompositionLlmOutput({ text: "providerPayload" }).ok, false)
   assert.equal(validateMockDecompositionLlmOutput({ text: "hash: abc123" }).ok, false)
   assert.equal(validateMockDecompositionLlmOutput({ text: "role: admin" }).ok, false)
+  assert.equal(validateMockDecompositionLlmOutput({ text: "hash" }).ok, false)
+  assert.equal(validateMockDecompositionLlmOutput({ text: "role" }).ok, false)
+  assert.equal(validateMockDecompositionLlmOutput({ text: "hash abc123" }).ok, false)
+  assert.equal(validateMockDecompositionLlmOutput({ text: "role admin" }).ok, false)
 })
 
 test("orchestrator blocks provider payload text from mock LLM output", () => {
@@ -33,8 +37,8 @@ test("orchestrator blocks provider payload text from mock LLM output", () => {
   assert.equal(result.mockCalled, true)
 })
 
-test("orchestrator blocks hash and camelCase provider payload from mock LLM output", () => {
-  for (const text of ["hash: abc123", "providerPayload"]) {
+test("orchestrator blocks hash role and camelCase provider payload from mock LLM output", () => {
+  for (const text of ["hash: abc123", "hash abc123", "role admin", "providerPayload"]) {
     const result = runDecompositionOrchestrator({
       safeInputSummary: "Slack投稿を準備する",
       sourceRef,
