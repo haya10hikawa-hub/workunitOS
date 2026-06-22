@@ -47,6 +47,12 @@ test("P0: draft, preview, approval cannot skip boundaries", () => {
   assert.ok(detectForbiddenPromotion({ from: "approval", to: "execution" }).includes("approval_to_execution"))
 })
 
+test("P0: Evidence Noise and Subtask must not promote to Formal", () => {
+  assert.ok(detectForbiddenPromotion({ from: "evidence", to: "formal" }).includes("evidence_to_formal_without_independent_done_condition"))
+  assert.ok(detectForbiddenPromotion({ from: "noise", to: "formal" }).includes("noise_to_formal"))
+  assert.ok(detectForbiddenPromotion({ from: "subtask", to: "formal" }).includes("subtask_to_formal_without_separate_boundary"))
+})
+
 test("P0: AI verifier is rejected", () => {
   const status = evaluateDoneConditionDraft({ ...completeDone, verifier: "AI" })
   assert.equal(status.status, "invalid")

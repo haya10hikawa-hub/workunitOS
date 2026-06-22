@@ -35,6 +35,25 @@ test("formal output is always candidate-only", () => {
   assert.equal(JSON.stringify(result).includes('"trustLevel":"reviewed"'), false)
 })
 
+test("mock LLM-shaped output cannot become final Formal without Human Review", () => {
+  const result = classifyDecompositionCandidate({
+    text: "A社契約書の修正要否をPM確認可能なメモにする",
+    sourceRef,
+    outcome: "PM can review the contract decision memo.",
+    verifier: "human_owner",
+    acceptanceCriteria: ["Human owner can verify the memo before formalization."],
+    context: { mockProvider: "mock-only", confidence: 0.99 },
+  })
+  const flat = JSON.stringify(result)
+  assert.equal(result.target, "formal_node_candidate")
+  assert.equal(result.candidateOnly, true)
+  assert.equal(result.formalNodeCandidate?.humanReviewRequired, true)
+  assert.equal(result.humanReview?.requiredBefore, "formalization")
+  assert.equal(flat.includes('"formalNodeId"'), false)
+  assert.equal(flat.includes('"reviewedAt"'), false)
+  assert.equal(flat.includes('"approvedBy"'), false)
+})
+
 test("DoneConditionDraft complete is not final done", () => {
   const draft = buildDoneConditionDraft({
     text: "A社契約書の修正要否を金曜までにPM確認可能なメモにする",
