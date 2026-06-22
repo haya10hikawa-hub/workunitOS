@@ -173,10 +173,26 @@ test("dry-run rejects missing previewRefs", async () => {
       requestedActionType: null,
     })
     const response = await POST(request, { params: Promise.resolve({ id: workUnitId }) })
-    // previewRefs defaults to [] — not rejected but returns hash_mismatch
     const body = await response.json()
     assert.equal(body.ok, true)
     assert.equal(body.status, "not_ready")
+  })
+})
+
+test("dry-run cannot verify with empty previewRefs even when approval and kill switch allow", async () => {
+  await withPersistence(async () => {
+    process.env.EXTERNAL_ACTIONS_ENABLED = "true"
+    await seedApproval({ tenantId, workUnitId, status: "approved" })
+    const request = makeRequest(workUnitId, {
+      workUnitId,
+      previewRefs: [],
+      requestedActionType: actionType,
+    })
+    const response = await POST(request, { params: Promise.resolve({ id: workUnitId }) })
+    const body = await response.json()
+    assert.equal(body.ok, true)
+    assert.equal(body.status, "not_ready")
+    assert.equal(body.reason.includes("preview"), true)
   })
 })
 

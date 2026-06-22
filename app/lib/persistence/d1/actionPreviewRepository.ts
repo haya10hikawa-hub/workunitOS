@@ -21,11 +21,11 @@ const INSERT_SQL = `
 `
 
 const FIND_BY_ID_SQL = `
-  SELECT * FROM action_previews WHERE id = ?
+  SELECT * FROM action_previews WHERE tenant_id = ? AND id = ?
 `
 
 const FIND_BY_WORK_UNIT_SQL = `
-  SELECT * FROM action_previews WHERE work_unit_id = ? ORDER BY created_at DESC
+  SELECT * FROM action_previews WHERE tenant_id = ? AND work_unit_id = ? ORDER BY created_at DESC
 `
 
 // ─── Implementation ─────────────────────────────────────────────
@@ -56,15 +56,15 @@ export class D1ActionPreviewRepository implements ActionPreviewRepository {
     return row
   }
 
-  async findById(_ctx: TenantDbContext, id: string): Promise<ActionPreviewRow | null> {
-    const row = await this.db.prepare(FIND_BY_ID_SQL).bind(id).first<Record<string, unknown>>()
+  async findById(ctx: TenantDbContext, id: string): Promise<ActionPreviewRow | null> {
+    const row = await this.db.prepare(FIND_BY_ID_SQL).bind(ctx.tenantId, id).first<Record<string, unknown>>()
     if (!row) return null
     return this.mapRow(row)
   }
 
-  async findByWorkUnitId(_ctx: TenantDbContext, workUnitId: string): Promise<ActionPreviewRow[]> {
+  async findByWorkUnitId(ctx: TenantDbContext, workUnitId: string): Promise<ActionPreviewRow[]> {
     const result = await this.db.prepare(FIND_BY_WORK_UNIT_SQL)
-      .bind(workUnitId)
+      .bind(ctx.tenantId, workUnitId)
       .all<Record<string, unknown>>()
     return result.results.map((r) => this.mapRow(r))
   }

@@ -94,8 +94,13 @@ class FakeD1Statement implements D1PreparedStatementLike {
     if (lower.startsWith("update")) {
       const table = this.store.get(this.tableName)
       if (table && this.values.length >= 2) {
-        const id = String(this.values[this.values.length - 1])
-        const existing = table.get(id)
+        const whereCols = this.extractWhereColumns()
+        const whereValues = whereCols.length > 0 ? this.values.slice(-whereCols.length) : [this.values[this.values.length - 1]]
+        const existing = Array.from(table.values()).find((row) =>
+          whereCols.length === 0
+            ? String(row.id) === String(whereValues[0])
+            : whereCols.every((col, index) => String(row[col]) === String(whereValues[index]))
+        )
         if (existing) {
           const updated = { ...existing }
           if (lower.includes("status") && lower.includes("used_at")) {
@@ -107,7 +112,7 @@ class FakeD1Statement implements D1PreparedStatementLike {
           } else if (lower.includes("status")) {
             updated["status"] = this.values[0]
           }
-          table.set(id, updated)
+          table.set(String(updated.id), updated)
         }
       }
       return { success: true }
