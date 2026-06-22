@@ -31,6 +31,15 @@ type DecompositionOrchestrationBlockedReason =
   | "forbidden_mock_llm_output"
   | "p0_violation"
 
+type SummaryBoundaryFinding = {
+  readonly path: string
+  readonly valuePreview: string
+  readonly reason: "forbidden_summary_text"
+}
+
+const FORBIDDEN_SUMMARY_TEXT =
+  /\b(hash|role|approvalId|targetHash|payloadHash|tenantId|userId|actorUserId|rawPayload|rawBody|sendableBody|approvedOutboundBody|dbUpdatePayload)\b|raw\s+(provider|slack|gmail|notion|drive|calendar)\s+(payload|body)|provider\s+(raw\s+)?(payload|body)|provider-ready\s+payload/i
+
 export type DecompositionOrchestrationResult =
   | {
     readonly ok: true
@@ -55,6 +64,18 @@ export type DecompositionOrchestrationResult =
   }
 
 export function runDecompositionOrchestrator(input: DecompositionOrchestratorInput): DecompositionOrchestrationResult {
+  const summaryScan = scanSummaryBoundary([
+    ["safeInputSummary", input.safeInputSummary],
+    ["sourceSummary", input.sourceSummary],
+    ...(input.evidenceSummaries ?? []).map((value, index) => [`evidenceSummaries[${index}]`, value] as const),
+    ...(input.relatedCandidateSummaries ?? []).map((value, index) => [`relatedCandidateSummaries[${index}]`, value] as const),
+  ])
+  if (summaryScan.length > 0) return blocked("forbidden_context", false, summaryScan)
+  const memorySummaryScan = scanSummaryBoundary([
+    ...(input.hotMemorySummaries ?? []).map((value, index) => [`hotMemorySummaries[${index}]`, value] as const),
+    ...(input.warmMemorySummaries ?? []).map((value, index) => [`warmMemorySummaries[${index}]`, value] as const),
+  ])
+  if (memorySummaryScan.length > 0) return blocked("forbidden_memory", false, memorySummaryScan)
   const hot = selectHotMemorySummaries({ summaries: input.hotMemorySummaries ?? [] })
   if (!hot.ok) return blocked("forbidden_memory", false, hot.findings)
   const warm = selectWarmMemorySummaries({ summaries: input.warmMemorySummaries ?? [] })
@@ -113,4 +134,8 @@ function gateSource(target: DecompositionTarget): "pending" | "evidence" | "subt
 
 function blocked(reason: DecompositionOrchestrationBlockedReason, mockCalled: boolean, findings?: readonly unknown[]): DecompositionOrchestrationResult {
   return { ok: false, phase: "blocked", candidateOnly: true, mockBoundary: "mock_only", reason, mockCalled, findings }
+}
+
+function scanSummaryBoundary(entries: readonly (readonly [string, string | undefined])[]): readonly SummaryBoundaryFinding[] {
+  return entries.flatMap(([path, value]) => value && FORBIDDEN_SUMMARY_TEXT.test(value) ? [{ path, valuePreview: value.slice(0, 80), reason: "forbidden_summary_text" as const }] : [])
 }

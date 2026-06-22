@@ -55,3 +55,48 @@ test("P0: forbidden memory context blocks orchestration", () => {
   assert.equal(result.reason, "forbidden_memory")
   assert.equal(result.mockCalled, false)
 })
+
+test("P0: forbidden summary text blocks before mock LLM call", () => {
+  let calls = 0
+  const mockLlm: MockDecompositionLlm = {
+    kind: "mock",
+    generate: () => {
+      calls += 1
+      return { text: "should not run" }
+    },
+  }
+  for (const input of [
+    { safeInputSummary: "hash: abc123" },
+    { safeInputSummary: "role: admin" },
+    { safeInputSummary: "raw provider payload body" },
+    { safeInputSummary: "safe", sourceSummary: "provider-ready payload" },
+    { safeInputSummary: "safe", evidenceSummaries: ["raw provider payload"] },
+  ]) {
+    const result = runDecompositionOrchestrator({ sourceRef, mockLlm, ...input })
+    assert.equal(result.ok, false)
+    assert.equal(result.reason, "forbidden_context")
+    assert.equal(result.mockCalled, false)
+  }
+  assert.equal(calls, 0)
+})
+
+test("P0: forbidden memory summary text blocks before mock LLM call", () => {
+  let calls = 0
+  const mockLlm: MockDecompositionLlm = {
+    kind: "mock",
+    generate: () => {
+      calls += 1
+      return { text: "should not run" }
+    },
+  }
+  for (const input of [
+    { hotMemorySummaries: ["hash: abc123"] },
+    { warmMemorySummaries: ["role: admin"] },
+  ]) {
+    const result = runDecompositionOrchestrator({ safeInputSummary: "safe summary", sourceRef, mockLlm, ...input })
+    assert.equal(result.ok, false)
+    assert.equal(result.reason, "forbidden_memory")
+    assert.equal(result.mockCalled, false)
+  }
+  assert.equal(calls, 0)
+})
