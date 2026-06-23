@@ -1,4 +1,4 @@
-import { REAL_LLM_PROVIDER_POLICY_REQUIRED, REQUIRED_FORBIDDEN_MODEL_CONTEXT_FIELDS, type RealLlmProviderBoundaryPolicy } from "./realLlmProviderPolicy.ts"
+import { REQUIRED_FORBIDDEN_MODEL_CONTEXT_FIELDS, type RealLlmProviderBoundaryPolicy } from "./realLlmProviderPolicy.ts"
 
 export type RealLlmReadinessBlocker =
   | "provider_not_disabled_by_default"
@@ -35,7 +35,24 @@ export function evaluateRealLlmReadiness(policy: Partial<RealLlmProviderBoundary
 }
 
 function defaultNoGoPolicy(): RealLlmProviderBoundaryPolicy {
-  return { ...REAL_LLM_PROVIDER_POLICY_REQUIRED, featureFlagRequired: false, globalKillSwitchRequired: false, tenantAllowlistRequired: false, budgetLimitRequired: false, redactionRequired: false, auditLoggingRequired: false, p0ExclusionScannerRequired: false, contextFieldAllowlistRequired: false }
+  return {
+    providerDisabledByDefault: false,
+    featureFlagRequired: false,
+    globalKillSwitchRequired: false,
+    tenantAllowlistRequired: false,
+    budgetLimitRequired: false,
+    redactionRequired: false,
+    auditLoggingRequired: false,
+    p0ExclusionScannerRequired: false,
+    contextFieldAllowlistRequired: false,
+    rawProviderPayloadAllowed: true,
+    forbiddenContextFields: [],
+    providerOutputCanCreateFormalNode: true,
+    providerOutputCanCreateApproval: true,
+    providerOutputCanCreateExecution: true,
+    humanReviewRequired: false,
+    externalExecutionDisabled: false,
+  }
 }
 
 function requiredBooleanBlockers(policy: RealLlmProviderBoundaryPolicy): readonly RealLlmReadinessBlocker[] {

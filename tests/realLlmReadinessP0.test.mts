@@ -25,6 +25,24 @@ test("missing forbidden context field list returns No-Go instead of throwing", (
   assert.equal(result.blockedReasons.includes("forbidden_context_field_not_blocked"), true)
 })
 
+test("partial policy missing required safety fields remains No-Go", () => {
+  const result = evaluateRealLlmReadiness({
+    featureFlagRequired: true,
+    globalKillSwitchRequired: true,
+    tenantAllowlistRequired: true,
+    budgetLimitRequired: true,
+    redactionRequired: true,
+    auditLoggingRequired: true,
+    p0ExclusionScannerRequired: true,
+    contextFieldAllowlistRequired: true,
+  })
+  assert.equal(result.go, false)
+  assert.equal(result.blockedReasons.includes("provider_not_disabled_by_default"), true)
+  assert.equal(result.blockedReasons.includes("forbidden_context_field_not_blocked"), true)
+  assert.equal(result.blockedReasons.includes("human_review_not_required"), true)
+  assert.equal(result.blockedReasons.includes("external_execution_not_disabled"), true)
+})
+
 test("provider output cannot create Approval Execution or Formal Node", () => {
   const cases: readonly Partial<RealLlmProviderBoundaryPolicy>[] = [
     { providerOutputCanCreateApproval: true },
