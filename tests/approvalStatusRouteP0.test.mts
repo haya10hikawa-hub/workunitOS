@@ -9,6 +9,7 @@ import type { AppEnv } from "../app/types/cloudflare-env.ts"
 import { FakeD1Database } from "./helpers/fakeD1.ts"
 
 const tenantId = "dev-tenant" as TenantId
+const testSafeFutureExpiresAt = "2999-01-01T00:00:00.000Z"
 
 test("approval status route does not expose approvalId or hashes", async () => {
   await withPersistence(async () => {
@@ -70,6 +71,6 @@ function approvalRow(): ApprovalRecordRow {
     status: "approved",
     createdAt: "2026-06-22T00:00:00.000Z",
     approvedAt: "2026-06-22T00:00:00.000Z",
-    expiresAt: "2026-06-23T00:00:00.000Z",
+    expiresAt: testSafeFutureExpiresAt,
   }
 }
