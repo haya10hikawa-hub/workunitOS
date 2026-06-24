@@ -12,7 +12,7 @@ test("redacts approvalId value preview", () => {
 test("redacts hash value preview", () => {
   const d = toSafeDiagnostic({ path: "$.targetHash", key: "targetHash", reason: "forbidden_key", valuePreview: "sha256-secret-hash-string" })
   assert.equal("valuePreview" in d, false)
-  assert.equal(d.valueLength, 26)
+  assert.equal(d.valueLength, 25)
 })
 
 test("redacts tenantId value preview", () => {
@@ -33,7 +33,7 @@ test("redacts role value preview", () => {
 test("redacts arbitrary sensitive text", () => {
   const d = toSafeDiagnostic({ path: "$.body", key: "body", reason: "forbidden_value", valuePreview: "Dear Customer, your account password is abc123." })
   assert.equal("valuePreview" in d, false)
-  assert.equal(d.valueLength, 48)
+  assert.equal(d.valueLength, 47)
 })
 
 test("safe diagnostic preserves metadata", () => {
