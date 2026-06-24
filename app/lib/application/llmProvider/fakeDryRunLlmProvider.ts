@@ -35,7 +35,19 @@ function fakeAdapt(
   controls: LlmProviderRuntimeControls,
   policy?: Partial<RealLlmProviderBoundaryPolicy>,
 ): ProviderDryRunResult {
-  void controls; void policy
+  // Run boundary check first — never return ok:true if blocked
+  const boundary = evaluateLlmProviderBoundary({ request, controls, policy })
+  if (boundary.blockedReasons.length > 0) {
+    return {
+      providerId: "fake-dry-run",
+      route: request.contextPack.route,
+      mode: "dry_run",
+      ok: false,
+      blockedReasons: boundary.blockedReasons,
+      readinessBlockedReasons: boundary.readinessBlockedReasons,
+    }
+  }
+
   // Deterministic response keyed on route
   const body = routeResponses[request.contextPack.route] ?? routeResponses.fast_extraction
 
