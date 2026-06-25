@@ -11,6 +11,7 @@
 
 export type ProviderAdapterId =
   | "blocked_provider_adapter"
+  | "dry_run_provider_adapter"
   | "future_live_provider_adapter"
 
 export type ProviderAdapterMode =
