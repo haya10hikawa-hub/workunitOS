@@ -15,7 +15,7 @@ for (const [name, src] of [["dryRunAdapter", SRC], ["boundary", BOUNDARY_SRC]] a
   test(`P0: ${name} - no fetch`, () => { assert.equal(src.includes("fetch("), false) })
   test(`P0: ${name} - no process.env`, () => { assert.equal(src.includes("process.env"), false) })
   test(`P0: ${name} - no API key patterns`, () => {
-    for (const p of ["sk-", "API_KEY", "TOKEN", "Bearer"]) {
+    for (const p of ["sk-", "API_KEY", "TOKEN", "Bearer", "SECRET"]) {
       assert.equal(src.includes(p), false)
     }
   })

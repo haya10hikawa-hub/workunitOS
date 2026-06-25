@@ -108,3 +108,29 @@ test("providerAdapterBoundary still keeps all false invariants", () => {
     assert.ok(BOUNDARY_SRC.includes(invariant), `boundary should contain ${invariant}`)
   }
 })
+
+// ─── maxOutputChars edge cases ───────────────────────────────
+
+test("negative maxOutputChars returns empty candidate without throwing", () => {
+  const r = DRY_RUN_PROVIDER_ADAPTER.executeCandidate(ctx, { prompt: "p", maxOutputChars: -1 })
+  assert.equal(r.textCandidate, "")
+  assert.equal(r.candidateOnly, true)
+  assert.equal(r.liveIntegrationAllowed, false)
+})
+
+test("zero maxOutputChars returns empty candidate without throwing", () => {
+  const r = DRY_RUN_PROVIDER_ADAPTER.executeCandidate(ctx, { prompt: "p", maxOutputChars: 0 })
+  assert.equal(r.textCandidate, "")
+})
+
+test("fractional maxOutputChars is floored", () => {
+  const r = DRY_RUN_PROVIDER_ADAPTER.executeCandidate(ctx, { prompt: "p", maxOutputChars: 10.9 })
+  assert.equal(r.textCandidate.length, 10)
+})
+
+test("non-finite maxOutputChars returns empty candidate without throwing", () => {
+  for (const n of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const r = DRY_RUN_PROVIDER_ADAPTER.executeCandidate(ctx, { prompt: "p", maxOutputChars: n })
+    assert.equal(r.textCandidate, "")
+  }
+})

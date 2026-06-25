@@ -35,8 +35,13 @@ function createDryRunResult(): ProviderCandidateResult {
 function createTruncatedDryRunResult(outputChars: number): ProviderCandidateResult {
   return {
     ...createDryRunResult(),
-    textCandidate: DRY_RUN_TEXT.slice(0, outputChars),
+    textCandidate: outputChars > 0 ? DRY_RUN_TEXT.slice(0, outputChars) : "",
   }
+}
+
+function normalizeMaxOutputChars(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.floor(n))
 }
 
 export const DRY_RUN_PROVIDER_ADAPTER: ProviderAdapter = {
@@ -44,8 +49,9 @@ export const DRY_RUN_PROVIDER_ADAPTER: ProviderAdapter = {
   mode: "dry_run",
   executeCandidate: (_context: ProviderAdapterContext, input: { readonly prompt: string; readonly maxOutputChars: number }) => {
     void input.prompt // never echoed
-    return input.maxOutputChars >= DRY_RUN_TEXT.length
+    const safeMaxOutputChars = normalizeMaxOutputChars(input.maxOutputChars)
+    return safeMaxOutputChars >= DRY_RUN_TEXT.length
       ? createDryRunResult()
-      : createTruncatedDryRunResult(input.maxOutputChars)
+      : createTruncatedDryRunResult(safeMaxOutputChars)
   },
 }
