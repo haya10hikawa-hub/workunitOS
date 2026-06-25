@@ -75,3 +75,20 @@ test("source has no provider SDK", () => {
     assert.equal(SRC.includes(sdk), false, `should not contain ${sdk}`)
   }
 })
+
+test("serialized result has no executionId", () => {
+  const s = JSON.stringify(BLOCKED_PROVIDER_ADAPTER.executeCandidate(ctx, { prompt: "test", maxOutputChars: 100 }))
+  assert.equal(s.includes("executionId"), false)
+})
+
+test("blocked adapter returns a fresh result object per call", () => {
+  const a = BLOCKED_PROVIDER_ADAPTER.executeCandidate(ctx, { prompt: "test", maxOutputChars: 100 })
+  ;(a as unknown as { liveIntegrationAllowed: boolean }).liveIntegrationAllowed = true
+
+  const b = BLOCKED_PROVIDER_ADAPTER.executeCandidate(ctx, { prompt: "test", maxOutputChars: 100 })
+
+  assert.equal(b.liveIntegrationAllowed, false)
+  assert.equal(b.externalExecutionAllowed, false)
+  assert.equal(b.approvalCreationAllowed, false)
+  assert.equal(b.executionCreationAllowed, false)
+})
