@@ -5,9 +5,19 @@ import { join } from "node:path"
 import {
   createCurrentKnownPassingProposalInput,
   evaluateLiveProviderProposalGate,
+  type LiveProviderProposalGateId,
+  type LiveProviderProposalGateInput,
 } from "../app/lib/application/llmProvider/liveProviderProposalGate.ts"
 
 const SRC = readFileSync(join(import.meta.dirname!, "../app/lib/application/llmProvider/liveProviderProposalGate.ts"), "utf-8")
+
+function withGateStatus(
+  id: LiveProviderProposalGateId,
+  status: "pass" | "fail" | "warning",
+): LiveProviderProposalGateInput {
+  const base = createCurrentKnownPassingProposalInput()
+  return { gates: base.gates.map((g) => g.id === id ? { ...g, status } : g) }
+}
 
 // ─── Default known state ──────────────────────────────────────
 
@@ -15,21 +25,6 @@ test("default complete input returns Go", () => {
   const r = evaluateLiveProviderProposalGate(createCurrentKnownPassingProposalInput())
   assert.equal(r.decision, "go_to_open_separate_future_live_provider_adapter_pr")
   assert.equal(r.mayOpenFutureProviderAdapterPr, true)
-})
-
-test("Go keeps liveIntegrationAllowed false", () => {
-  const r = evaluateLiveProviderProposalGate(createCurrentKnownPassingProposalInput())
-  assert.equal(r.liveIntegrationAllowed, false)
-})
-
-test("Go keeps liveProviderAdapterImplemented false", () => {
-  const r = evaluateLiveProviderProposalGate(createCurrentKnownPassingProposalInput())
-  assert.equal(r.liveProviderAdapterImplemented, false)
-})
-
-test("Go keeps externalExecutionAllowed false", () => {
-  const r = evaluateLiveProviderProposalGate(createCurrentKnownPassingProposalInput())
-  assert.equal(r.externalExecutionAllowed, false)
 })
 
 // ─── P0 gate failures ─────────────────────────────────────────
@@ -42,10 +37,12 @@ test("missing P0 gate returns No-Go", () => {
 })
 
 test("failed P0 gate returns No-Go", () => {
-  const r = evaluateLiveProviderProposalGate({
-    gates: [{ id: "no_sdk_current_phase", status: "fail" }],
-  })
+  const r = evaluateLiveProviderProposalGate(withGateStatus("no_sdk_current_phase", "fail"))
   assert.equal(r.decision, "no_go")
+  assert.equal(r.mayOpenFutureProviderAdapterPr, false)
+  assert.equal(r.liveIntegrationAllowed, false)
+  assert.equal(r.liveProviderAdapterImplemented, false)
+  assert.equal(r.externalExecutionAllowed, false)
 })
 
 // ─── Required gate failures ───────────────────────────────────
@@ -59,20 +56,14 @@ test("missing required gate returns No-Go", () => {
 })
 
 test("failed required gate returns No-Go", () => {
-  const base = createCurrentKnownPassingProposalInput()
-  const r = evaluateLiveProviderProposalGate({
-    gates: base.gates.map((g) => g.id === "budget_cap" ? { ...g, status: "fail" as const } : g),
-  })
+  const r = evaluateLiveProviderProposalGate(withGateStatus("budget_cap", "fail"))
   assert.equal(r.decision, "no_go")
 })
 
 // ─── Warning → Conditional Go ─────────────────────────────────
 
 test("warning gate returns Conditional Go", () => {
-  const base = createCurrentKnownPassingProposalInput()
-  const r = evaluateLiveProviderProposalGate({
-    gates: base.gates.map((g) => g.id === "budget_cap" ? { ...g, status: "warning" as const } : g),
-  })
+  const r = evaluateLiveProviderProposalGate(withGateStatus("budget_cap", "warning"))
   assert.equal(r.decision, "conditional_go")
   assert.equal(r.mayOpenFutureProviderAdapterPr, false)
 })
@@ -84,13 +75,25 @@ test("incomplete warning input returns No-Go", () => {
   assert.equal(r.decision, "no_go")
 })
 
+// ─── False invariants across all decisions ────────────────────
+
+test("false invariants hold for Go, Conditional Go, and No-Go", () => {
+  const go = evaluateLiveProviderProposalGate(createCurrentKnownPassingProposalInput())
+  const conditional = evaluateLiveProviderProposalGate(withGateStatus("budget_cap", "warning"))
+  const noGo = evaluateLiveProviderProposalGate(withGateStatus("no_sdk_current_phase", "fail"))
+
+  for (const r of [go, conditional, noGo]) {
+    assert.equal(r.liveIntegrationAllowed, false)
+    assert.equal(r.liveProviderAdapterImplemented, false)
+    assert.equal(r.externalExecutionAllowed, false)
+  }
+})
+
 // ─── mayOpenFutureProviderAdapterPr semantics ─────────────────
 
 test("mayOpenFutureProviderAdapterPr true only for Go", () => {
   const go = evaluateLiveProviderProposalGate(createCurrentKnownPassingProposalInput())
   assert.equal(go.mayOpenFutureProviderAdapterPr, true)
-  const noGo = evaluateLiveProviderProposalGate({ gates: [{ id: "no_sdk_current_phase", status: "fail" }] })
-  assert.equal(noGo.mayOpenFutureProviderAdapterPr, false)
 })
 
 // ─── No SDK/network/env surface ──────────────────────────────
