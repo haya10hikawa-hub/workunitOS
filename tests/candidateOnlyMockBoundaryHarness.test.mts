@@ -127,12 +127,12 @@ test("all false flags hold for blocked and dry-run", () => {
 
 test("productionPipelineConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).productionPipelineConnected, false) })
 test("uiConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).uiConnected, false) })
-test("sourceSigConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).sourceSigConnected, false) })
-test("ctxPackConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).ctxPackConnected, false) })
-test("exclScanConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).exclScanConnected, false) })
-test("decompClassConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).decompClassConnected, false) })
-test("actionConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).actionConnected, false) })
-test("reviewConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).reviewConnected, false) })
+test("sourceSignalConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).sourceSignalConnected, false) })
+test("contextPackConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).contextPackConnected, false) })
+test("exclusionScannerConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).exclusionScannerConnected, false) })
+test("decompositionClassifierConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).decompositionClassifierConnected, false) })
+test("actionFieldConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).actionFieldConnected, false) })
+test("humanReviewConnected is false", () => { assert.equal(runCandidateOnlyMockBoundaryHarness(safe).humanReviewConnected, false) })
 
 // ─── Provider invariants ──────────────────────────────────────
 

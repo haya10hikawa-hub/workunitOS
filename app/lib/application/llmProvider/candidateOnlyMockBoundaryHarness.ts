@@ -46,12 +46,12 @@ export type CandidateOnlyMockBoundaryHarnessResult = {
   readonly executionCreationAllowed: false
   readonly productionPipelineConnected: false
   readonly uiConnected: false
-  readonly sourceSigConnected: false
-  readonly ctxPackConnected: false
-  readonly exclScanConnected: false
-  readonly decompClassConnected: false
-  readonly actionConnected: false
-  readonly reviewConnected: false
+  readonly sourceSignalConnected: false
+  readonly contextPackConnected: false
+  readonly exclusionScannerConnected: false
+  readonly decompositionClassifierConnected: false
+  readonly actionFieldConnected: false
+  readonly humanReviewConnected: false
 }
 
 const DISCONNECTED = {
@@ -62,12 +62,12 @@ const DISCONNECTED = {
   executionCreationAllowed: false,
   productionPipelineConnected: false,
   uiConnected: false,
-  sourceSigConnected: false,
-  ctxPackConnected: false,
-  exclScanConnected: false,
-  decompClassConnected: false,
-  actionConnected: false,
-  reviewConnected: false,
+  sourceSignalConnected: false,
+  contextPackConnected: false,
+  exclusionScannerConnected: false,
+  decompositionClassifierConnected: false,
+  actionFieldConnected: false,
+  humanReviewConnected: false,
 } as const
 
 export function createSafeCandidateOnlyMockBoundaryHarnessRequest(): CandidateOnlyMockBoundaryHarnessRequest {

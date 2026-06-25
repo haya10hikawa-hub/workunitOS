@@ -30,9 +30,9 @@ It does NOT connect to:
 
 All explicitly `false`:
 - `productionPipelineConnected`, `uiConnected`
-- `sourceSigConnected`, `ctxPackConnected`
-- `exclScanConnected`, `decompClassConnected`
-- `actionConnected`, `reviewConnected`
+- `sourceSignalConnected`, `contextPackConnected`
+- `exclusionScannerConnected`, `decompositionClassifierConnected`
+- `actionFieldConnected`, `humanReviewConnected`
 
 ## Invariants
 
