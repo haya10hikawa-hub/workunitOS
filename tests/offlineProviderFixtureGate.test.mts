@@ -72,7 +72,7 @@ test("fixture gate diagnostics are safe", () => {
 test("fixture gate result contains no execution-ready payload", () => {
   const r = runOfflineFixtureGate()
   const s = JSON.stringify(r)
-  assert.equal(s.includes('"execute"'), false)
+  assert.equal(s.includes("\"execute\""), false)
   assert.equal(s.includes('"execution"'), false)
   assert.equal(s.includes('"approvalId"'), false)
 })

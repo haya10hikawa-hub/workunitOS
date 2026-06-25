@@ -31,6 +31,7 @@ export function runFixtureGate(fixture: OfflineProviderFixture): FixtureGateResu
   const result = evaluateLlmProviderBoundary({
     request: fixture.request,
     controls: fixture.controls,
+    policy: fixture.policy,
   })
 
   const pass = fixture.expectedBlocked === !result.ok

@@ -9,6 +9,7 @@
  */
 
 import type { SanitizedLlmProviderRequest, LlmProviderRuntimeControls } from "./llmProviderBoundary.ts"
+import type { RealLlmProviderBoundaryPolicy } from "../llmReadiness/realLlmProviderPolicy.ts"
 import type { SafeBlockedDiagnostic } from "./blockedDiagnosticRedaction.ts"
 
 /** A single offline fixture exercising the full provider boundary. */
@@ -17,6 +18,7 @@ export type OfflineProviderFixture = {
   readonly description: string
   readonly request: SanitizedLlmProviderRequest
   readonly controls: LlmProviderRuntimeControls
+  readonly policy?: Partial<RealLlmProviderBoundaryPolicy>
   readonly expectedBlocked: boolean
   readonly expectedBlockedReasons?: readonly string[]
   readonly expectedDiagnostics?: readonly SafeBlockedDiagnostic[]
@@ -64,6 +66,7 @@ export const OFFLINE_PROVIDER_FIXTURES: readonly OfflineProviderFixture[] = [
     controls: CONTROLS_ON,
     expectedBlocked: true,
     expectedBlockedReasons: ["readiness_gate_no_go"],
+    policy: {},
   },
   {
     name: "kill-switch-closed",
