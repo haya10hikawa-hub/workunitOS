@@ -126,10 +126,21 @@ test("mayOpenFutureProviderPr is false for No-Go", () => {
 })
 
 test("mayOpenFutureProviderPr is false for Conditional Go", () => {
+  const base = createCurrentKnownPassingReadinessInput()
+  const r = evaluateLiveProviderReadiness({
+    gates: base.gates.map((g) => g.id === "rollback_plan" ? { ...g, status: "warning" } : g),
+  })
+  assert.equal(r.decision, "conditional_go")
+  assert.equal(r.mayOpenFutureProviderPr, false)
+  assert.equal(r.liveIntegrationAllowed, false)
+})
+
+test("incomplete warning-only input returns No-Go", () => {
+  // Passing only 1 gate as warning with all others missing → No-Go, not Conditional Go
   const r = evaluateLiveProviderReadiness({
     gates: [{ id: "rollback_plan", status: "warning" }],
   })
-  assert.equal(r.decision, "conditional_go")
+  assert.equal(r.decision, "no_go")
   assert.equal(r.mayOpenFutureProviderPr, false)
 })
 
