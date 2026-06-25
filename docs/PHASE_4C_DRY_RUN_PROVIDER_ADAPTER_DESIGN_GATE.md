@@ -32,7 +32,35 @@ NOT connect a live provider.
 
 ## Gates (21)
 
-11 P0 gates, 10 required gates. All must pass or decision is `no_go`.
+14 P0 gates, 7 required gates. All P0 and required gates must pass or
+the decision is `no_go`.
+
+### P0 gates
+
+- `phase_4b_boundary_merged`
+- `blocked_adapter_available`
+- `candidate_only_contract`
+- `no_live_provider_call`
+- `no_provider_sdk`
+- `no_fetch`
+- `no_process_env`
+- `no_api_key_material`
+- `no_provider_endpoint`
+- `no_approval_creation`
+- `no_execution_creation`
+- `no_external_execution`
+- `kill_switch_required`
+- `separate_future_pr_required`
+
+### Required gates
+
+- `redaction_policy_defined`
+- `budget_cap_defined`
+- `rate_limit_defined`
+- `timeout_policy_defined`
+- `retry_policy_defined`
+- `audit_logging_plan_defined`
+- `rollback_plan_defined`
 
 ## Safety
 

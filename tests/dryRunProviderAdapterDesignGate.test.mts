@@ -80,8 +80,20 @@ test("false invariants hold for Go, Conditional Go, and No-Go", () => {
   }
 })
 
-test("mayOpenDryRunAdapterPr true only for Go", () => {
-  assert.equal(evaluateDryRunProviderDesignGate(createCurrentKnownPassingDryRunProviderDesignInput()).mayOpenDryRunAdapterPr, true)
+test("mayOpenDryRunAdapterPr is true only for Go", () => {
+  const go = evaluateDryRunProviderDesignGate(createCurrentKnownPassingDryRunProviderDesignInput())
+  const conditional = evaluateDryRunProviderDesignGate(withGateStatus("budget_cap_defined", "warning"))
+  const noGo = evaluateDryRunProviderDesignGate(withGateStatus("no_provider_sdk", "fail"))
+  assert.equal(go.mayOpenDryRunAdapterPr, true)
+  assert.equal(conditional.mayOpenDryRunAdapterPr, false)
+  assert.equal(noGo.mayOpenDryRunAdapterPr, false)
+})
+
+test("gate catalog exposes expected severity counts", () => {
+  const r = evaluateDryRunProviderDesignGate(createCurrentKnownPassingDryRunProviderDesignInput())
+  assert.equal(r.findings.length, 21)
+  assert.equal(r.findings.filter((f) => f.severity === "p0").length, 14)
+  assert.equal(r.findings.filter((f) => f.severity === "required").length, 7)
 })
 
 // ─── Serialized safety ────────────────────────────────────────
