@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { runShadowHarness } from "../app/lib/application/llmProvider/shadowProviderHarness.ts"
+import { OFFLINE_PROVIDER_FIXTURES } from "../app/lib/application/llmProvider/offlineProviderFixtures.ts"
 
 const HARNESS_SRC = readFileSync(join(import.meta.dirname!, "../app/lib/application/llmProvider/shadowProviderHarness.ts"), "utf-8")
 const GATE_SRC = readFileSync(join(import.meta.dirname!, "../app/lib/application/llmProvider/offlineProviderFixtureGate.ts"), "utf-8")
@@ -84,9 +85,10 @@ test("offlineProviderFixtureGate.ts: no SDK imports", () => {
   }
 })
 
-test("offlineProviderFixtures.ts: no API keys or tokens", () => {
-  for (const forbidden of ["sk-", "SECRET", "TOKEN", "API_KEY", "password"]) {
-    if (forbidden === "SECRET" || forbidden === "password") return; assert.equal(FIXTURES_SRC.includes(forbidden), false, `fixtures source should not contain ${forbidden}`)
+test("offlineProviderFixtures.ts: serialized fixtures contain no secret-like values", () => {
+  const s = JSON.stringify(OFFLINE_PROVIDER_FIXTURES)
+  for (const forbidden of ["sk-", "TOKEN", "API_KEY", "Bearer", "password"]) {
+    assert.equal(s.includes(forbidden), false, `serialized fixtures should not contain ${forbidden}`)
   }
 })
 
