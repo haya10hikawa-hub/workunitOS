@@ -7,7 +7,7 @@
  * Live provider integration remains No-Go.
  */
 
-import { OFFLINE_PROVIDER_FIXTURES, type OfflineProviderFixture } from "./offlineProviderFixtures.ts"
+import { OFFLINE_PROVIDER_FIXTURES } from "./offlineProviderFixtures.ts"
 import { runFixtureGate, type FixtureGateResult } from "./offlineProviderFixtureGate.ts"
 
 export type ShadowHarnessResult = {
