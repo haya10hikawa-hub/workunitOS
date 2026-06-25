@@ -45,3 +45,5 @@ LLM pipeline.
 - Live Real LLM integration remains No-Go
 - External execution remains No-Go
 - Production routing connection remains No-Go
+- UI connection remains No-Go
+- Future live-provider adapter must be a separate later PR
