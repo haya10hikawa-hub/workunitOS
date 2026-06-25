@@ -1,32 +1,99 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { runShadowHarness } from "../app/lib/application/llmProvider/shadowProviderHarness.ts"
+import { OFFLINE_PROVIDER_FIXTURES } from "../app/lib/application/llmProvider/offlineProviderFixtures.ts"
 
-test("shadow harness is deterministic", () => {
+const HARNESS_SRC = readFileSync(join(import.meta.dirname!, "../app/lib/application/llmProvider/shadowProviderHarness.ts"), "utf-8")
+const GATE_SRC = readFileSync(join(import.meta.dirname!, "../app/lib/application/llmProvider/offlineProviderFixtureGate.ts"), "utf-8")
+const FIXTURES_SRC = readFileSync(join(import.meta.dirname!, "../app/lib/application/llmProvider/offlineProviderFixtures.ts"), "utf-8")
+
+// ─── Full result determinism ──────────────────────────────────
+
+test("runShadowHarness is fully deterministic", () => {
   const a = runShadowHarness()
   const b = runShadowHarness()
-  assert.deepEqual(a.total, b.total)
-  assert.deepEqual(a.passed, b.passed)
-  assert.deepEqual(a.allBlocked, b.allBlocked)
+  assert.deepEqual(a, b)
 })
+
+// ─── Blocked + candidate-only ────────────────────────────────
 
 test("shadow harness: all results blocked", () => {
   const r = runShadowHarness()
   assert.equal(r.allBlocked, true)
 })
 
-test("shadow harness source has no SDK or network", () => {
-  const src = runShadowHarness.toString()
-  assert.equal(src.includes("openai"), false)
-  assert.equal(src.includes("anthropic"), false)
-  assert.equal(src.includes("fetch("), false)
-  assert.equal(src.includes("process.env"), false)
+test("shadow harness: every result is blocked", () => {
+  const r = runShadowHarness()
+  for (const g of r.results) {
+    assert.equal(g.blocked, true, `fixture ${g.fixture} should be blocked`)
+  }
 })
 
-test("shadow harness output has no execution-ready payload", () => {
+// ─── No execution surface in output ──────────────────────────
+
+test("shadow harness output has no execution payload", () => {
+  const s = JSON.stringify(runShadowHarness())
+  assert.equal(s.includes("executionPayload"), false)
+  assert.equal(s.includes("createApproval"), false)
+  assert.equal(s.includes("createExecution"), false)
+})
+
+
+// ─── Diagnostics are redacted ────────────────────────────────
+
+test("shadow harness diagnostics are safe", () => {
   const r = runShadowHarness()
-  const s = JSON.stringify(r)
-  assert.equal(s.includes('"executionPayload"'), false)
-  assert.equal(s.includes('"createApproval"'), false)
-  assert.equal(s.includes('"createExecution"'), false)
+  for (const g of r.results) {
+    for (const d of g.diagnostics) {
+      assert.equal(typeof d.key === "string", true)
+      assert.equal(typeof d.reason === "string", true)
+      assert.equal("valuePreview" in d, false)
+      assert.equal("rawValue" in d, false)
+    }
+  }
+})
+
+// ─── Source file safety scans ────────────────────────────────
+
+test("shadowProviderHarness.ts: no SDK imports", () => {
+  for (const sdk of ["openai", "anthropic", "deepseek", "gemini", "ollama"]) {
+    assert.equal(HARNESS_SRC.includes(sdk), false, `harness source should not contain ${sdk}`)
+  }
+})
+
+test("shadowProviderHarness.ts: no fetch calls", () => {
+  assert.equal(HARNESS_SRC.includes("fetch("), false)
+})
+
+test("shadowProviderHarness.ts: no process.env", () => {
+  assert.equal(HARNESS_SRC.includes("process.env"), false)
+})
+
+test("offlineProviderFixtureGate.ts: no fetch calls", () => {
+  assert.equal(GATE_SRC.includes("fetch("), false)
+})
+
+test("offlineProviderFixtureGate.ts: no process.env", () => {
+  assert.equal(GATE_SRC.includes("process.env"), false)
+})
+
+test("offlineProviderFixtureGate.ts: no SDK imports", () => {
+  for (const sdk of ["openai", "anthropic", "deepseek", "gemini", "ollama"]) {
+    assert.equal(GATE_SRC.includes(sdk), false, `gate source should not contain ${sdk}`)
+  }
+})
+
+test("offlineProviderFixtures.ts: serialized fixtures contain no secret-like values", () => {
+  const s = JSON.stringify(OFFLINE_PROVIDER_FIXTURES)
+  for (const forbidden of ["sk-", "TOKEN", "API_KEY", "Bearer", "password"]) {
+    assert.equal(s.includes(forbidden), false, `serialized fixtures should not contain ${forbidden}`)
+  }
+})
+
+test("offlineProviderFixtures.ts: no SDK imports", () => {
+  for (const sdk of ["openai", "anthropic", "deepseek", "gemini", "ollama"]) {
+    assert.equal(FIXTURES_SRC.includes(sdk), false, `fixtures source should not contain ${sdk}`)
+  }
 })
