@@ -13,6 +13,8 @@ export const SAFE_ERROR_CODES = {
   invalid_request:              { status: 400, message: "invalid_request" },
   unauthorized:                 { status: 401, message: "unauthorized" },
   forbidden:                    { status: 403, message: "forbidden" },
+  csrf_failed:                  { status: 403, message: "csrf_failed" },
+  invalid_origin:               { status: 403, message: "invalid_origin" },
   tenant_boundary_violation:    { status: 403, message: "tenant_boundary_violation" },
   external_actions_disabled:    { status: 403, message: "external_actions_disabled" },
   approval_required:            { status: 403, message: "approval_required" },
