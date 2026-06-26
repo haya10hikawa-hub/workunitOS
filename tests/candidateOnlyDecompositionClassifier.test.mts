@@ -77,6 +77,38 @@ test("non-empty unknown textCandidate classifies as clarification_needed", () =>
   assert.equal(r.reason, "unknown_candidate_shape")
 })
 
+
+// ─── Broken candidateOnly contract ────────────────────────────
+
+import type { CandidateOnlyMockBoundaryHarnessResult } from "../app/lib/application/llmProvider/candidateOnlyMockBoundaryHarness.ts"
+
+test("mockBoundary.candidateOnly false classifies as blocked_candidate", () => {
+  const unsafe = { ...dryRun, candidateOnly: false } as unknown as CandidateOnlyMockBoundaryHarnessResult
+  const r = classifyCandidateOnlyMockBoundaryResult(unsafe)
+  assert.equal(r.candidateType, "blocked_candidate")
+  assert.equal(r.decision, "block_candidate_type")
+  assert.equal(r.reason, "default_blocked")
+})
+
+test("mockBoundary.provider.candidateOnly false classifies as blocked_candidate", () => {
+  const unsafe = { ...dryRun, provider: { ...dryRun.provider, candidateOnly: false } } as unknown as CandidateOnlyMockBoundaryHarnessResult
+  const r = classifyCandidateOnlyMockBoundaryResult(unsafe)
+  assert.equal(r.candidateType, "blocked_candidate")
+  assert.equal(r.decision, "block_candidate_type")
+  assert.equal(r.reason, "default_blocked")
+})
+
+test("mockBoundary.candidateOnly false does not classify as workunit_candidate even if text matches", () => {
+  const unsafe = { ...dryRun, candidateOnly: false } as unknown as CandidateOnlyMockBoundaryHarnessResult
+  const r = classifyCandidateOnlyMockBoundaryResult(unsafe)
+  assert.notEqual(r.candidateType, "workunit_candidate")
+})
+
+test("mockBoundary.provider.candidateOnly false does not classify as workunit_candidate even if text matches", () => {
+  const unsafe = { ...dryRun, provider: { ...dryRun.provider, candidateOnly: false } } as unknown as CandidateOnlyMockBoundaryHarnessResult
+  const r = classifyCandidateOnlyMockBoundaryResult(unsafe)
+  assert.notEqual(r.candidateType, "workunit_candidate")
+})
 // ─── False invariants ─────────────────────────────────────────
 
 test("candidateOnly is true", () => { assert.equal(classifyCandidateOnlyMockBoundaryResult(dryRun).candidateOnly, true) })

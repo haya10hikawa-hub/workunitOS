@@ -42,3 +42,24 @@ import type { CandidateOnlyMockBoundaryHarnessResult } from "./candidateOnlyMock
 - No raw candidate text in output, no SDK/fetch/env
 - No Phase 4F/4G/4H/adapter/routing calls
 - Live Real LLM: No-Go, all connections: No-Go
+
+## Contract Validation
+
+Before classifying as `workunit_candidate`, the classifier validates:
+- `mockBoundary.candidateOnly === true`
+- `mockBoundary.provider.candidateOnly === true`
+- provider not blocked, routing is dry_run, text matches expected pattern
+
+Broken candidateOnly contract always classifies as `blocked_candidate`.
+
+## All Boundaries
+
+- Live Real LLM integration: No-Go
+- External execution: No-Go
+- UI connection: No-Go
+- API connection: No-Go
+- Production routing: No-Go
+- Source Signal / real ContextPack / real Scanner: No-Go
+- Phase 4H chain: No-Go
+- Decomposition Orchestrator / Action Field / Human Review: No-Go
+- Future live-provider adapter: separate later PR

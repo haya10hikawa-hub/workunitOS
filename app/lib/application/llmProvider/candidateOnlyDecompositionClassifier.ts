@@ -87,6 +87,8 @@ export function classifyCandidateOnlyMockBoundaryResult(
 ): CandidateOnlyDecompositionClassifierResult {
   if (mockBoundary.provider.blocked) return createBlockedCandidateOnlyDecompositionClassifierResult("mock_boundary_blocked")
   if (mockBoundary.routing.decision !== "route_to_dry_run_adapter") return createBlockedCandidateOnlyDecompositionClassifierResult("mock_boundary_blocked")
+  if (mockBoundary.candidateOnly !== true) return createBlockedCandidateOnlyDecompositionClassifierResult("default_blocked")
+  if (mockBoundary.provider.candidateOnly !== true) return createBlockedCandidateOnlyDecompositionClassifierResult("default_blocked")
 
   const text = mockBoundary.provider.textCandidate.trim()
   if (!text) {
