@@ -173,3 +173,5 @@ test("result mockBoundaryHarnessConnected is false", () => { assert.equal(gate(w
 test("result guardedChainConnected is false", () => { assert.equal(gate(workunit).guardedChainConnected, false) })
 test("result actionFieldConnected is false", () => { assert.equal(gate(workunit).actionFieldConnected, false) })
 test("result humanReviewConnected is false", () => { assert.equal(gate(workunit).humanReviewConnected, false) })
+
+test("result externalExecutionAllowed is false", () => { assert.equal(gate(workunit).externalExecutionAllowed, false) })
