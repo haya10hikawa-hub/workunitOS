@@ -1,13 +1,13 @@
 import type { SessionContext } from "../../domain/auth/types.ts"
 import type { TenantId, UserId } from "../../tenant/types.ts"
-import { normalizeRoleInput } from "../../security/policy.ts"
+import { normalizeRoleInput, RoleNormalizationError } from "../../security/policy.ts"
 import { resolveControlRepositories, type ControlRepositoryBundle } from "../../infrastructure/persistence/control/controlRepositoryResolver.ts"
 import type { AppEnv } from "../../../types/cloudflare-env.ts"
 import type { D1DatabaseLike } from "../../persistence/d1/types.ts"
 import type { VerifiedAuthIdentity, AuthAdapter } from "./authAdapter.ts"
 import { resolveAuthAdapter } from "./resolveAuthAdapter.ts"
 
-export type SessionResolutionFailureReason = "unauthorized" | "forbidden" | "expired" | "invalid_tenant" | "internal_error"
+export type SessionResolutionFailureReason = "unauthorized" | "forbidden" | "expired" | "invalid_tenant" | "invalid_role" | "internal_error"
 
 export type SessionResolutionResult =
   | { ok: true; session: SessionContext }
@@ -65,7 +65,8 @@ export async function resolveSession(
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       },
     }
-  } catch {
+  } catch (err) {
+    if (err instanceof RoleNormalizationError) return { ok: false, reason: "invalid_role" as SessionResolutionFailureReason }
     return { ok: false, reason: "internal_error" }
   }
 }
