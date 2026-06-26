@@ -32,3 +32,14 @@ test("P0: imports only allowed modules", () => {
     assert.ok(ALLOWED.some(a => p.endsWith(a)), `unexpected import from: ${p}`)
   }
 })
+
+test("P0: provider boundary and routing gate imports are type-only", () => {
+  const imports = SRC.match(/^import .+$/gm) ?? []
+  const boundary = imports.filter((l) => l.includes("./providerAdapterBoundary.ts"))
+  const routing = imports.filter((l) => l.includes("./providerAdapterRoutingGate.ts"))
+  assert.equal(boundary.length, 1)
+  assert.equal(routing.length, 1)
+  for (const line of [...boundary, ...routing]) {
+    assert.ok(line.startsWith("import type "), `must be type-only: ${line}`)
+  }
+})
