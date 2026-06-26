@@ -41,6 +41,8 @@ import type { CandidateOnlyMockBoundaryHarnessResult } from "./candidateOnlyMock
 
 - No raw candidate text in output, no SDK/fetch/env
 - No Phase 4F/4G/4H/adapter/routing calls
+- Never creates providerRequest/providerResponse
+- Never creates approval or execution payloads
 - Live Real LLM: No-Go, all connections: No-Go
 
 ## Contract Validation
