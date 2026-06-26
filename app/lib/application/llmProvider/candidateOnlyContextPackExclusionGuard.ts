@@ -33,8 +33,8 @@ export type CandidateOnlyContextPackContract = {
   readonly sanitizedText: string
   readonly sourceKinds: readonly CandidateOnlyContextPackSourceKind[]
   readonly exclusionFindings: readonly CandidateOnlyExclusionFinding[]
-  readonly rawSignalIncluded: boolean
-  readonly secretsIncluded: boolean
+  readonly rawSignalIncluded: false
+  readonly secretsIncluded: false
   readonly candidateOnly: true
   readonly maxOutputChars: number
 }
@@ -116,7 +116,8 @@ export function createSafeCandidateOnlyContextPackContract(): CandidateOnlyConte
 export function guardCandidateOnlyContextPackForMockBoundary(
   contextPack: CandidateOnlyContextPackContract,
 ): CandidateOnlyContextPackGuardResult {
-  if (!contextPack.sanitizedText.trim()) return blocked("empty_sanitized_text")
+  const sanitizedText = contextPack.sanitizedText.trim()
+  if (!sanitizedText) return blocked("empty_sanitized_text")
   if (contextPack.rawSignalIncluded !== false) return blocked("raw_signal_not_allowed")
   if (contextPack.secretsIncluded !== false) return blocked("secrets_not_allowed")
   if (contextPack.exclusionFindings.some((f) => f.severity === "block")) return blocked("blocking_exclusion_finding")
@@ -129,7 +130,7 @@ export function guardCandidateOnlyContextPackForMockBoundary(
   const prompt = `[CONTEXT_PACK_CANDIDATE_ONLY]
 Source kinds: ${srcKinds}
 Sanitized context:
-${contextPack.sanitizedText}
+${sanitizedText}
 
 No raw signal included.
 No secrets included.

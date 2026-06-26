@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
   guardCandidateOnlyContextPackForMockBoundary,
-  createSafeCandidateOnlyContextPackContract
+  createSafeCandidateOnlyContextPackContract,
+  type CandidateOnlyContextPackContract
 } from "../app/lib/application/llmProvider/candidateOnlyContextPackExclusionGuard.ts"
 
 const SRC = readFileSync(join(import.meta.dirname!, "../app/lib/application/llmProvider/candidateOnlyContextPackExclusionGuard.ts"), "utf-8")
@@ -68,13 +69,27 @@ test("whitespace-only sanitizedText blocks", () => {
   assert.equal(r.reason, "empty_sanitized_text")
 })
 
-test("rawSignalIncluded true blocks", () => {
-  const r = guardCandidateOnlyContextPackForMockBoundary({ ...safeC, rawSignalIncluded: true })
+test("safe prompt uses trimmed sanitizedText", () => {
+  const r = guardCandidateOnlyContextPackForMockBoundary({ ...safeC, sanitizedText: "  trimmed  " })
+  assert.equal(r.decision, "allow_mock_boundary_input")
+  assert.ok(r.input!.prompt.includes("trimmed"))
+  assert.equal(r.input!.prompt.includes("  trimmed  "), false)
+})
+
+test("leading/trailing whitespace is removed from output prompt", () => {
+  const r = guardCandidateOnlyContextPackForMockBoundary({ ...safeC, sanitizedText: "\nhello\t" })
+  assert.ok(r.input!.prompt.includes("hello"))
+  assert.equal(r.input!.prompt.includes("\nhello\t"), false)
+})
+
+
+test("rawSignalIncluded true blocks via type-cast", () => {
+  const r = guardCandidateOnlyContextPackForMockBoundary({ ...safeC, rawSignalIncluded: true } as unknown as CandidateOnlyContextPackContract)
   assert.equal(r.reason, "raw_signal_not_allowed")
 })
 
-test("secretsIncluded true blocks", () => {
-  const r = guardCandidateOnlyContextPackForMockBoundary({ ...safeC, secretsIncluded: true })
+test("secretsIncluded true blocks via type-cast", () => {
+  const r = guardCandidateOnlyContextPackForMockBoundary({ ...safeC, secretsIncluded: true } as unknown as CandidateOnlyContextPackContract)
   assert.equal(r.reason, "secrets_not_allowed")
 })
 

@@ -24,3 +24,11 @@ test("P0: no adapter/harness/routing execution imports", () => {
 test("P0: no upstream/downstream imports", () => {
   for (const p of ["orchestrator", "processWorkSignal", "generateWorkUnitDraft", "evaluateWorkUnit", "extractCandidate", "React", "useState", "useEffect", "route.ts", "Supabase", "createClient", "D1", "database"]) assert.equal(SRC.includes(p), false)
 })
+
+test("P0: only allowed type-only import exists", () => {
+  const imports = SRC.match(/^import .+$/gm) ?? []
+  assert.equal(imports.length, 1, "should have exactly one import")
+  assert.ok(imports[0].includes("import type"), "import must be type-only")
+  assert.ok(imports[0].includes("CandidateOnlyMockBoundaryInput"), "must import CandidateOnlyMockBoundaryInput")
+  assert.ok(imports[0].includes("./candidateOnlyMockBoundaryHarness.ts"), "must import from Phase 4F harness")
+})
