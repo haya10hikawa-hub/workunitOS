@@ -35,5 +35,28 @@ Covers: classifier result → rule gate → gated candidate decision.
 
 - No runtime SDK, fetch, env, secrets
 - No adapter/routing/4F-4I runtime calls
-- Never creates providerRequest, providerResponse, approval, or execution payloads
-- All boundaries: No-Go
+- Never creates providerRequest/providerResponse
+- Never creates approval or execution payloads
+- It does not connect to Source Signal
+- It does not connect to Sanitize / Normalize
+- It does not connect to real LLMContextPack Builder
+- It does not connect to real Exclusion Scanner
+- It does not connect to Decomposition Orchestrator
+- It does not connect to Action Field
+- It does not connect to Human Review
+- It does not connect to production LLM pipeline
+- It does not expose an API route
+- It does not connect to UI
+
+## All Boundaries
+
+- Live Real LLM integration: No-Go
+- External execution: No-Go
+- UI connection: No-Go
+- API connection: No-Go
+- Production routing: No-Go
+- Source Signal / real ContextPack / real Scanner: No-Go
+- Phase 4H chain: No-Go
+- Phase 4I runtime classifier: No-Go
+- Decomposition Orchestrator / Action Field / Human Review: No-Go
+- Future live-provider adapter: separate later PR
