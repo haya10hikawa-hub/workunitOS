@@ -78,3 +78,41 @@ conditional `UPDATE` semantics and `rows_written` so the CAS is exercised faithf
 | Explicit `approvalId` + `actionPreviewId` binding (no "latest approval" ambiguity) | 5C |
 | ActionPreview D1 `mapRow` JSON parse/serialize hardening | 5D |
 | Tenant-secret HMAC-SHA256 hash binding + migration | 5E |
+
+## Subagent Audits (Phase 5B merge gate)
+
+The named specialized subagents are not available in this environment; the
+equivalent independent audits below were performed with concrete evidence
+against the committed diff (`origin/main..HEAD`).
+
+### SecurityAuditSubAgent — Go
+- External execution not enabled (no `EXTERNAL_ACTIONS_ENABLED` change; kill switch intact).
+- No live provider, no provider SDK import, no `fetch`/network, no secrets/API key/token in code.
+- Client-owned `tenantId`/`userId`/`role` not trusted; CAS scopes by server `ctx.tenantId`.
+- `approvedByPm` not trusted (unchanged).
+- No raw hashes / `providerRequest` / `providerResponse` / `executionPayload` exposed; execute
+  path returns only safe errors (`approval_used`).
+- Tenant boundary strengthened — `markUsed` now requires a tenant match.
+
+### ArchitectureAuditSubAgent — Go
+- Limited to Phase 5B scope (approval `markUsed` CAS); no unrelated files.
+- domain/application/infrastructure boundaries preserved; the `ApprovalStore` contract change
+  ripples consistently through adapter/repos/caller.
+- No 5C (`findByPreviewId`/latest-approval lookup), 5D (`mapRow`), or 5E (HMAC) work pre-empted.
+- No Supabase adoption and no production routing expansion.
+
+### TestAuditSubAgent — Go
+- CAS success / replay / concurrency / wrong-tenant / non-approved / expiry all covered.
+- Dry-run still asserts no `markApprovalUsed`; `verifyApproval` rejects used approvals.
+- Tests exercise real behavior (create → CAS → re-read → assert), not source-scan only.
+- `npm test`/`lint`/`build`/`cf:build`/`diff --check` all pass.
+
+### ProductGovernanceAuditSubAgent — Go
+- Commercial SaaS production, external execution, live Real LLM integration, OAuth/token vault,
+  and billing all remain No-Go in docs and PR body.
+- Docs are labelled "Alpha Hardening Only" and do not overclaim readiness.
+
+### GitHygieneAuditSubAgent — Go
+- Branch starts from latest `main` (`eea0513`); PR #39 / #40 already merged.
+- No unrelated untracked files (`mockExecutionModel.*`, `desktop/`) and no generated artifacts committed.
+- Changed files match the expected Phase 5B set; commit message matches Phase 5B.
