@@ -52,8 +52,15 @@ export interface ApprovalStore {
   /** Find an approval record by its id. Returns null if not found. */
   findApprovalById(approvalId: string): Promise<ActionApprovalRecord | null>
 
-  /** Mark an approval as used (one-time-use enforcement). */
-  markApprovalUsed(approvalId: string, usedAt: string): Promise<void>
+  /**
+   * Atomically claim an approval as used (one-time-use enforcement, Phase 5B).
+   *
+   * Returns true only when THIS call won the claim (the approval was approved,
+   * unused, and unexpired at the moment of the compare-and-set). Returns false
+   * when the claim was lost — already used, expired, or a concurrent winner —
+   * in which case the caller must fail closed and must NOT proceed.
+   */
+  markApprovalUsed(approvalId: string, usedAt: string): Promise<boolean>
 }
 
 // ─── Verification ───────────────────────────────────────────────
@@ -118,7 +125,7 @@ export async function verifyApproval(
  */
 export const defaultDenyApprovalStore: ApprovalStore = {
   async findApprovalById() { return null },
-  async markApprovalUsed() { /* no-op */ },
+  async markApprovalUsed() { return false },
 }
 
 // ─── In-Memory Store (Tests / Dev) ──────────────────────────────
@@ -146,10 +153,15 @@ export function createInMemoryApprovalStore(): ApprovalStore & {
     },
 
     async markApprovalUsed(approvalId: string, usedAt: string) {
+      // Phase 5B: compare-and-set. Only an approved, unused, unexpired record is
+      // claimed; replays/expired/used records return false (claim lost).
       const record = records.get(approvalId)
-      if (record) {
-        records.set(approvalId, { ...record, status: "used" as ApprovalStatus, usedAt })
-      }
+      if (!record) return false
+      if (record.status !== "approved") return false
+      if (record.usedAt) return false
+      if (new Date(usedAt) > new Date(record.expiresAt)) return false
+      records.set(approvalId, { ...record, status: "used" as ApprovalStatus, usedAt })
+      return true
     },
 
     addRecord(record: ActionApprovalRecord) {

@@ -130,8 +130,19 @@ export function createInMemoryApprovalRecordRepository(): ApprovalRecordReposito
     async updateStatus(_ctx, id, status) {
       const r = records.get(id); if (!r) return null; const u = { ...r, status }; records.set(id, u); return { ...u }
     },
-    async markUsed(_ctx, id, usedAt) {
-      const r = records.get(id); if (!r) return null; const u = { ...r, status: "used" as const, usedAt }; records.set(id, u); return { ...u }
+    async markUsed(ctx, id, usedAt) {
+      // Phase 5B: atomic compare-and-set parity with the D1 repository. Only an
+      // approved, unused, unexpired, tenant-matched row is claimed; otherwise
+      // null (caller did not win the one-time-use claim).
+      const r = records.get(id)
+      if (!r) return null
+      if (r.tenantId !== ctx.tenantId) return null
+      if (r.status !== "approved") return null
+      if (r.usedAt) return null
+      if (new Date(usedAt) > new Date(r.expiresAt)) return null
+      const u = { ...r, status: "used" as const, usedAt }
+      records.set(id, u)
+      return { ...u }
     },
     addRecord(row) { records.set(row.id, { ...row }) },
     getAllRecords() { return Array.from(records.values()) },

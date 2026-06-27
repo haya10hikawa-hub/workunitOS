@@ -93,32 +93,83 @@ class FakeD1Statement implements D1PreparedStatementLike {
 
     if (lower.startsWith("update")) {
       const table = this.store.get(this.tableName)
-      if (table && this.values.length >= 2) {
-        const whereCols = this.extractWhereColumns()
-        const whereValues = whereCols.length > 0 ? this.values.slice(-whereCols.length) : [this.values[this.values.length - 1]]
-        const existing = Array.from(table.values()).find((row) =>
-          whereCols.length === 0
-            ? String(row.id) === String(whereValues[0])
-            : whereCols.every((col, index) => String(row[col]) === String(whereValues[index]))
-        )
-        if (existing) {
-          const updated = { ...existing }
-          if (lower.includes("status") && lower.includes("used_at")) {
-            updated["status"] = "used"
-            updated["used_at"] = this.values[0]
-          } else if (lower.includes("status") && lower.includes("updated_at")) {
-            updated["status"] = this.values[0]
-            updated["updated_at"] = this.values[1]
-          } else if (lower.includes("status")) {
-            updated["status"] = this.values[0]
+      let rowsWritten = 0
+      if (table) {
+        const { setClause, conditions } = this.buildUpdatePlan()
+        for (const row of table.values()) {
+          if (conditions.every((c) => FakeD1Statement.evalCondition(row, c))) {
+            Object.assign(row, setClause)
+            rowsWritten++
           }
-          table.set(String(updated.id), updated)
         }
       }
-      return { success: true }
+      // rows_written mirrors D1's conditional-UPDATE semantics so callers can
+      // detect compare-and-set claims (Phase 5B markUsed).
+      return { success: true, meta: { rows_written: rowsWritten } }
     }
 
     return { success: true }
+  }
+
+  /**
+   * Parse an UPDATE statement into a resolved SET map and WHERE conditions,
+   * binding `?` placeholders positionally (SET placeholders precede WHERE ones,
+   * matching SQL text order). Supports `col = ?`, `col = 'literal'`,
+   * `col IS [NOT] NULL`, and `col {>,<,>=,<=} ?` conditions.
+   */
+  private buildUpdatePlan(): {
+    setClause: Record<string, unknown>
+    conditions: Array<{ col: string; op: string; value?: unknown }>
+  } {
+    const norm = this.sql.replace(/\s+/g, " ").trim()
+    const lower = norm.toLowerCase()
+    const setIdx = lower.indexOf(" set ")
+    const whereIdx = lower.indexOf(" where ")
+    const setStr = whereIdx >= 0 ? norm.slice(setIdx + 5, whereIdx) : norm.slice(setIdx + 5)
+    const whereStr = whereIdx >= 0 ? norm.slice(whereIdx + 7) : ""
+
+    let ph = 0
+    const stripQuotes = (s: string): string => s.replace(/^'(.*)'$/, "$1")
+
+    const setClause: Record<string, unknown> = {}
+    for (const part of setStr.split(",")) {
+      const m = part.trim().match(/^(\w+)\s*=\s*(.+)$/)
+      if (!m) continue
+      const rhs = m[2].trim()
+      setClause[m[1]] = rhs === "?" ? this.values[ph++] : stripQuotes(rhs)
+    }
+
+    const conditions: Array<{ col: string; op: string; value?: unknown }> = []
+    if (whereStr) {
+      for (const raw of whereStr.split(/\s+and\s+/i)) {
+        const part = raw.trim()
+        let m: RegExpMatchArray | null
+        if ((m = part.match(/^(\w+)\s+is\s+not\s+null$/i))) {
+          conditions.push({ col: m[1], op: "notnull" })
+        } else if ((m = part.match(/^(\w+)\s+is\s+null$/i))) {
+          conditions.push({ col: m[1], op: "isnull" })
+        } else if ((m = part.match(/^(\w+)\s*(>=|<=|=|>|<)\s*(.+)$/))) {
+          const rhs = m[3].trim()
+          conditions.push({ col: m[1], op: m[2], value: rhs === "?" ? this.values[ph++] : stripQuotes(rhs) })
+        }
+      }
+    }
+    return { setClause, conditions }
+  }
+
+  private static evalCondition(row: Record<string, unknown>, c: { col: string; op: string; value?: unknown }): boolean {
+    const cell = row[c.col]
+    if (c.op === "isnull") return cell === null || cell === undefined
+    if (c.op === "notnull") return cell !== null && cell !== undefined
+    if (c.op === "=") return String(cell) === String(c.value)
+    if (cell === null || cell === undefined) return false
+    const a = String(cell)
+    const b = String(c.value)
+    if (c.op === ">") return a > b
+    if (c.op === "<") return a < b
+    if (c.op === ">=") return a >= b
+    if (c.op === "<=") return a <= b
+    return false
   }
 
   // ── Private ────────────────────────────────────────────────
