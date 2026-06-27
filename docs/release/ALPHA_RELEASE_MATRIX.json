@@ -1,0 +1,63 @@
+{
+  "phase": "7A",
+  "productPrinciple": "AI proposes. Rules guard. Humans decide.",
+  "externalExecution": "disabled",
+  "liveProviderWrites": "disabled",
+  "humanApprovalRequired": true,
+  "dryRunConsumesApproval": false,
+  "localDesktopStateIsApprovalSource": false,
+  "approvalAuthority": "server",
+  "actionPreviewVerificationAuthority": "server-database",
+  "releaseModes": {
+    "local_technical_demo": "Conditional Go",
+    "closed_alpha": "Conditional Go",
+    "customer_observed_pilot": "Conditional Go",
+    "commercial_saas_production": "No-Go",
+    "electron_desktop_alpha": "No-Go",
+    "electron_production_release": "No-Go"
+  },
+  "conditionalGoRequires": [
+    "external execution disabled",
+    "real provider writes disabled",
+    "no production secrets packaged",
+    "human approval required",
+    "test/lint/build/cf-build pass",
+    "audit log path present",
+    "known limitations disclosed"
+  ],
+  "commercialSaasProductionBlockers": [
+    "OAuth/token vault",
+    "billing/usage enforcement",
+    "production tenant-secret storage",
+    "live provider write controls",
+    "legal/privacy/security review",
+    "production monitoring/alerting",
+    "incident response",
+    "backup/restore",
+    "data retention/deletion policy",
+    "rate-limit/abuse-control review",
+    "Electron security review if desktop release included"
+  ],
+  "electronDesktopAlphaBlockers": [
+    "Electron architecture decision record",
+    "main/preload/renderer trust boundaries",
+    "nodeIntegration disabled",
+    "contextIsolation required",
+    "IPC allowlist designed",
+    "local storage policy designed",
+    "packaged secrets forbidden",
+    "update/signing strategy designed",
+    "server-authoritative approval verification preserved"
+  ],
+  "noGo": {
+    "commercialSaasProduction": true,
+    "electronProductionRelease": true,
+    "electronDesktopAlpha": true,
+    "externalExecution": true,
+    "liveRealLlmIntegration": true,
+    "liveProviderAdapter": true,
+    "oauthTokenVault": true,
+    "billing": true,
+    "realProviderWrites": true
+  }
+}
