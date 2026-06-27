@@ -6,6 +6,7 @@ import { resolveRouteRepositories } from "../../../../../lib/persistence/routeRe
 import { areExternalActionsEnabled } from "../../../../../lib/security/externalActions.ts"
 import type { TenantId } from "../../../../../lib/tenant/types.ts"
 import { canCreatePreview } from "../../../../../lib/security/tenantAccess.ts"
+import { verifyApprovalPreviewBinding } from "../../../../../lib/security/approvalPreviewBinding.ts"
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -122,87 +123,54 @@ export async function POST(
     return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "A stored preview reference is required before dry-run verification.", requestId)
   }
 
-  // Get the latest approval for this WorkUnit
-  const approvalRecords = await approvalRepo.findByWorkUnitId(ctx, workUnitId)
-  const latestApproval = approvalRecords.length > 0 ? approvalRecords[0] : null
+  // ── 7. Explicit approval ↔ preview binding (Phase 5C) ────────
+  // No latest/workUnit-only approval lookup. For each referenced preview, resolve
+  // the approval bound to THAT exact preview (by actionPreviewId, tenant-scoped)
+  // and verify the pair. The request is ready only if some referenced preview has
+  // a fully-bound, valid approval.
+  let verified = false
+  let firstFailure: ReturnType<typeof verifyApprovalPreviewBinding> | null = null
+  const now = new Date().toISOString()
 
-  // ── 7. Verify approval state ─────────────────────────────────
-  if (!latestApproval) {
-    audit("execution_dry_run_blocked", requestId, { reason: "no_approval" })
-    return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "No approval found for this WorkUnit.", requestId)
-  }
-
-  if (latestApproval.tenantId !== session.tenantId) {
-    audit("execution_dry_run_failed", requestId, { reason: "tenant_mismatch" })
-    return errorResponse(requestId, "forbidden", 403)
-  }
-
-  if (latestApproval.workUnitId !== workUnitId) {
-    audit("execution_dry_run_failed", requestId, { reason: "workunit_mismatch" })
-    return errorResponse(requestId, "invalid_request", 400)
-  }
-
-  if (latestApproval.status === "rejected") {
-    audit("execution_dry_run_blocked", requestId, { reason: "approval_rejected" })
-    return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "Approval was rejected.", requestId)
-  }
-
-  if (latestApproval.status === "pending") {
-    audit("execution_dry_run_blocked", requestId, { reason: "approval_pending" })
-    return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "Approval is pending.", requestId)
-  }
-
-  if (latestApproval.status === "used") {
-    audit("execution_dry_run_blocked", requestId, { reason: "approval_used" })
-    return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "Approval has already been consumed.", requestId)
-  }
-
-  if (latestApproval.status !== "approved") {
-    audit("execution_dry_run_blocked", requestId, { reason: "approval_status_invalid" })
-    return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "Approval is not in a valid state.", requestId)
-  }
-
-  // Check expiry
-  if (latestApproval.expiresAt && new Date(latestApproval.expiresAt) < new Date()) {
-    audit("execution_dry_run_blocked", requestId, { reason: "approval_expired" })
-    return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "Approval has expired.", requestId)
-  }
-
-  // ── 8. Verify preview hashes match approval hashes ────────────
-  let hashVerified = false
   for (const previewId of previewIds) {
-    const preview = await previewRepo.findById(ctx, previewId)
-    if (!preview) continue
-    if (
-      preview.targetHash === latestApproval.targetHash &&
-      preview.payloadHash === latestApproval.payloadHash
-    ) {
-      hashVerified = true
+    const [approval, preview] = await Promise.all([
+      approvalRepo.findByPreviewId(ctx, previewId),
+      previewRepo.findById(ctx, previewId),
+    ])
+    const outcome = verifyApprovalPreviewBinding(
+      { tenantId: session.tenantId as TenantId, workUnitId, actionPreviewId: previewId, requestedActionType, now },
+      approval,
+      preview,
+    )
+    if (outcome.ok) {
+      verified = true
       break
     }
+    if (!firstFailure) firstFailure = outcome
   }
 
-  if (!hashVerified && previewIds.length > 0) {
-    audit("execution_dry_run_blocked", requestId, { reason: "hash_mismatch" })
-    return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "Preview hashes do not match approval hashes. The preview may have been modified after approval.", requestId)
-  }
-
-  // ── 9. Verify requestedActionType matches ────────────────────
-  if (requestedActionType && latestApproval.actionType) {
-    // Only check if both are present; null means client doesn't know the type
-    if (requestedActionType !== latestApproval.actionType) {
-      audit("execution_dry_run_blocked", requestId, { reason: "action_type_mismatch" })
-      return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", `Action type mismatch: requested "${requestedActionType}" does not match approved "${latestApproval.actionType}".`, requestId)
+  if (!verified) {
+    const failure = firstFailure ?? { ok: false as const, disposition: "not_ready" as const, reason: "No approval found for this preview." }
+    if (failure.ok === false && failure.disposition === "forbidden") {
+      audit("execution_dry_run_failed", requestId, { reason: "tenant_mismatch" })
+      return errorResponse(requestId, "forbidden", 403)
     }
+    if (failure.ok === false && failure.disposition === "invalid_request") {
+      audit("execution_dry_run_failed", requestId, { reason: "binding_mismatch" })
+      return errorResponse(requestId, "invalid_request", 400)
+    }
+    const reason = failure.ok === false && failure.disposition === "not_ready" ? failure.reason : "Not ready."
+    audit("execution_dry_run_blocked", requestId, { reason: "binding_not_ready" })
+    return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", reason, requestId)
   }
 
-  // ── 10. Check kill switch ────────────────────────────────────
+  // ── 8. Check kill switch ─────────────────────────────────────
   if (!areExternalActionsEnabled()) {
     audit("execution_dry_run_blocked", requestId, { reason: "kill_switch_active" })
     return successResponse(workUnitId, previewRefs.length, requestedActionType, "blocked", "External execution is disabled by kill switch.", requestId)
   }
 
-  // ── 11. Verified ─────────────────────────────────────────────
+  // ── 9. Verified ──────────────────────────────────────────────
   // IMPORTANT: dry-run NEVER marks approval as used
   // Approval remains available for real execution if/when enabled
   audit("execution_dry_run_verified", requestId, {

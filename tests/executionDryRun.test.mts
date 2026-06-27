@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 
 const dryRunRoute = "app/api/workunit/[id]/execution/dry-run/route.ts"
+const bindingModule = "app/lib/security/approvalPreviewBinding.ts"
 const dryRunClient = "app/lib/application/dashboard/dashboardExecutionDryRunClient.ts"
 const dashboardComponent = "app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx"
 const dashboardPanel = "app/components/workunit-os/adopted/AdoptedActionFieldPanel.tsx"
@@ -49,11 +50,15 @@ test("dry-run route enforces RBAC", async () => {
   assert.equal(source.includes('reason: "rbac_denied"'), true)
 })
 
-// ─── Route: loads stored approval server-side ───────────────────
+// ─── Route: explicit approval ↔ preview binding (Phase 5C) ──────
 
-test("dry-run route loads approval records by workUnitId", async () => {
+test("dry-run route binds approval to preview explicitly (no latest/workUnit-only lookup)", async () => {
   const source = await readFile(dryRunRoute, "utf8")
-  assert.equal(source.includes("findByWorkUnitId"), true)
+  // Phase 5C: approval is resolved by the exact actionPreviewId and verified via
+  // the binding module — never by a latest/workUnit-only approval lookup.
+  assert.equal(source.includes("findByPreviewId"), true)
+  assert.equal(source.includes("verifyApprovalPreviewBinding"), true)
+  assert.equal(source.includes("findByWorkUnitId"), false, "route must not use workUnit-only approval lookup")
 })
 
 test("dry-run route checks tenant match", async () => {
@@ -61,36 +66,36 @@ test("dry-run route checks tenant match", async () => {
   assert.equal(source.includes("tenant_mismatch"), true)
 })
 
-// ─── Route: verification checks ─────────────────────────────────
+// ─── Binding module: verification states ────────────────────────
 
-test("dry-run route blocks on missing approval", async () => {
-  const source = await readFile(dryRunRoute, "utf8")
-  assert.equal(source.includes('reason: "no_approval"'), true)
+test("binding module blocks on missing approval", async () => {
+  const source = await readFile(bindingModule, "utf8")
+  assert.equal(source.includes("No approval found for this preview."), true)
 })
 
-test("dry-run route blocks on rejected approval", async () => {
-  const source = await readFile(dryRunRoute, "utf8")
-  assert.equal(source.includes('reason: "approval_rejected"'), true)
+test("binding module blocks on rejected approval", async () => {
+  const source = await readFile(bindingModule, "utf8")
+  assert.equal(source.includes('"rejected"') && source.includes("Approval was rejected."), true)
 })
 
-test("dry-run route blocks on pending approval", async () => {
-  const source = await readFile(dryRunRoute, "utf8")
-  assert.equal(source.includes('reason: "approval_pending"'), true)
+test("binding module blocks on pending approval", async () => {
+  const source = await readFile(bindingModule, "utf8")
+  assert.equal(source.includes('"pending"') && source.includes("Approval is pending."), true)
 })
 
-test("dry-run route blocks on used approval", async () => {
-  const source = await readFile(dryRunRoute, "utf8")
-  assert.equal(source.includes('reason: "approval_used"'), true)
+test("binding module blocks on used approval", async () => {
+  const source = await readFile(bindingModule, "utf8")
+  assert.equal(source.includes("usedAt") && source.includes("Approval has already been consumed."), true)
 })
 
-test("dry-run route blocks on expired approval", async () => {
-  const source = await readFile(dryRunRoute, "utf8")
-  assert.equal(source.includes('reason: "approval_expired"'), true)
+test("binding module blocks on expired approval", async () => {
+  const source = await readFile(bindingModule, "utf8")
+  assert.equal(source.includes("expiresAt") && source.includes("Approval has expired."), true)
 })
 
-test("dry-run route blocks on hash mismatch", async () => {
-  const source = await readFile(dryRunRoute, "utf8")
-  assert.equal(source.includes('reason: "hash_mismatch"'), true)
+test("binding module blocks on hash mismatch", async () => {
+  const source = await readFile(bindingModule, "utf8")
+  assert.equal(source.includes("targetHash") && source.includes("payloadHash") && source.includes("do not match approval hashes"), true)
 })
 
 test("dry-run route blocks when kill switch is active", async () => {
