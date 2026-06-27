@@ -60,8 +60,20 @@ test("fake dry-run provider has no SDK imports", () => {
   assert.equal(src.includes("fetch"), false)
 })
 
-test("fake dry-run provider output has deterministic metadata", () => {
-  const r = FAKE_DRY_RUN_PROVIDER.adapt({ contextPack: pack }, ready, REAL_LLM_PROVIDER_POLICY_REQUIRED)
-  assert.equal(r.ok, true)
-  if (r.ok) assert.equal(r.metadata.tokensUsed, 0)
+test("fake dry-run provider output is a deterministic, token-free block", () => {
+  // The real provider boundary always blocks the fake adapter with
+  // `provider_implementation_missing` (there is no live provider — live provider
+  // integration remains No-Go). The safe dry-run contract is therefore a
+  // deterministic block that consumes no tokens and exposes no executable
+  // metadata, rather than an ok:true response.
+  const a = FAKE_DRY_RUN_PROVIDER.adapt({ contextPack: pack }, ready, REAL_LLM_PROVIDER_POLICY_REQUIRED)
+  const b = FAKE_DRY_RUN_PROVIDER.adapt({ contextPack: pack }, ready, REAL_LLM_PROVIDER_POLICY_REQUIRED)
+  assert.deepEqual(a, b) // deterministic
+  assert.equal(a.ok, false)
+  if (!a.ok) {
+    assert.deepEqual(a.blockedReasons, ["provider_implementation_missing"])
+  }
+  // No token usage / metadata leaks from a dry-run result.
+  assert.equal(JSON.stringify(a).includes("tokensUsed"), false)
+  assert.equal((a as Record<string, unknown>).metadata, undefined)
 })
