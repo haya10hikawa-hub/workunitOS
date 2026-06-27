@@ -45,13 +45,16 @@ export function createRepositoryBackedApprovalStore(
       }
     },
 
-    async markApprovalUsed(approvalId: string, usedAt: string): Promise<void> {
+    async markApprovalUsed(approvalId: string, usedAt: string): Promise<boolean> {
       try {
-        await repo.markUsed(ctx, approvalId, usedAt)
+        // Phase 5B: the repository markUsed is an atomic compare-and-set. It
+        // returns the row only when this call claimed the one-time use, and
+        // null otherwise. Surface that as the claim result.
+        const claimed = await repo.markUsed(ctx, approvalId, usedAt)
+        return claimed !== null
       } catch {
-        // Fail closed: silently no-op. The next verifyApproval call
-        // will see the record is still "approved", but re-verification
-        // will catch that via expiry or idempotency.
+        // Fail closed: treat a repository error as "claim not won".
+        return false
       }
     },
   }

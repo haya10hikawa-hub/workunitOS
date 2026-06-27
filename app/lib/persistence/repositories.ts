@@ -90,6 +90,12 @@ export interface ApprovalRecordRepository {
   findByPreviewId(ctx: TenantDbContext, previewId: string): Promise<ApprovalRecordRow | null>
   findByWorkUnitId(ctx: TenantDbContext, workUnitId: string): Promise<ApprovalRecordRow[]>
   updateStatus(ctx: TenantDbContext, id: string, status: ApprovalRecordRow["status"]): Promise<ApprovalRecordRow | null>
+  /**
+   * Phase 5B atomic compare-and-set one-time-use claim. Returns the updated row
+   * only when this call claimed the approval (approved + unused + unexpired +
+   * tenant match); returns null when the claim was lost (already used, expired,
+   * wrong status, or wrong tenant).
+   */
   markUsed(ctx: TenantDbContext, id: string, usedAt: string): Promise<ApprovalRecordRow | null>
 }
 

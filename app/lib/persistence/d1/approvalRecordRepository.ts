@@ -36,8 +36,17 @@ const UPDATE_STATUS_SQL = `
   UPDATE approval_records SET status = ? WHERE tenant_id = ? AND id = ?
 `
 
+// Phase 5B: atomic compare-and-set. The row only transitions to 'used' when it
+// is currently approved, unused, unexpired, and tenant-scoped. A concurrent or
+// replayed call matches 0 rows and therefore does not claim the one-time use.
 const MARK_USED_SQL = `
-  UPDATE approval_records SET status = 'used', used_at = ? WHERE tenant_id = ? AND id = ?
+  UPDATE approval_records
+     SET status = 'used', used_at = ?
+   WHERE tenant_id = ?
+     AND id = ?
+     AND status = 'approved'
+     AND used_at IS NULL
+     AND expires_at > ?
 `
 
 // ─── Implementation ─────────────────────────────────────────────
@@ -96,8 +105,17 @@ export class D1ApprovalRecordRepository implements ApprovalRecordRepository {
     return this.findById(ctx, id)
   }
 
+  /**
+   * Atomic compare-and-set one-time-use claim (Phase 5B).
+   *
+   * Returns the updated row only when THIS call claimed the approval
+   * (the conditional UPDATE changed exactly one row). Returns null when the
+   * approval was already used, expired, not approved, or belongs to another
+   * tenant — i.e. the caller did NOT win the claim and must not proceed.
+   */
   async markUsed(ctx: TenantDbContext, id: string, usedAt: string): Promise<ApprovalRecordRow | null> {
-    await this.db.prepare(MARK_USED_SQL).bind(usedAt, ctx.tenantId, id).run()
+    const result = await this.db.prepare(MARK_USED_SQL).bind(usedAt, ctx.tenantId, id, usedAt).run()
+    if ((result.meta?.rows_written ?? 0) < 1) return null
     return this.findById(ctx, id)
   }
 

@@ -117,8 +117,14 @@ async function runApprovedExternal(
     return fail(request.id, verification.error)
   }
 
-  // Mark approval as used
-  await store.markApprovalUsed(verification.approvalId, new Date().toISOString())
+  // Phase 5B: atomically claim the approval (one-time use). verifyApproval was a
+  // read; this compare-and-set is the write that actually wins the claim. If it
+  // does not win (already used, expired, or a concurrent winner between the read
+  // and this write), fail closed instead of proceeding.
+  const claimed = await store.markApprovalUsed(verification.approvalId, new Date().toISOString())
+  if (!claimed) {
+    return fail(request.id, "approval_used")
+  }
 
   return ok(request.id, { approved: true, target }, target, verification.approvalId)
 }
