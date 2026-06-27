@@ -53,14 +53,17 @@ test("route imports rate limit", () => {
 })
 
 test("route calls CSRF before session", () => {
-  const csrfIdx = SRC_ROUTE.indexOf("validateCsrfOrigin")
-  const sessionIdx = SRC_ROUTE.indexOf("requireSession")
-  assert.ok(csrfIdx > 0 && sessionIdx > 0 && csrfIdx < sessionIdx, "CSRF must run before session")
+  // Match call sites (with open paren), not import statements which appear earlier.
+  const csrfIdx = SRC_ROUTE.indexOf("validateCsrfOrigin(")
+  const sessionIdx = SRC_ROUTE.indexOf("requireSession(")
+  assert.ok(csrfIdx > 0, "validateCsrfOrigin( call site must exist")
+  assert.ok(sessionIdx > 0, "requireSession( call site must exist")
+  assert.ok(csrfIdx < sessionIdx, "CSRF must run before session")
 })
 
 test("route calls rate limit before RBAC", () => {
-  const rateIdx = SRC_ROUTE.indexOf("checkRateLimit")
-  const rbacIdx = SRC_ROUTE.indexOf("hasPermission")
+  const rateIdx = SRC_ROUTE.indexOf("checkRateLimit(")
+  const rbacIdx = SRC_ROUTE.indexOf("hasPermission(")
   assert.ok(rateIdx > 0 && rbacIdx > 0 && rateIdx < rbacIdx, "Rate limit must run before RBAC")
 })
 
@@ -82,7 +85,8 @@ test("safe errors in route do not include Authorization", () => {
 })
 
 test("route has safe error responses for CSRF+rate limit", () => {
-  assert.ok(SRC_ROUTE.includes('"invalid_origin"') || SRC_ROUTE.includes("invalid_origin"))
-  assert.ok(SRC_ROUTE.includes('"csrf_failed"') || SRC_ROUTE.includes("csrf_failed"))
-  assert.ok(SRC_ROUTE.includes('"rate_limited"') || SRC_ROUTE.includes("rate_limited"))
+  // The route forwards csrf.reason (invalid_origin / csrf_failed) dynamically rather
+  // than hard-coding the literal. The csrf reason literals live in csrfProtection.ts.
+  assert.ok(SRC_ROUTE.includes("csrf.reason"), "route must forward csrf.reason")
+  assert.ok(SRC_ROUTE.includes('"rate_limited"'), "route must return rate_limited")
 })

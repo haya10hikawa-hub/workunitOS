@@ -1,6 +1,6 @@
 import type { SessionContext } from "../../domain/auth/types.ts"
 import type { TenantId, UserId } from "../../tenant/types.ts"
-import { normalizeRoleInput, RoleNormalizationError } from "../../security/policy.ts"
+import { normalizeRoleInput, RoleNormalizationError, type WorkUnitRole, type WorkUnitRoleInput } from "../../security/policy.ts"
 import { resolveControlRepositories, type ControlRepositoryBundle } from "../../infrastructure/persistence/control/controlRepositoryResolver.ts"
 import type { AppEnv } from "../../../types/cloudflare-env.ts"
 import type { D1DatabaseLike } from "../../persistence/d1/types.ts"
@@ -71,6 +71,21 @@ export async function resolveSession(
   }
 }
 
+// Dev-only default role.
+//
+// When DEV_SESSION_ROLE is unset, dev sessions resolve to an explicit "owner"
+// role. This is a dev-only convenience gated behind NODE_ENV !== "production",
+// ALLOW_DEV_SESSION === "true", and a "dev" auth provider (see the helpers
+// below). It does NOT relax normalizeRoleInput, which remains fail-closed:
+// production membership rows with a missing/invalid role still throw
+// RoleNormalizationError and surface as invalid_role / 403.
+const DEV_DEFAULT_ROLE: WorkUnitRoleInput = "owner"
+
+function resolveDevSessionRole(): WorkUnitRole {
+  const explicit = process.env.DEV_SESSION_ROLE as WorkUnitRoleInput | undefined
+  return normalizeRoleInput(explicit ?? DEV_DEFAULT_ROLE)
+}
+
 function shouldBootstrapDevWorkspace(identity: VerifiedAuthIdentity): boolean {
   return process.env.NODE_ENV !== "production"
     && process.env.ALLOW_DEV_SESSION === "true"
@@ -112,7 +127,7 @@ async function bootstrapDevWorkspace(repos: ControlRepositoryBundle, identity: V
       id: "membership:dev-user:dev-tenant",
       tenantId,
       userId,
-      role: normalizeRoleInput(process.env.DEV_SESSION_ROLE as "owner" | "manager" | "editor" | "viewer" | "admin" | "pm" | "member" | undefined),
+      role: resolveDevSessionRole(),
       status: "active",
       createdAt: now,
       updatedAt: now,
@@ -159,7 +174,7 @@ function createControlLessDevSession(identity: VerifiedAuthIdentity): SessionCon
   return {
     userId: "dev-user" as UserId,
     tenantId: "dev-tenant" as TenantId,
-    role: normalizeRoleInput(process.env.DEV_SESSION_ROLE as Parameters<typeof normalizeRoleInput>[0]),
+    role: resolveDevSessionRole(),
     email: identity.email,
     isDevSession: true,
     sessionId: `dev:${identity.providerSubject}:${Date.now()}`,

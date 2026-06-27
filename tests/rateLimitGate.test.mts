@@ -2,6 +2,11 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import {
+  checkRateLimit,
+  resetRateLimitStore,
+  type RateLimitKey,
+} from "../app/lib/security/rateLimitGate.ts"
 
 const SRC = readFileSync(join(import.meta.dirname!, "../app/lib/security/rateLimitGate.ts"), "utf-8")
 
