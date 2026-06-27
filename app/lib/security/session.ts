@@ -16,7 +16,7 @@ export async function requireSession(request: Request = new Request("http://loca
 }
 
 export function getSessionErrorStatus(reason: SessionResolutionFailureReason): number {
-  if (reason === "forbidden" || reason === "invalid_tenant") return 403
+  if (reason === "forbidden" || reason === "invalid_tenant" || reason === "invalid_role") return 403
   if (reason === "internal_error") return 500
   return 401
 }

@@ -23,6 +23,8 @@ const ERROR_STATE_MAP: Record<SafeErrorCode, ActionFieldErrorState> = {
   invalid_request: "editable_correction",
   unauthorized: "login_required",
   forbidden: "permission_denied",
+  csrf_failed: "permission_denied",
+  invalid_origin: "permission_denied",
   tenant_boundary_violation: "permission_denied",
   external_actions_disabled: "policy_disabled",
   approval_required: "approval_needed",

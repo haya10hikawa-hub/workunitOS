@@ -4,6 +4,8 @@ import { validateToolBackendRequest } from "../../../lib/toolBackendValidation.t
 import { areExternalActionsEnabled, isExternalOperation } from "../../../lib/security/externalActions.ts"
 import { getSafeErrorStatus, safeError, toSafeErrorCode } from "../../../lib/security/safeErrors.ts"
 import { getSessionErrorStatus, requireSession } from "../../../lib/security/session.ts"
+import { validateCsrfOrigin } from "../../../lib/security/csrfProtection.ts"
+import { checkRateLimit } from "../../../lib/security/rateLimitGate.ts"
 import { hasPermission } from "../../../lib/security/rbac.ts"
 import { writeAuditLog, type AuditEventKind } from "../../../lib/security/auditLog.ts"
 import type { WorkUnitPermission } from "../../../lib/security/policy.ts"
@@ -22,8 +24,7 @@ import { resolveApprovalStore, resolveRepositoryBackedApprovalStore } from "../.
 import { resolveRouteRepositories } from "../../../lib/persistence/routeRepositories.ts"
 
 // TODO: tenant boundary — validate that the requested source belongs to the caller's tenant
-// TODO: rate limiting — enforce per-tenant and per-endpoint rate limits
-// TODO: CSRF / session hardening — validate origin, referrer, CSRF token
+// Phase 5A: CSRF, rate limit, and role fail-closed hardening applied above
 
 // ─── Operation → Permission Mapping ─────────────────────────────
 
@@ -74,10 +75,17 @@ export async function GET(): Promise<NextResponse> {
 export async function POST(request: Request): Promise<NextResponse> {
   const requestId = resolveRequestId(request)
 
-  // ── 1. Audit: request received ────────────────────────────────
+  // ── 1. CSRF / Origin protection ─────────────────────────────
+  const csrf = validateCsrfOrigin(request)
+  if (!csrf.ok) {
+    audit("workunit_tools_csrf_blocked" as AuditEventKind, requestId, { reason: csrf.reason })
+    return errorResponse(requestId, csrf.reason, 403)
+  }
+
+  // ── 2. Audit: request received ──────────────────────────────
   audit("tool_request_received", requestId)
 
-  // ── 2. Session boundary ───────────────────────────────────────
+  // ── 3. Session boundary ─────────────────────────────────────
   const sessionResult = await requireSession(request)
   if (!sessionResult.ok) {
     audit("auth_required", requestId, { reason: sessionResult.reason })
@@ -89,7 +97,20 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   const session = sessionResult.session
 
-  // ── 3. Parse JSON as unknown ──────────────────────────────────
+  // ── 4. Rate limit gate ──────────────────────────────────────
+  const clientIp = request.headers.get("CF-Connecting-IP") ?? request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ?? "unknown"
+  const rateResult = checkRateLimit({
+    tenantId: session.tenantId,
+    actorUserId: session.userId,
+    clientIp,
+    routeFamily: "workunit_tools",
+  })
+  if (!rateResult.ok) {
+    audit("workunit_tools_rate_limited" as AuditEventKind, requestId)
+    return errorResponse(requestId, "rate_limited", 429)
+  }
+
+  // ── 5. Parse JSON as unknown ────────────────────────────────
   let body: unknown
   try {
     body = await request.json()
