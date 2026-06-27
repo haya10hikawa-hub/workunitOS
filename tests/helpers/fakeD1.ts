@@ -224,6 +224,20 @@ export class FakeD1Database implements D1DatabaseLike {
     this.store.clear()
   }
 
+  /**
+   * Insert a raw row directly into a table, bypassing repository serialization.
+   * Test-only: used to seed malformed stored JSON (Phase 5D) that a repository's
+   * own create() would never produce, so mapRow's fail-safe path can be exercised.
+   */
+  seedRow(tableName: string, row: Record<string, unknown>): void {
+    let table = this.store.get(tableName)
+    if (!table) {
+      table = new Map()
+      this.store.set(tableName, table)
+    }
+    table.set(String(row.id), row)
+  }
+
   debugTable(tableName: string): Record<string, unknown>[] {
     return Array.from(this.store.get(tableName)?.values() ?? []).map((row) => ({ ...row }))
   }
