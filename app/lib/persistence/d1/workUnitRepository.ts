@@ -33,7 +33,12 @@ export class D1WorkUnitRepository implements WorkUnitRepository {
   }
 
   async updateStatus(_ctx: TenantDbContext, id: string, status: InboxWorkUnitRow["status"]): Promise<InboxWorkUnitRow | null> {
-    await this.db.prepare("UPDATE work_units SET status = ?, updated_at = ? WHERE id = ?").bind(status, nowISO(), id).run()
+    // Phase 6C: tenant-scope the UPDATE so a wrong-tenant call cannot mutate
+    // another tenant's row. The previous WHERE id = ? form mutated the row before
+    // the post-filtered findById masked it.
+    await this.db.prepare("UPDATE work_units SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ?")
+      .bind(status, nowISO(), id, _ctx.tenantId)
+      .run()
     return this.findById(_ctx, id)
   }
 
