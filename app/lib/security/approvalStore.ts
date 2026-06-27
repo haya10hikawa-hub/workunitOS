@@ -72,12 +72,13 @@ export interface ApprovalStore {
  *   1. Approval exists → else approval_required
  *   2. tenantId matches → else forbidden
  *   3. workUnitId matches → else forbidden
- *   4. actionType matches → else forbidden
- *   5. targetHash matches → else approval_target_mismatch
- *   6. payloadHash matches → else approval_payload_mismatch
- *   7. Status is "approved" → else approval_required (if pending/rejected)
- *   8. Not expired → else approval_expired
- *   9. Not already used → else approval_used
+ *   4. actionPreviewId binding matches → else forbidden (Phase 5C)
+ *   5. actionType matches → else forbidden
+ *   6. targetHash matches → else approval_target_mismatch
+ *   7. payloadHash matches → else approval_payload_mismatch
+ *   8. Status is "approved" → else approval_required (if pending/rejected)
+ *   9. Not expired → else approval_expired
+ *  10. Not already used → else approval_used
  *
  * Client-provided `approvedByPm` is NEVER checked here.
  * The client never provides targetHash or payloadHash — they come from
@@ -95,6 +96,11 @@ export async function verifyApproval(
 
   // WorkUnit mismatch
   if (record.workUnitId !== input.workUnitId) return { ok: false, error: "forbidden" }
+
+  // Explicit approval → action-preview binding (Phase 5C). The approval must
+  // reference exactly the ActionPreview the caller resolved targetHash/payloadHash
+  // from. This forbids validating an approval against a preview it is not bound to.
+  if (record.actionPreviewId !== input.actionPreviewId) return { ok: false, error: "forbidden" }
 
   // Action type mismatch
   if (record.actionType !== input.actionType) return { ok: false, error: "forbidden" }
