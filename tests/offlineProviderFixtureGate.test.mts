@@ -72,7 +72,13 @@ test("fixture gate diagnostics are safe", () => {
 test("fixture gate result contains no execution-ready payload", () => {
   const r = runOfflineFixtureGate()
   const s = JSON.stringify(r)
-  assert.equal(s.includes("\"execute\""), false)
-  assert.equal(s.includes('"execution"'), false)
-  assert.equal(s.includes('"approvalId"'), false)
+  // An execution-ready payload would carry these tokens as DATA KEYS (e.g.
+  // `"approvalId":"..."`). The gate result legitimately mentions them as
+  // redacted diagnostic LABELS (`{"key":"approvalId","reason":"forbidden_key"}`)
+  // when it blocks a forbidden key — that is the safety mechanism working, not a
+  // payload leak (diagnostics never carry values; see "diagnostics are safe").
+  // So assert these tokens never appear as object keys.
+  assert.equal(s.includes('"execute":'), false)
+  assert.equal(s.includes('"execution":'), false)
+  assert.equal(s.includes('"approvalId":'), false)
 })

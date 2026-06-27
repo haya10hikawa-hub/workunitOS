@@ -57,7 +57,7 @@ const CATALOG: Record<DryRunProviderDesignGateId, { readonly severity: "p0" | "r
   no_live_provider_call: { severity: "p0", defaultReason: "No live provider calls in current phase" },
   no_provider_sdk: { severity: "p0", defaultReason: "No provider SDK imported" },
   no_fetch: { severity: "p0", defaultReason: "No fetch calls in adapter-related code" },
-  no_process_env: { severity: "p0", defaultReason: "No process.env reads in adapter-related code" },
+  no_process_env: { severity: "p0", defaultReason: "No runtime environment variable reads in adapter-related code" },
   no_api_key_material: { severity: "p0", defaultReason: "No API key or secret material" },
   no_provider_endpoint: { severity: "p0", defaultReason: "No provider endpoint configured" },
   no_approval_creation: { severity: "p0", defaultReason: "No approval creation by adapter" },
