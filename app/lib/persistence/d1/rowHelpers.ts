@@ -27,6 +27,41 @@ export function safeJsonStringify(value: unknown): string {
   }
 }
 
+/**
+ * Serialize a JSON column value for storage without double-encoding (Phase 5D).
+ *
+ * - nullish / empty   → "{}" (a create-time default for absent content)
+ * - string            → stored verbatim (already JSON text)
+ * - object/array      → stringified exactly once
+ *
+ * Does not mutate the input and never throws.
+ */
+export function toJsonColumn(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "{}"
+  if (typeof value === "string") return value
+  return safeJsonStringify(value)
+}
+
+/**
+ * Read a stored JSON column as a verbatim string (Phase 5D).
+ *
+ * Returns the original string only when it parses as JSON, so content is
+ * preserved exactly. Returns null when the column is missing, non-string, or
+ * malformed — the caller treats a malformed row as unusable (fail-safe) rather
+ * than fabricating a default/executable target or payload.
+ *
+ * Never returns parser error text and never echoes the raw stored content.
+ */
+export function readJsonColumn(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  try {
+    JSON.parse(value)
+    return value
+  } catch {
+    return null
+  }
+}
+
 // ─── Timestamps ─────────────────────────────────────────────────
 
 /** Return an ISO timestamp string for "now". */
