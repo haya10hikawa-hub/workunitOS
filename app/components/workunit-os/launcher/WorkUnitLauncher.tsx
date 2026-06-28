@@ -7,9 +7,11 @@ import {
 } from "@/lib/application/launcher/actionFieldEditorDraftModel"
 import { getLauncherKeyIntent, nextLauncherIndex, resolveLauncherEscapeAction } from "@/lib/application/launcher/keyboardNavigationModel"
 import { deriveWorkUnitTreeMap } from "@/lib/application/launcher/workUnitTreeModel"
+import { deriveWorkspaceModel, resolveSelectedTreeNode } from "@/lib/application/launcher/deriveWorkspaceModel"
+import { candidateWorkUnitBridge } from "@/lib/application/candidate/candidateWorkUnitBridge"
+import { candidatesToLauncherWorkUnits } from "@/lib/application/launcher/candidateToLauncherWorkUnit"
 import {
   clampLauncherActiveIndex,
-  fallbackLauncherWorkUnits,
   filterLauncherWorkUnits,
   getActiveLauncherWorkUnit,
   type LauncherWorkUnit,
@@ -25,8 +27,16 @@ export function WorkUnitLauncher() {
   const [isOpen, setIsOpen] = useState(true)
   const [mode, setMode] = useState<WorkUnitLauncherMode>("palette")
   const [query, setQuery] = useState("")
-  const workUnits = useMemo<LauncherWorkUnit[]>(() => fallbackLauncherWorkUnits(), [])
+  // Data source: candidate-only bridge (mock_candidate_pipeline). Each WorkUnit is
+  // an allowlist-projected SafeWorkUnitCandidate adapted into LauncherWorkUnit.
+  const workUnits = useMemo<LauncherWorkUnit[]>(
+    () => candidatesToLauncherWorkUnits(candidateWorkUnitBridge().workUnits),
+    [],
+  )
   const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | null>(workUnits[0]?.id ?? null)
+  // Node selection is scoped to its WorkUnit; switching WorkUnit falls back to the
+  // canvas center without a reset effect (the stale id no longer matches).
+  const [nodeSelection, setNodeSelection] = useState<{ readonly workUnitId: string; readonly nodeId: string } | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
 
   const filteredWorkUnits = useMemo(
@@ -37,8 +47,26 @@ export function WorkUnitLauncher() {
   const activeWorkUnit = getActiveLauncherWorkUnit(filteredWorkUnits, clampedActiveIndex)
   const selectedWorkUnit = workUnits.find((workUnit) => workUnit.id === selectedWorkUnitId) ?? activeWorkUnit ?? null
   const treeMap = useMemo(() => deriveWorkUnitTreeMap(selectedWorkUnit), [selectedWorkUnit])
-  const draft = useMemo(() => deriveActionFieldEditorDraft(selectedWorkUnit), [selectedWorkUnit])
+  // The selected node defaults to the canvas center (derived from candidate state).
+  const effectiveNodeId =
+    nodeSelection && nodeSelection.workUnitId === selectedWorkUnitId ? nodeSelection.nodeId : null
+  const selectedNode = useMemo(() => resolveSelectedTreeNode(treeMap, effectiveNodeId), [treeMap, effectiveNodeId])
+  const workspace = useMemo(
+    () => deriveWorkspaceModel(selectedWorkUnit, treeMap, effectiveNodeId),
+    [selectedWorkUnit, treeMap, effectiveNodeId],
+  )
+  const draft = useMemo(
+    () => deriveActionFieldEditorDraft(
+      selectedWorkUnit,
+      selectedNode.id === treeMap.center.id ? null : { id: selectedNode.id, label: selectedNode.label },
+    ),
+    [selectedWorkUnit, selectedNode, treeMap],
+  )
   const readinessCards = useMemo(() => deriveLauncherReadinessCards(selectedWorkUnit), [selectedWorkUnit])
+
+  const handleSelectNode = (nodeId: string) => {
+    setNodeSelection(selectedWorkUnitId ? { workUnitId: selectedWorkUnitId, nodeId } : null)
+  }
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -132,7 +160,10 @@ export function WorkUnitLauncher() {
           ) : (
             <ActionFieldView
               workUnit={selectedWorkUnit}
+              workspace={workspace}
               treeMap={treeMap}
+              selectedNodeId={selectedNode.id}
+              onSelectNode={handleSelectNode}
               draft={draft}
               readinessCards={readinessCards}
               onBackToPalette={() => setMode("palette")}

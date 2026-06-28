@@ -35,17 +35,23 @@ export function deriveWorkUnitTreeMap(workUnit: LauncherWorkUnit | null): WorkUn
   const title = workUnit?.title ?? "Quarterly review presentation"
   const center = node("center", title, "subtasks", 50, 50, "primary")
 
+  // The first node of Sources / Evidence / Subtasks derives from the selected
+  // WorkUnit so the Node Canvas visibly reflects the current selection.
+  const sourceLabel = workUnit ? `${workUnit.source} signal` : "Quarterly Report Q2 (Sales & Revenue)"
+  const evidenceLabel = clipNodeLabel(workUnit?.summary) ?? "KPI Dashboard (Q2)"
+  const subtaskLabel = clipNodeLabel(workUnit?.nextStep) ?? "PR #289 Admin dashboard"
+
   return {
     center,
     groups: [
       group("sources", "Sources", [
-        node("source-report", "Quarterly Report Q2 (Sales & Revenue)", "sources", 51, 18, "ready"),
+        node("source-report", sourceLabel, "sources", 51, 18, "ready"),
         node("source-feedback", "Customer Feedback Analysis (May)", "sources", 51, 23, "muted"),
         node("source-trend", "Market Trend Overview Q2", "sources", 51, 28, "muted"),
         node("source-roadmap", "Product Roadmap 2024 Q3-Q4", "sources", 51, 33, "review"),
       ]),
       group("subtasks", "Subtasks", [
-        node("subtask-pr", "PR #289 Admin dashboard", "subtasks", 18, 38, "ready"),
+        node("subtask-pr", subtaskLabel, "subtasks", 18, 38, "ready"),
         node("subtask-audit", "Audit system migration", "subtasks", 18, 43, "muted"),
         node("subtask-config", "Slack review deployment config", "subtasks", 18, 48, "muted"),
         node("subtask-customer", "Customer feedback analysis", "subtasks", 18, 53, "muted"),
@@ -53,7 +59,7 @@ export function deriveWorkUnitTreeMap(workUnit: LauncherWorkUnit | null): WorkUn
         node("subtask-rehearsal", "Dry-run rehearsal", "subtasks", 18, 63, "review"),
       ]),
       group("evidence", "Evidence", [
-        node("evidence-kpi", "KPI Dashboard (Q2)", "evidence", 21, 68, "ready"),
+        node("evidence-kpi", evidenceLabel, "evidence", 21, 68, "ready"),
         node("evidence-nps", "NPS Trend Report", "evidence", 21, 73, "muted"),
         node("evidence-support", "Support Ticket Analysis", "evidence", 21, 78, "review"),
         node("evidence-competitive", "Competitive Landscape", "evidence", 21, 83, "review"),
@@ -108,4 +114,11 @@ function node(
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) return 50
   return Math.min(Math.max(value, 10), 90)
+}
+
+function clipNodeLabel(value: string | undefined, max = 48): string | undefined {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed
 }

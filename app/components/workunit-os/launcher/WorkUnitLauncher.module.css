@@ -1090,3 +1090,122 @@
     border-right: 0;
   }
 }
+
+/* Phase 2C: Workspace breadcrumb + root card (candidate-only). */
+.workspaceBreadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px 0;
+  color: #9aa6a1;
+  font-size: 12px;
+}
+
+.workspaceCrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspaceCrumb:last-child {
+  color: #f1f4f2;
+  font-weight: 650;
+}
+
+.workspaceCrumb i {
+  color: #5d6b65;
+  font-style: normal;
+}
+
+.workspaceRootCard {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #243029;
+  border-radius: 10px;
+  background: #10171a;
+}
+
+.workspaceRootTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workspaceRootTop h2 {
+  margin: 0;
+  color: #f1f4f2;
+  font-size: 15px;
+}
+
+.workspaceRootSummary {
+  margin: 0;
+  color: #c3ccc7;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.workspaceRootFacts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.workspaceRootFacts div {
+  display: grid;
+  gap: 2px;
+}
+
+.workspaceRootFacts dt {
+  color: #8a958f;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workspaceRootFacts dd {
+  margin: 0;
+  color: #e7ece9;
+  font-size: 13px;
+}
+
+.workspaceReviewNote {
+  margin: 0;
+  color: #79857f;
+  font-size: 11px;
+}
+
+/* Node Canvas nodes are selectable buttons (no execution authority). */
+.centerNode {
+  cursor: pointer;
+  font: inherit;
+}
+
+.treeNodeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.treeNodeButton[data-selected="true"] {
+  border-color: #49b461;
+  background: rgba(73, 180, 97, 0.12);
+}
+
+.treeNodeButton:focus-visible,
+.centerNode:focus-visible {
+  outline: 2px solid #59d778;
+  outline-offset: 1px;
+}
