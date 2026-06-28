@@ -81,7 +81,8 @@ test("keyboard navigation model resolves launcher keys", () => {
   assert.equal(getLauncherKeyIntent({ key: "Escape" }), "close")
   assert.equal(getLauncherKeyIntent({ key: "Enter" }), "confirm")
   assert.equal(nextLauncherIndex(0, "next", 2), 1)
-  assert.equal(nextLauncherIndex(0, "previous", 2), 0)
+  // Loop navigation: ArrowUp from the first row wraps to the last.
+  assert.equal(nextLauncherIndex(0, "previous", 2), 1)
 })
 
 test("workUnit tree model keeps nodes inside bounds", () => {

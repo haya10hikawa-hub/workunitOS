@@ -1,20 +1,22 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+// Icons sourced from react-icons/lu (the Lucide icon set) to keep a single icon
+// dependency; aliased to the original names so usages stay unchanged.
 import {
-  BarChart2,
-  Bell,
-  Bug,
-  Calendar,
-  ChevronRight,
-  Cloud,
-  FolderOpen,
-  Mail,
-  Menu,
-  Plus,
-  Settings,
-  User,
-} from "lucide-react"
+  LuChartColumn as BarChart2,
+  LuBell as Bell,
+  LuBug as Bug,
+  LuCalendar as Calendar,
+  LuChevronRight as ChevronRight,
+  LuCloud as Cloud,
+  LuFolderOpen as FolderOpen,
+  LuMail as Mail,
+  LuMenu as Menu,
+  LuPlus as Plus,
+  LuSettings as Settings,
+  LuUser as User,
+} from "react-icons/lu"
 import { createDashboardActionPreviews, approveDashboardActionPreviews, type DashboardPreviewRef } from "@/lib/application/actionField/dashboardPreviewClient"
 import {
   buildAdoptedDashboardViewModel,

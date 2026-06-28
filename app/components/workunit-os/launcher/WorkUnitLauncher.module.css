@@ -120,8 +120,10 @@
 }
 
 .searchGlyph {
+  place-self: center;
+  width: 20px;
+  height: 20px;
   color: #9ca8a4;
-  font-size: 24px;
 }
 
 .searchInput {
@@ -156,7 +158,7 @@
 
 .resultRow {
   width: 100%;
-  min-height: 76px;
+  min-height: 68px;
   display: grid;
   grid-template-columns: 39px minmax(0, 1fr) 76px 90px;
   align-items: center;
@@ -165,19 +167,26 @@
   border-bottom: 1px solid rgba(120, 135, 131, 0.14);
   background: rgba(17, 22, 25, 0.36);
   color: inherit;
-  padding: 14px 16px;
+  padding: 11px 16px;
   text-align: left;
   cursor: pointer;
+  transition: background 90ms ease, box-shadow 90ms ease;
 }
 
 .resultRow:last-child {
   border-bottom: 0;
 }
 
-.resultRow:hover,
-.resultRowActive {
+/* Hover: faint neutral wash so it is clearly weaker than the active row. */
+.resultRow:hover {
+  background: rgba(120, 135, 131, 0.1);
+}
+
+/* Active (keyboard/selection): green tint + left accent bar + green outline. */
+.resultRowActive,
+.resultRowActive:hover {
   background: rgba(41, 82, 52, 0.34);
-  box-shadow: inset 0 0 0 1px #2fb45a;
+  box-shadow: inset 3px 0 0 #33b65c, inset 0 0 0 1px rgba(47, 180, 90, 0.55);
 }
 
 .resultPhotoIcon,
@@ -210,6 +219,12 @@
   height: 68%;
   object-fit: contain;
   filter: invert(1) brightness(0.92);
+}
+
+.sourceAppIconGlyph {
+  width: 62%;
+  height: 62%;
+  color: #dce5e0;
 }
 
 .sourceAppIconFallback {
@@ -382,8 +397,10 @@
 }
 
 .factIcon {
+  width: 16px;
+  height: 16px;
+  flex: none;
   color: #b9c2be;
-  font-size: 15px;
 }
 
 .footerRow {
@@ -396,6 +413,12 @@
   padding: 0 27px;
   color: #aab3af;
   font-size: 13px;
+}
+
+.footerGroup {
+  display: flex;
+  align-items: center;
+  gap: 22px;
 }
 
 .footerRow span {
@@ -1021,8 +1044,32 @@
 }
 
 .emptyState {
-  padding: 18px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 44px 24px 48px;
+  text-align: center;
   color: #aab3af;
+}
+
+.emptyStateGlyph {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 4px;
+  color: #6f7b77;
+}
+
+.emptyStateTitle {
+  margin: 0;
+  color: #d7ddda;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.emptyStateHint {
+  margin: 0;
+  color: #8a948f;
+  font-size: 13px;
 }
 
 @media (max-width: 980px) {

@@ -1,6 +1,7 @@
 "use client"
 
-import { CheckSquare, Square } from "lucide-react"
+// react-icons/lu (Lucide set) aliased to the original names — single icon dependency.
+import { LuSquareCheck as CheckSquare, LuSquare as Square } from "react-icons/lu"
 import type { AdoptedDashboardViewModel, DashboardAuditLogView, DashboardIntegrationStatusView } from "@/lib/application/dashboard/adoptedDashboardViewModel"
 import type { ExecutionResultViewerModel } from "@/lib/application/dashboard/executionResultViewerModel"
 import type { ToolRequirementSummary } from "@/lib/application/actionField/toolRequirementModel"

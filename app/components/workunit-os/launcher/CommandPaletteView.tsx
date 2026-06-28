@@ -1,6 +1,7 @@
 "use client"
 
 import type { LauncherWorkUnit } from "@/lib/application/launcher/workUnitSelectionModel"
+import { FiArrowRight, FiBox, FiClock, FiSearch } from "react-icons/fi"
 import { SourceAppIcon } from "./SourceAppIcon"
 import styles from "./WorkUnitLauncher.module.css"
 
@@ -16,13 +17,19 @@ type Props = {
   readonly onClose: () => void
 }
 
+function resultCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "result" : "results"}`
+}
+
 export function CommandPaletteView(props: Props) {
   const activeWorkUnit = props.workUnits[props.activeIndex] ?? null
+  const hasQuery = props.query.trim().length > 0
+  const isEmpty = props.workUnits.length === 0
 
   return (
     <section className={styles.palettePanel} role="dialog" aria-label="WorkUnit command palette">
       <div className={styles.paletteTop}>
-        <span className={styles.searchGlyph}>⌕</span>
+        <FiSearch className={styles.searchGlyph} aria-hidden="true" />
         <input
           className={styles.searchInput}
           value={props.query}
@@ -39,8 +46,11 @@ export function CommandPaletteView(props: Props) {
               <button
                 key={workUnit.id}
                 type="button"
+                role="option"
+                aria-selected={index === props.activeIndex}
                 className={`${styles.resultRow} ${index === props.activeIndex ? styles.resultRowActive : ""}`}
                 data-selected={props.selectedWorkUnitId === workUnit.id ? "true" : "false"}
+                onMouseEnter={() => props.onActiveIndexChange(index)}
                 onClick={() => {
                   props.onActiveIndexChange(index)
                   props.onSelectWorkUnit(workUnit.id)
@@ -58,11 +68,21 @@ export function CommandPaletteView(props: Props) {
                 </span>
               </button>
             ))}
-            {props.workUnits.length === 0 ? <div className={styles.emptyState}>No matching WorkUnits</div> : null}
+            {isEmpty ? (
+              <div className={styles.emptyState}>
+                <FiSearch className={styles.emptyStateGlyph} aria-hidden="true" />
+                <p className={styles.emptyStateTitle}>
+                  {hasQuery ? `No WorkUnits match "${props.query.trim()}"` : "No WorkUnits available"}
+                </p>
+                <p className={styles.emptyStateHint}>
+                  {hasQuery ? "Try a different title, source, status, or owner." : "New inbox signals will appear here."}
+                </p>
+              </div>
+            ) : null}
           </div>
           <div className={styles.resultSummaryRow}>
             <button type="button">Show more results...⌄</button>
-            <span>{props.workUnits.length} results</span>
+            <span>{resultCountLabel(props.workUnits.length)}</span>
           </div>
         </div>
         <aside className={styles.previewPane}>
@@ -85,24 +105,29 @@ export function CommandPaletteView(props: Props) {
           <div className={styles.previewDivider} />
           <dl className={styles.previewFacts}>
             <div>
-              <dt><span className={styles.factIcon}>▣</span>Source</dt>
+              <dt><FiBox className={styles.factIcon} aria-hidden="true" />Source</dt>
               <dd>{activeWorkUnit?.sourceDetail ?? "—"}</dd>
             </div>
             <div>
-              <dt><span className={styles.factIcon}>◴</span>Urgency</dt>
+              <dt><FiClock className={styles.factIcon} aria-hidden="true" />Urgency</dt>
               <dd>{activeWorkUnit?.urgency ?? "—"}</dd>
             </div>
             <div>
-              <dt><span className={styles.factIcon}>✣</span>Next Step</dt>
+              <dt><FiArrowRight className={styles.factIcon} aria-hidden="true" />Next Step</dt>
               <dd>{activeWorkUnit?.nextStep ?? "—"}</dd>
             </div>
           </dl>
         </aside>
       </div>
       <footer className={styles.footerRow}>
-        <span><kbd>↵</kbd> Enter = Open Detail</span>
-        <span><kbd>⌘ K</kbd> Open Command Palette</span>
-        <span><kbd>Esc</kbd> Close</span>
+        <div className={styles.footerGroup}>
+          <span><kbd>↵</kbd> Enter = Open Detail</span>
+          <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+        </div>
+        <div className={styles.footerGroup}>
+          <span><kbd>⌘ K</kbd> Open Command Palette</span>
+          <span><kbd>Esc</kbd> {hasQuery ? "Clear search" : "Close"}</span>
+        </div>
       </footer>
     </section>
   )
