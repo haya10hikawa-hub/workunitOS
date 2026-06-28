@@ -26,8 +26,15 @@ export interface D1DatabaseLike {
 // ─── Error ──────────────────────────────────────────────────────
 
 export class D1RepositoryError extends Error {
-  constructor(message: string, public readonly cause?: unknown) {
+  // Explicit field + assignment instead of a TypeScript parameter property, so the
+  // file is compatible with Node's type strip-only mode (which rejects parameter
+  // properties). Runtime shape is unchanged: `new D1RepositoryError(msg, cause)`
+  // still exposes `cause` as a readonly instance property.
+  readonly cause?: unknown
+
+  constructor(message: string, cause?: unknown) {
     super(message)
     this.name = "D1RepositoryError"
+    this.cause = cause
   }
 }
