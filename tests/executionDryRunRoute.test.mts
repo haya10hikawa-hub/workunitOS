@@ -103,7 +103,8 @@ async function seedApproval(
 function makeRequest(workUnitId: string, body: unknown): Request {
   return new Request(`http://localhost/api/workunit/${workUnitId}/execution/dry-run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    // Same-origin header required: the route enforces CSRF via validateCsrfOrigin.
+    headers: { "Content-Type": "application/json", Origin: "http://localhost:3000" },
     body: JSON.stringify(body),
   })
 }
@@ -138,13 +139,54 @@ test("dry-run accepts authorized dev session", async () => {
   })
 })
 
+// ─── CSRF / Origin boundary ────────────────────────────────────
+
+test("dry-run rejects request with missing Origin and Referer (fail closed)", async () => {
+  await withPersistence(async () => {
+    await seedApproval({ tenantId, workUnitId, status: "approved" })
+    // No Origin/Referer header — must be rejected before session/approval logic.
+    const request = new Request(`http://localhost/api/workunit/${workUnitId}/execution/dry-run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workUnitId,
+        previewRefs: [{ actionId: "action:1", previewId }],
+        requestedActionType: actionType,
+      }),
+    })
+    const response = await POST(request, { params: Promise.resolve({ id: workUnitId }) })
+    assert.equal(response.status, 403)
+    const body = await response.json()
+    assert.equal(body.error, "csrf_failed")
+  })
+})
+
+test("dry-run rejects cross-site Origin", async () => {
+  await withPersistence(async () => {
+    await seedApproval({ tenantId, workUnitId, status: "approved" })
+    const request = new Request(`http://localhost/api/workunit/${workUnitId}/execution/dry-run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "https://evil.example.com" },
+      body: JSON.stringify({
+        workUnitId,
+        previewRefs: [{ actionId: "action:1", previewId }],
+        requestedActionType: actionType,
+      }),
+    })
+    const response = await POST(request, { params: Promise.resolve({ id: workUnitId }) })
+    assert.equal(response.status, 403)
+    const body = await response.json()
+    assert.equal(body.error, "invalid_origin")
+  })
+})
+
 // ─── Request validation ────────────────────────────────────────
 
 test("dry-run rejects invalid JSON", async () => {
   await withPersistence(async () => {
     const request = new Request(`http://localhost/api/workunit/${workUnitId}/execution/dry-run`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://localhost:3000" },
       body: "not json",
     })
     const response = await POST(request, { params: Promise.resolve({ id: workUnitId }) })
