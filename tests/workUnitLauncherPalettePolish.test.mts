@@ -115,13 +115,28 @@ test("CommandPaletteView uses react-icons, plural result count, and footer group
   assert.equal(palette.includes("props.workUnits[props.activeIndex]"), true)
 })
 
-test("SourceAppIcon keeps the approved local asset path and adds a react-icons fallback", async () => {
+test("SourceAppIcon uses react-icons as primary; local asset path kept as fallback", async () => {
   const icon = await source("app/components/workunit-os/launcher/SourceAppIcon.tsx")
+  // react-icons check must appear before local asset check (primary vs fallback).
+  const reactIconCheckIdx = icon.indexOf("REACT_ICON_BY_ID[icon.id]")
+  const localAssetCheckIdx = icon.indexOf("isLocalSourceAppIconAssetPath(icon.assetPath)")
+  assert.ok(reactIconCheckIdx !== -1, "REACT_ICON_BY_ID check must exist")
+  assert.ok(localAssetCheckIdx !== -1, "isLocalSourceAppIconAssetPath check must exist")
+  assert.ok(reactIconCheckIdx < localAssetCheckIdx, "react-icons check must precede local asset check")
+  // Known brand sources must have react-icons mappings (check by icon component name).
+  for (const iconName of ["SiGithub", "SiSlack", "SiNotion", "SiJira", "SiGoogledocs", "SiGoogleslides"]) {
+    assert.ok(icon.includes(iconName), `REACT_ICON_BY_ID missing icon: ${iconName}`)
+  }
+  // Local asset branch preserved as fallback.
   assert.equal(icon.includes("isLocalSourceAppIconAssetPath(icon.assetPath)"), true)
   assert.equal(icon.includes("src={icon.assetPath}"), true)
+  assert.equal(icon.includes("alt={icon.label}"), true)
+  // Required imports still present.
   assert.equal(icon.includes('from "next/image"'), true)
   assert.equal(icon.includes('from "react-icons/si"'), true)
   assert.equal(icon.includes("REACT_ICON_BY_ID"), true)
+  // No lucide-react.
+  assert.equal(icon.includes("lucide-react"), false)
 })
 
 test("palette polish exposes no safety-sensitive fields and no tools route", async () => {

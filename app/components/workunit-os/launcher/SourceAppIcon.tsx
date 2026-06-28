@@ -33,8 +33,8 @@ const SIZE_CLASS = {
   lg: "sourceAppIconLg",
 } as const
 
-// react-icons fallback when there is no approved local asset for the source.
-// Brand sources still prefer the registry-approved local SVG asset below.
+// react-icons is the primary icon for all known source apps.
+// The registry-approved local SVG asset is a fallback for ids not in this map.
 const REACT_ICON_BY_ID: Partial<Record<SourceAppIconId, IconType>> = {
   github: SiGithub,
   slack: SiSlack,
@@ -61,19 +61,19 @@ export function SourceAppIcon({ icon, size = "md" }: SourceAppIconProps) {
   const sizeClass = styles[SIZE_CLASS[size]]
   const className = `${styles.sourceAppIcon} ${sizeClass}`
 
-  if (isLocalSourceAppIconAssetPath(icon.assetPath)) {
-    return (
-      <span className={className} title={icon.label}>
-        <Image className={styles.sourceAppIconImage} src={icon.assetPath} alt={icon.label} width={32} height={32} unoptimized />
-      </span>
-    )
-  }
-
   const ReactIcon = REACT_ICON_BY_ID[icon.id]
   if (ReactIcon) {
     return (
       <span className={className} title={icon.label} aria-label={icon.label}>
         <ReactIcon className={styles.sourceAppIconGlyph} aria-hidden="true" />
+      </span>
+    )
+  }
+
+  if (isLocalSourceAppIconAssetPath(icon.assetPath)) {
+    return (
+      <span className={className} title={icon.label}>
+        <Image className={styles.sourceAppIconImage} src={icon.assetPath} alt={icon.label} width={32} height={32} unoptimized />
       </span>
     )
   }
