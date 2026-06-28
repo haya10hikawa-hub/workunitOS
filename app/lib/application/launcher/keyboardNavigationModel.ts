@@ -26,7 +26,17 @@ export function getLauncherKeyIntent(event: LauncherKeyboardEventLike): Launcher
 
 export function nextLauncherIndex(current: number, direction: "next" | "previous", length: number): number {
   if (length <= 0) return -1
-  if (!Number.isFinite(current)) return 0
+  // Loop navigation: ArrowDown past the last row wraps to the first, ArrowUp past
+  // the first wraps to the last.
+  const base = Number.isFinite(current) && current >= 0 ? Math.trunc(current) % length : 0
   const delta = direction === "next" ? 1 : -1
-  return Math.min(Math.max(Math.trunc(current) + delta, 0), length - 1)
+  return ((base + delta) % length + length) % length
+}
+
+/**
+ * Escape behaviour in the palette: clear the search query first when it is
+ * non-empty, otherwise close the palette.
+ */
+export function resolveLauncherEscapeAction(query: string): "clear_query" | "close" {
+  return query.trim().length > 0 ? "clear_query" : "close"
 }

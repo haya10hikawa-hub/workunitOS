@@ -5,7 +5,7 @@ import {
   deriveActionFieldEditorDraft,
   deriveLauncherReadinessCards,
 } from "@/lib/application/launcher/actionFieldEditorDraftModel"
-import { getLauncherKeyIntent, nextLauncherIndex } from "@/lib/application/launcher/keyboardNavigationModel"
+import { getLauncherKeyIntent, nextLauncherIndex, resolveLauncherEscapeAction } from "@/lib/application/launcher/keyboardNavigationModel"
 import { deriveWorkUnitTreeMap } from "@/lib/application/launcher/workUnitTreeModel"
 import {
   clampLauncherActiveIndex,
@@ -52,6 +52,13 @@ export function WorkUnitLauncher() {
       if (!isOpen) return
       if (intent === "close") {
         event.preventDefault()
+        // In the palette, Escape clears a non-empty query first; a second Escape
+        // (empty query) closes. Action Field always closes.
+        if (mode === "palette" && resolveLauncherEscapeAction(query) === "clear_query") {
+          setQuery("")
+          setActiveIndex(0)
+          return
+        }
         setIsOpen(false)
         setMode("palette")
         return
@@ -74,7 +81,7 @@ export function WorkUnitLauncher() {
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [clampedActiveIndex, filteredWorkUnits, isOpen, mode])
+  }, [clampedActiveIndex, filteredWorkUnits, isOpen, mode, query])
 
   return (
     <main className={styles.root}>

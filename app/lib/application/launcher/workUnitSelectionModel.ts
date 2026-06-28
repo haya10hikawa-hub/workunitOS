@@ -164,6 +164,10 @@ export function filterLauncherWorkUnits(
       workUnit.kind,
       workUnit.priority,
       workUnit.ownerLabel,
+      String(workUnit.roi),
+      workUnit.sourceDetail ?? "",
+      workUnit.urgency ?? "",
+      workUnit.nextStep ?? "",
     ].join(" ").toLowerCase()
     return haystack.includes(normalized)
   })
