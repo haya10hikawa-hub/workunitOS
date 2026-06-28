@@ -128,7 +128,7 @@
 /* ── Body ────────────────────────────────────────────────── */
 .body {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 520px;
+  grid-template-columns: 56px minmax(680px, 1fr) clamp(400px, 34vw, 520px);
   min-height: 0;
 }
 
@@ -175,6 +175,16 @@
   background-position: -1px -1px;
 }
 
+/* Fixed logical graph coordinate space, centered (slightly left-biased) in the
+   canvas. Width/height are set inline from the STAGE_W/STAGE_H constants. The
+   internal geometry never depends on the viewport or the Action Field width. */
+.graphStage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-52%, -50%);
+}
+
 .edges {
   position: absolute;
   inset: 0;
@@ -198,10 +208,6 @@
 
 .coreCard {
   position: absolute;
-  left: 6%;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 300px;
   padding: 16px;
   border: 1px solid var(--atra-border);
   border-radius: 8px;
@@ -248,18 +254,14 @@
   transform: translateY(-50%);
 }
 
-.nodeLayer {
-  position: absolute;
-  inset: 0;
-}
-
 .node {
   position: absolute;
-  left: 38%;
+  left: 360px;
   width: 150px;
-  transform: translateY(-50%);
+  min-height: 60px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 9px;
   padding: 11px 12px;
   border: 1px solid var(--atra-border);
@@ -346,20 +348,8 @@
   background: #888;
 }
 
-.outputLink {
-  position: absolute;
-  left: calc(38% + 150px);
-  width: 30px;
-  height: 1.4px;
-  background: var(--atra-accent);
-  transform: translateY(-50%);
-  opacity: 0.9;
-}
-
 .outputNode {
   position: absolute;
-  left: calc(38% + 184px);
-  transform: translateY(-50%);
   padding: 11px 16px;
   border: 1px solid var(--atra-accent);
   border-radius: 6px;
@@ -547,6 +537,6 @@
 
 @media (max-width: 1080px) {
   .body {
-    grid-template-columns: 52px minmax(0, 1fr) 380px;
+    grid-template-columns: 56px minmax(0, 1fr) clamp(360px, 32vw, 460px);
   }
 }

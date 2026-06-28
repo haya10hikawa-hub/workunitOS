@@ -9,11 +9,21 @@ import {
 } from "@/lib/application/atra/atraWorkspaceModel"
 import styles from "./Atra.module.css"
 
-// Vertical center (canvas %) for each process node, by index. Edge anchors reuse
-// these so the SVG connectors line up with the node cards.
-const NODE_Y = [16, 28, 40, 56, 68, 80, 92]
-const CORE_ANCHOR = { x: 33, y: 50 }
-const NODE_ANCHOR_X = 38
+// Fixed logical graph-stage coordinate system (px). Every graph element — core
+// card, process nodes, output node and the edge SVG — is positioned in this same
+// space, so the composition is identical across viewport sizes. The stage is
+// centered (slightly left-biased) inside the canvas; only the surrounding margin
+// changes with the viewport, never the internal geometry.
+const STAGE_W = 720
+const STAGE_H = 700
+const NODE_X = 360
+const NODE_W = 150
+const NODE_H = 60
+const NODE_TOP = [16, 116, 216, 316, 416, 516, 616]
+const CORE = { x: 16, top: 235, width: 240, rightX: 256, centerY: 290 }
+const OUTPUT_X = 544
+
+const nodeCenterY = (index: number): number => NODE_TOP[index]! + NODE_H / 2
 
 export function AtraWorkspace() {
   const model = useMemo(() => deriveAtraWorkspace(), [])
@@ -55,54 +65,64 @@ export function AtraWorkspace() {
         </aside>
 
         <main className={styles.canvas} aria-label="Node Canvas">
-          <svg className={styles.edges} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            {model.processNodes.map((processNode, index) => (
-              <path
-                key={processNode.id}
-                className={processNode.id === selectedNodeId ? styles.edgeActive : styles.edge}
-                d={edgePath(CORE_ANCHOR.x, CORE_ANCHOR.y, NODE_ANCHOR_X, NODE_Y[index]!)}
-                fill="none"
-              />
-            ))}
-          </svg>
+          <div className={styles.graphStage} style={{ width: STAGE_W, height: STAGE_H }}>
+            <svg
+              className={styles.edges}
+              viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}
+              aria-hidden="true"
+            >
+              {model.processNodes.map((processNode, index) => (
+                <path
+                  key={processNode.id}
+                  className={processNode.id === selectedNodeId ? styles.edgeActive : styles.edge}
+                  d={edgePath(CORE.rightX, CORE.centerY, NODE_X, nodeCenterY(index))}
+                  fill="none"
+                />
+              ))}
+              {composeIndex >= 0 && model.processNodes[composeIndex]!.output ? (
+                <line
+                  className={styles.edgeActive}
+                  x1={NODE_X + NODE_W}
+                  y1={nodeCenterY(composeIndex)}
+                  x2={OUTPUT_X}
+                  y2={nodeCenterY(composeIndex)}
+                />
+              ) : null}
+            </svg>
 
-          <article className={styles.coreCard} aria-label="Core objective">
-            <header className={styles.coreHeader}>
-              <span className={styles.coreLabel}>CORE OBJECTIVE</span>
-              <span className={styles.coreScore}>{model.coreObjective.score}</span>
-            </header>
-            <strong className={styles.coreTitle}>{model.coreObjective.label}</strong>
-            <span className={styles.corePort} aria-hidden="true" />
-          </article>
+            <article
+              className={styles.coreCard}
+              style={{ left: CORE.x, top: CORE.top, width: CORE.width }}
+              aria-label="Core objective"
+            >
+              <header className={styles.coreHeader}>
+                <span className={styles.coreLabel}>CORE OBJECTIVE</span>
+                <span className={styles.coreScore}>{model.coreObjective.score}</span>
+              </header>
+              <strong className={styles.coreTitle}>{model.coreObjective.label}</strong>
+              <span className={styles.corePort} aria-hidden="true" />
+            </article>
 
-          <div className={styles.nodeLayer}>
             {model.processNodes.map((processNode, index) => (
               <ProcessNodeCard
                 key={processNode.id}
                 node={processNode}
-                top={NODE_Y[index]!}
+                top={NODE_TOP[index]!}
                 selected={processNode.id === selectedNodeId}
                 onSelect={() => setSelectedNodeId(processNode.id)}
               />
             ))}
 
             {composeIndex >= 0 && model.processNodes[composeIndex]!.output ? (
-              <>
-                <span
-                  className={styles.outputLink}
-                  style={{ top: `${NODE_Y[composeIndex]!}%` }}
-                  aria-hidden="true"
-                />
-                <button
-                  type="button"
-                  className={styles.outputNode}
-                  style={{ top: `${NODE_Y[composeIndex]!}%` }}
-                  aria-pressed={selectedNodeId === model.processNodes[composeIndex]!.output!.id}
-                  onClick={() => setSelectedNodeId(model.processNodes[composeIndex]!.output!.id)}
-                >
-                  {model.processNodes[composeIndex]!.output!.label}
-                </button>
-              </>
+              <button
+                type="button"
+                className={styles.outputNode}
+                style={{ left: OUTPUT_X, top: nodeCenterY(composeIndex) - 22 }}
+                aria-pressed={selectedNodeId === model.processNodes[composeIndex]!.output!.id}
+                onClick={() => setSelectedNodeId(model.processNodes[composeIndex]!.output!.id)}
+              >
+                {model.processNodes[composeIndex]!.output!.label}
+              </button>
             ) : null}
           </div>
         </main>
@@ -172,7 +192,7 @@ function ProcessNodeCard(props: {
         selected ? styles.nodeSelected : "",
         node.state === "muted" ? styles.nodeMuted : "",
       ].filter(Boolean).join(" ")}
-      style={{ top: `${top}%` }}
+      style={{ top: `${top}px` }}
       aria-pressed={selected}
       onClick={props.onSelect}
     >

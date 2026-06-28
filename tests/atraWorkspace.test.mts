@@ -119,3 +119,66 @@ test("Atra component uses inline icons (no external icon package, no raster imag
   assert.equal(COMPONENT.includes("<img"), false)
   assert.equal(COMPONENT.includes(".png"), false)
 })
+
+// ─── Layout stability (viewport-independent graph) ─────────────
+
+function cssBlock(selector: string): string {
+  const at = CSS.indexOf(`${selector} {`)
+  if (at < 0) return ""
+  const start = CSS.indexOf("{", at)
+  const end = CSS.indexOf("}", start)
+  return CSS.slice(start, end + 1)
+}
+
+test("graph uses a stable graph-stage coordinate wrapper", () => {
+  assert.ok(CSS.includes(".graphStage"), "CSS must define .graphStage")
+  assert.ok(COMPONENT.includes("styles.graphStage"), "component must render the graph stage")
+  // Stage is a fixed logical px size, not viewport-derived.
+  assert.ok(COMPONENT.includes("STAGE_W") && COMPONENT.includes("STAGE_H"))
+  assert.equal(/const STAGE_W = \d+/.test(COMPONENT), true)
+  assert.equal(/const STAGE_H = \d+/.test(COMPONENT), true)
+})
+
+test("edge SVG and graph nodes live inside the same graph stage", () => {
+  const stageIdx = COMPONENT.indexOf("styles.graphStage")
+  const edgesIdx = COMPONENT.indexOf("styles.edges")
+  const nodesIdx = COMPONENT.indexOf("ProcessNodeCard")
+  const outputIdx = COMPONENT.indexOf("styles.outputNode")
+  assert.ok(stageIdx > 0)
+  assert.ok(stageIdx < edgesIdx, "edge SVG must be inside the graph stage")
+  assert.ok(stageIdx < nodesIdx, "nodes must be inside the graph stage")
+  assert.ok(stageIdx < outputIdx, "output node must be inside the graph stage")
+})
+
+test("edge SVG shares the node coordinate system (fixed viewBox, not stretched)", () => {
+  assert.ok(COMPONENT.includes("viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}"))
+  assert.equal(COMPONENT.includes('preserveAspectRatio="none"'), false)
+})
+
+test("root card and process nodes use no viewport units or percentage positioning", () => {
+  for (const selector of [".coreCard", ".node", ".outputNode", ".graphStage"]) {
+    const block = cssBlock(selector)
+    assert.ok(block.length > 0, `${selector} block must exist`)
+    assert.equal(/\d(vw|vh)\b/.test(block), false, `${selector} must not use vw/vh`)
+  }
+  // Root card / node / output positions are not percentage-based in CSS.
+  for (const selector of [".coreCard", ".node", ".outputNode"]) {
+    const block = cssBlock(selector)
+    assert.equal(/left:\s*\d+%/.test(block), false, `${selector} must not use percentage left`)
+    assert.equal(/top:\s*\d+%/.test(block), false, `${selector} must not use percentage top`)
+  }
+  // Node graph tops are px, not percent.
+  assert.equal(COMPONENT.includes("${top}px"), true)
+  assert.equal(COMPONENT.includes("${top}%"), false)
+})
+
+test("Action Field column width is clamped (bounded), not fixed to viewport drift", () => {
+  const body = cssBlock(".body")
+  assert.ok(body.includes("grid-template-columns"))
+  assert.ok(body.includes("clamp("), "Action Field column must be clamped")
+})
+
+test("typography stays in px (no viewport-scaled font sizes)", () => {
+  assert.equal(/font-size:[^;]*\d(vw|vh)/.test(CSS), false)
+  assert.equal(/font-size:\s*clamp\([^)]*vw/.test(CSS), false)
+})
