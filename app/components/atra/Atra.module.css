@@ -73,6 +73,19 @@
   border-radius: 8px;
   background: #101010;
   justify-self: center;
+  cursor: pointer;
+  text-align: left;
+}
+
+.palette:hover {
+  border-color: #333;
+}
+
+.palettePlaceholder {
+  flex: 1;
+  min-width: 0;
+  color: var(--atra-faint);
+  font-size: 13px;
 }
 
 .paletteIcon {

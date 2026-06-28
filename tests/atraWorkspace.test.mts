@@ -11,13 +11,33 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { deriveAtraWorkspace } from "../app/lib/application/atra/atraWorkspaceModel.ts"
+import { deriveAtraWorkspaceViewModel } from "../app/lib/application/atra/deriveAtraWorkspaceViewModel.ts"
+import { ATRA_PROCESS_TEMPLATE } from "../app/lib/application/atra/atraWorkspaceModel.ts"
+import type { LauncherWorkUnit } from "../app/lib/application/launcher/workUnitSelectionModel.ts"
 import { FORBIDDEN_CANDIDATE_FIELDS } from "../app/lib/application/candidate/safeWorkUnitCandidate.ts"
 
 const COMPONENT = readFileSync(join(process.cwd(), "app/components/atra/AtraWorkspace.tsx"), "utf-8")
 const MODEL = readFileSync(join(process.cwd(), "app/lib/application/atra/atraWorkspaceModel.ts"), "utf-8")
+const DERIVER = readFileSync(join(process.cwd(), "app/lib/application/atra/deriveAtraWorkspaceViewModel.ts"), "utf-8")
 const CSS = readFileSync(join(process.cwd(), "app/components/atra/Atra.module.css"), "utf-8")
 const LAUNCHER = readFileSync(join(process.cwd(), "app/components/workunit-os/launcher/WorkUnitLauncher.tsx"), "utf-8")
+
+function sampleWorkUnit(over: Partial<LauncherWorkUnit> & { id: string }): LauncherWorkUnit {
+  return {
+    id: over.id,
+    title: over.title ?? "Quarterly review presentation",
+    source: over.source ?? "Calendar",
+    status: over.status ?? "READY",
+    roi: over.roi ?? 7.9,
+    summary: over.summary ?? "Prepare the quarterly review deck.",
+    objective: over.objective ?? "Decide the next PM-owned step.",
+    kind: over.kind ?? "deadline",
+    priority: over.priority ?? "high",
+    ownerLabel: over.ownerLabel ?? "PM",
+    sourceIcon: { id: "google-calendar", label: "Calendar", assetPath: null, fallbackBadge: "CA", sourceType: "fallback_badge" },
+    nextStep: over.nextStep ?? "Prepare the deliverable before the deadline",
+  }
+}
 
 function deepForbiddenKeys(value: unknown): string[] {
   const found: string[] = []
@@ -34,24 +54,21 @@ function deepForbiddenKeys(value: unknown): string[] {
   return found
 }
 
-// ─── Model: candidate-only ────────────────────────────────────
-test("Atra model is candidate-only and human-review-required", () => {
-  const m = deriveAtraWorkspace()
+// ─── View model: candidate-only ───────────────────────────────
+test("Atra view model is candidate-only and human-review-required", () => {
+  const m = deriveAtraWorkspaceViewModel({ workUnit: sampleWorkUnit({ id: "wu-1" }) })
   assert.equal(m.actionField.candidateOnly, true)
   assert.equal(m.actionField.humanReviewRequired, true)
   assert.equal(m.actionField.localEditsOnly, true)
 })
 
-test("Atra model emits no forbidden fields", () => {
-  assert.deepEqual(deepForbiddenKeys(deriveAtraWorkspace()), [])
+test("Atra view model emits no forbidden fields", () => {
+  assert.deepEqual(deepForbiddenKeys(deriveAtraWorkspaceViewModel({ workUnit: sampleWorkUnit({ id: "wu-1" }) })), [])
 })
 
-// ─── Model: target fidelity ───────────────────────────────────
-test("Atra model reproduces the target node graph", () => {
-  const m = deriveAtraWorkspace()
-  assert.equal(m.workspaceTitle, "Quarterly Review Plan")
-  assert.equal(m.coreObjective.label, "Quarterly review presentation")
-  assert.equal(m.coreObjective.score, 79)
+// ─── View model: stable process template + dynamic objective ──
+test("Atra view model keeps the stable process-stage template", () => {
+  const m = deriveAtraWorkspaceViewModel({ workUnit: sampleWorkUnit({ id: "wu-1" }) })
   assert.deepEqual(
     m.processNodes.map((n) => n.label),
     ["Orient", "Plan", "Compose", "Verify", "Resolve", "Review", ""],
@@ -60,20 +77,23 @@ test("Atra model reproduces the target node graph", () => {
   assert.equal(compose.state, "selected")
   assert.equal(compose.output?.label, "Slide Deck (v4)")
   assert.deepEqual(compose.badges.map((b) => b.code), ["NO", "DR"])
+  // Template is exported as a stable design constant.
+  assert.equal(ATRA_PROCESS_TEMPLATE.length, 7)
 })
 
-test("Atra model reproduces the target draft content", () => {
-  const m = deriveAtraWorkspace()
+test("Atra view model core objective is derived from the selected WorkUnit", () => {
+  const m = deriveAtraWorkspaceViewModel({ workUnit: sampleWorkUnit({ id: "wu-1", title: "PR #142: rate limiting", roi: 9.4 }) })
+  assert.equal(m.workspaceTitle, "PR #142: rate limiting")
+  assert.equal(m.coreObjective.label, "PR #142: rate limiting")
+  assert.equal(typeof m.coreObjective.score, "number")
+})
+
+test("Atra view model action field defaults to Compose / Slide Deck (v4)", () => {
+  const m = deriveAtraWorkspaceViewModel({ workUnit: sampleWorkUnit({ id: "wu-1" }) })
   assert.equal(m.actionField.path, "Compose / Slide Deck (v4)")
   assert.equal(m.actionField.outputTitle, "Slide Deck")
   assert.equal(m.actionField.draftFilename, "editable.md")
-  const h1 = m.actionField.draftBlocks.find((b) => b.kind === "h1")
-  assert.equal(h1 && h1.kind === "h1" ? h1.text : null, "Q2 Performance Summary")
-  // Colored source tokens exist in the draft.
-  const tones = m.actionField.draftBlocks.flatMap((b) =>
-    b.kind === "p" || b.kind === "bullet" ? b.spans.filter((s) => s.tone).map((s) => s.text) : [],
-  )
-  for (const code of ["SL", "DB", "NO", "GH", "EM"]) assert.ok(tones.includes(code), `token ${code}`)
+  assert.ok(m.actionField.draftBlocks.length > 0)
 })
 
 // ─── Component: target UI strings ─────────────────────────────
@@ -92,10 +112,11 @@ test("Atra surface has no execution CTA copy", () => {
   const cta = /\b(send|approve|execute|publish|finalize)\b/i
   assert.equal(cta.test(COMPONENT), false, "component CTA")
   assert.equal(cta.test(MODEL), false, "model CTA")
+  assert.equal(cta.test(DERIVER), false, "deriver CTA")
 })
 
 test("Atra surface has no forbidden runtime paths or providers", () => {
-  for (const src of [COMPONENT, MODEL, LAUNCHER]) {
+  for (const src of [COMPONENT, MODEL, DERIVER, LAUNCHER]) {
     assert.equal(src.includes("/api/workunit/tools"), false)
     assert.equal(src.includes("fetch("), false)
     assert.equal(src.includes("process.env"), false)
@@ -106,7 +127,7 @@ test("Atra surface has no forbidden runtime paths or providers", () => {
 })
 
 test("Atra surface emits no forbidden field identifiers", () => {
-  for (const src of [COMPONENT, MODEL]) {
+  for (const src of [COMPONENT, MODEL, DERIVER]) {
     for (const key of FORBIDDEN_CANDIDATE_FIELDS) {
       assert.equal(src.includes(key), false, `forbidden field ${key}`)
     }

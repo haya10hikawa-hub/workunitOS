@@ -52,10 +52,16 @@ test("launcher keyboard model remains represented", async () => {
   assert.equal(keyboard.includes('return "confirm"'), true)
 })
 
-test("launcher entry renders the Atra workspace", async () => {
+test("launcher entry renders the Atra workspace and feeds it model data", async () => {
   const launcher = await source("app/components/workunit-os/launcher/WorkUnitLauncher.tsx")
   assert.equal(launcher.includes("export function WorkUnitLauncher"), true)
-  assert.equal(launcher.includes("<AtraWorkspace />"), true)
+  assert.equal(launcher.includes("<AtraWorkspace"), true)
+  // Atra workspace is now props-driven from the candidate bridge, not static.
+  assert.equal(launcher.includes("candidateWorkUnitBridge"), true)
+  assert.equal(launcher.includes("deriveAtraWorkspaceViewModel"), true)
+  assert.equal(launcher.includes("workspace={workspace}"), true)
+  // Command Palette is reachable via the existing CommandPaletteView.
+  assert.equal(launcher.includes("CommandPaletteView"), true)
 })
 
 test("launcher files do not include forbidden command strings or tools route", async () => {

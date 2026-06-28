@@ -1,11 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import {
-  deriveAtraWorkspace,
-  type AtraDraftBlock,
-  type AtraProcessNode,
-  type AtraSourceBadge,
+import type { AtraWorkspaceViewModel } from "@/lib/application/atra/deriveAtraWorkspaceViewModel"
+import type {
+  AtraDraftBlock,
+  AtraProcessNode,
+  AtraSourceBadge,
 } from "@/lib/application/atra/atraWorkspaceModel"
 import styles from "./Atra.module.css"
 
@@ -25,12 +24,15 @@ const OUTPUT_X = 544
 
 const nodeCenterY = (index: number): number => NODE_TOP[index]! + NODE_H / 2
 
-export function AtraWorkspace() {
-  const model = useMemo(() => deriveAtraWorkspace(), [])
-  const [selectedNodeId, setSelectedNodeId] = useState<string>(
-    model.processNodes.find((node) => node.state === "selected")?.id ?? model.processNodes[0]!.id,
-  )
-  const composeIndex = model.processNodes.findIndex((node) => node.output)
+type AtraWorkspaceProps = {
+  readonly workspace: AtraWorkspaceViewModel
+  readonly onSelectNode: (id: string) => void
+  readonly onOpenPalette: () => void
+}
+
+export function AtraWorkspace({ workspace, onSelectNode, onOpenPalette }: AtraWorkspaceProps) {
+  const composeIndex = workspace.processNodes.findIndex((node) => node.output)
+  const composeNode = composeIndex >= 0 ? workspace.processNodes[composeIndex]! : null
 
   return (
     <div className={styles.root}>
@@ -41,14 +43,14 @@ export function AtraWorkspace() {
           <nav className={styles.breadcrumb} aria-label="Workspace breadcrumb">
             <span>Workspace</span>
             <i aria-hidden="true">›</i>
-            <span className={styles.breadcrumbCurrent}>{model.workspaceTitle}</span>
+            <span className={styles.breadcrumbCurrent}>{workspace.workspaceTitle}</span>
           </nav>
         </div>
-        <label className={styles.palette}>
+        <button type="button" className={styles.palette} onClick={onOpenPalette} aria-label="Command Palette" aria-keyshortcuts="Meta+K">
           <span className={styles.paletteIcon} aria-hidden="true">{SearchIcon}</span>
-          <input className={styles.paletteInput} placeholder="Command Palette" aria-label="Command Palette" />
+          <span className={styles.palettePlaceholder}>Command Palette</span>
           <kbd className={styles.paletteKbd}>⌘ K</kbd>
-        </label>
+        </button>
         <div className={styles.topRight}>
           <button type="button" className={styles.iconBtn} aria-label="Settings">{GearIcon}</button>
           <button type="button" className={styles.iconBtn} aria-label="Help">{HelpIcon}</button>
@@ -66,20 +68,16 @@ export function AtraWorkspace() {
 
         <main className={styles.canvas} aria-label="Node Canvas">
           <div className={styles.graphStage} style={{ width: STAGE_W, height: STAGE_H }}>
-            <svg
-              className={styles.edges}
-              viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}
-              aria-hidden="true"
-            >
-              {model.processNodes.map((processNode, index) => (
+            <svg className={styles.edges} viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true">
+              {workspace.processNodes.map((processNode, index) => (
                 <path
                   key={processNode.id}
-                  className={processNode.id === selectedNodeId ? styles.edgeActive : styles.edge}
+                  className={processNode.state === "selected" ? styles.edgeActive : styles.edge}
                   d={edgePath(CORE.rightX, CORE.centerY, NODE_X, nodeCenterY(index))}
                   fill="none"
                 />
               ))}
-              {composeIndex >= 0 && model.processNodes[composeIndex]!.output ? (
+              {composeNode?.output ? (
                 <line
                   className={styles.edgeActive}
                   x1={NODE_X + NODE_W}
@@ -97,31 +95,30 @@ export function AtraWorkspace() {
             >
               <header className={styles.coreHeader}>
                 <span className={styles.coreLabel}>CORE OBJECTIVE</span>
-                <span className={styles.coreScore}>{model.coreObjective.score}</span>
+                <span className={styles.coreScore}>{workspace.coreObjective.score}</span>
               </header>
-              <strong className={styles.coreTitle}>{model.coreObjective.label}</strong>
+              <strong className={styles.coreTitle}>{workspace.coreObjective.label}</strong>
               <span className={styles.corePort} aria-hidden="true" />
             </article>
 
-            {model.processNodes.map((processNode, index) => (
+            {workspace.processNodes.map((processNode, index) => (
               <ProcessNodeCard
                 key={processNode.id}
                 node={processNode}
                 top={NODE_TOP[index]!}
-                selected={processNode.id === selectedNodeId}
-                onSelect={() => setSelectedNodeId(processNode.id)}
+                onSelect={() => onSelectNode(processNode.id)}
               />
             ))}
 
-            {composeIndex >= 0 && model.processNodes[composeIndex]!.output ? (
+            {composeNode?.output ? (
               <button
                 type="button"
                 className={styles.outputNode}
                 style={{ left: OUTPUT_X, top: nodeCenterY(composeIndex) - 22 }}
-                aria-pressed={selectedNodeId === model.processNodes[composeIndex]!.output!.id}
-                onClick={() => setSelectedNodeId(model.processNodes[composeIndex]!.output!.id)}
+                aria-pressed={workspace.selectedNodeId === composeNode.output.id}
+                onClick={() => onSelectNode(composeNode.output!.id)}
               >
-                {model.processNodes[composeIndex]!.output!.label}
+                {composeNode.output.label}
               </button>
             ) : null}
           </div>
@@ -130,20 +127,20 @@ export function AtraWorkspace() {
         <section className={styles.actionField} aria-label="Action Field">
           <header className={styles.afHeader}>
             <span className={styles.afTitle}>
-              Action Field: <span className={styles.afPath}>{model.actionField.path}</span>
+              Action Field: <span className={styles.afPath}>{workspace.actionField.path}</span>
             </span>
             <button type="button" className={styles.iconBtn} aria-label="Close Action Field">{CloseIcon}</button>
           </header>
 
           <article className={styles.afCard}>
             <div className={styles.afOutputRow}>
-              <span className={styles.afOutputLabel}>Output: {model.actionField.outputTitle}</span>
+              <span className={styles.afOutputLabel}>Output: {workspace.actionField.outputTitle}</span>
               <button type="button" className={styles.iconBtn} aria-label="Edit output">{PencilIcon}</button>
             </div>
             <div className={styles.afLinked}>
               <span>Linked Context:</span>
-              {model.actionField.linkedContext.length > 0 ? (
-                <span className={styles.afLinkedItems}>{model.actionField.linkedContext.join(", ")}</span>
+              {workspace.actionField.linkedContext.length > 0 ? (
+                <span className={styles.afLinkedItems}>{workspace.actionField.linkedContext.join(", ")}</span>
               ) : null}
             </div>
           </article>
@@ -151,12 +148,12 @@ export function AtraWorkspace() {
           <article className={styles.afCard}>
             <div className={styles.afDraftHead}>
               <span className={styles.afDraftLabel}>
-                Generated Draft — <span className={styles.afDraftFile}>{model.actionField.draftFilename}</span>
+                Generated Draft — <span className={styles.afDraftFile}>{workspace.actionField.draftFilename}</span>
               </span>
               <span className={styles.afBadge}>Local edits only</span>
             </div>
             <div className={styles.afDraftBody}>
-              {model.actionField.draftBlocks.map((block, index) => (
+              {workspace.actionField.draftBlocks.map((block, index) => (
                 <DraftBlockView key={index} block={block} />
               ))}
               <span className={styles.afCursor} aria-hidden="true" />
@@ -166,7 +163,7 @@ export function AtraWorkspace() {
       </div>
 
       <footer className={styles.statusbar}>
-        <span className={styles.statusVersion}>Atra {model.appVersion}</span>
+        <span className={styles.statusVersion}>Atra {workspace.appVersion}</span>
         <div className={styles.statusRight}>
           <span className={styles.statusItem}>{ShieldIcon} Safety Protocol</span>
           <span className={styles.statusItem}>Finalization Queue</span>
@@ -180,10 +177,10 @@ export function AtraWorkspace() {
 function ProcessNodeCard(props: {
   readonly node: AtraProcessNode
   readonly top: number
-  readonly selected: boolean
   readonly onSelect: () => void
 }) {
-  const { node, top, selected } = props
+  const { node, top } = props
+  const selected = node.state === "selected"
   return (
     <button
       type="button"
@@ -198,7 +195,7 @@ function ProcessNodeCard(props: {
     >
       <span className={styles.nodePort} aria-hidden="true" />
       {node.output ? <span className={styles.nodeWu} aria-hidden="true">WU</span> : null}
-      <span className={styles.nodeLabel}>{node.label || " "}</span>
+      <span className={styles.nodeLabel}>{node.label || " "}</span>
       {node.badges.length > 0 ? (
         <span className={styles.nodeBadges}>
           {node.badges.map((badge) => (

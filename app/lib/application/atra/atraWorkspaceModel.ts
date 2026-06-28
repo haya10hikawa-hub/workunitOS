@@ -1,10 +1,11 @@
 /**
- * Atra workspace model (candidate-only).
+ * Atra workspace types + the stable process-stage template.
  *
- * Pure, deterministic model describing the "Quarterly Review Plan" workspace:
- * a core objective, a process-node graph, and the Action Field draft for the
- * selected node. It is candidate-only — no execution, no approval, no provider
- * call, no forbidden fields. The Action Field draft is local-edit only.
+ * The process stages (Orient → Plan → Compose → Verify → Resolve → Review) are a
+ * fixed lifecycle skeleton — design-level constants, not candidate data. The
+ * dynamic content (core objective, action field draft) is derived per selected
+ * WorkUnit in deriveAtraWorkspaceViewModel. Everything stays candidate-only:
+ * no execution, no approval, no provider call, no forbidden fields.
  */
 
 export type AtraBadgeTone =
@@ -71,83 +72,41 @@ export type AtraWorkspaceModel = {
   readonly actionField: AtraActionField
 }
 
-const SLIDE_DECK_OUTPUT: AtraOutputNode = { id: "slide-deck-v4", label: "Slide Deck (v4)" }
+export const ATRA_APP_VERSION = "v1.0.4-stable"
 
-export function deriveAtraWorkspace(): AtraWorkspaceModel {
-  return {
-    appVersion: "v1.0.4-stable",
-    workspaceTitle: "Quarterly Review Plan",
-    coreObjective: {
-      label: "Quarterly review presentation",
-      score: 79,
-    },
-    processNodes: [
-      node("orient", "Orient", "default", [badge("DB", "database"), badge("SL", "slack")]),
-      node("plan", "Plan", "default", []),
-      {
-        id: "compose",
-        label: "Compose",
-        state: "selected",
-        badges: [badge("NO", "notion"), badge("DR", "drive")],
-        output: SLIDE_DECK_OUTPUT,
-      },
-      node("verify", "Verify", "default", [badge("SL", "slack")]),
-      node("resolve", "Resolve", "default", [badge("GH", "github"), badge("EM", "email")]),
-      node("review", "Review", "default", []),
-      node("intake", "", "muted", [badge("CA", "calendar")]),
-    ],
-    actionField: {
-      path: "Compose / Slide Deck (v4)",
-      outputTitle: "Slide Deck",
-      linkedContext: [],
-      draftFilename: "editable.md",
-      localEditsOnly: true,
-      candidateOnly: true,
-      humanReviewRequired: true,
-      draftBlocks: [
-        { kind: "h1", text: "Q2 Performance Summary" },
-        {
-          kind: "p",
-          spans: [
-            { text: "Based on the data aggregated from Sources [" },
-            { text: "SL", tone: "slack" },
-            { text: ", " },
-            { text: "DB", tone: "database" },
-            { text: ", " },
-            { text: "NO", tone: "notion" },
-            { text: "], Q2 saw a substantial increase in core metrics." },
-          ],
-        },
-        {
-          kind: "bullet",
-          spans: [{ text: "Performance metrics aligned with Q2 targets based on aggregate tool data." }],
-        },
-        {
-          kind: "bullet",
-          spans: [
-            { text: "Dependent systems (" },
-            { text: "GH", tone: "github" },
-            { text: ", " },
-            { text: "EM", tone: "email" },
-            { text: ") functioned with minimal latency." },
-          ],
-        },
-        {
-          kind: "note",
-          text: "// AI Note: Awaiting final verification from Slack channel #rev-q2 before finalizing draft.",
-        },
-      ],
-    },
-  }
+export const ATRA_SLIDE_DECK_OUTPUT: AtraOutputNode = { id: "slide-deck-v4", label: "Slide Deck (v4)" }
+
+/** Stable process-stage template (lifecycle skeleton, not per-candidate data). */
+export type AtraProcessTemplateNode = {
+  readonly id: string
+  readonly label: string
+  readonly badges: readonly AtraSourceBadge[]
+  readonly output?: AtraOutputNode
 }
 
-function node(
-  id: string,
-  label: string,
-  state: AtraNodeState,
-  badges: readonly AtraSourceBadge[],
-): AtraProcessNode {
-  return { id, label, state, badges }
+export const ATRA_PROCESS_TEMPLATE: readonly AtraProcessTemplateNode[] = [
+  templateNode("orient", "Orient", [badge("DB", "database"), badge("SL", "slack")]),
+  templateNode("plan", "Plan", []),
+  { id: "compose", label: "Compose", badges: [badge("NO", "notion"), badge("DR", "drive")], output: ATRA_SLIDE_DECK_OUTPUT },
+  templateNode("verify", "Verify", [badge("SL", "slack")]),
+  templateNode("resolve", "Resolve", [badge("GH", "github"), badge("EM", "email")]),
+  templateNode("review", "Review", []),
+  templateNode("intake", "", [badge("CA", "calendar")]),
+]
+
+/** Map a known 2-letter source code to its tone (used to color inline source-code spans). */
+export const ATRA_TOKEN_TONE: Readonly<Record<string, AtraBadgeTone>> = {
+  SL: "slack",
+  DB: "database",
+  NO: "notion",
+  DR: "drive",
+  GH: "github",
+  EM: "email",
+  CA: "calendar",
+}
+
+function templateNode(id: string, label: string, badges: readonly AtraSourceBadge[]): AtraProcessTemplateNode {
+  return { id, label, badges }
 }
 
 function badge(code: string, tone: AtraBadgeTone): AtraSourceBadge {
