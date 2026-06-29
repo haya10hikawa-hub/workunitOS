@@ -7,31 +7,49 @@
 
 import type { LlmProcessingResult } from "./types.ts"
 
+// Upper bounds on LLM-produced output (red-team C-07/C-08). The model is an
+// untrusted output channel: an injected/oversized response could otherwise
+// store unbounded strings or huge arrays downstream.
+export const MAX_STRING_FIELD_LENGTH = 8_000
+export const MAX_ARRAY_FIELD_ENTRIES = 100
+
 /**
- * Assert that a field exists and is a non-empty string.
+ * Assert that a field exists, is a non-empty string, and is within bounds.
  */
 export function assertStringField(
   value: unknown,
   fieldName: string,
   warnings: LlmProcessingResult<unknown>["warnings"],
+  maxLength: number = MAX_STRING_FIELD_LENGTH,
 ): value is string {
   if (typeof value !== "string" || !value.trim()) {
     warnings.push({ code: `missing_${fieldName}`, message: `LLM output missing required field: ${fieldName}` })
+    return false
+  }
+  if (value.length > maxLength) {
+    warnings.push({ code: `oversized_${fieldName}`, message: `LLM output field exceeds max length: ${fieldName}` })
     return false
   }
   return true
 }
 
 /**
- * Assert that a field is a string array with at least one entry.
+ * Assert that a field is a string array with at least one entry, bounded in
+ * both entry count and per-entry length.
  */
 export function assertStringArrayField(
   value: unknown,
   fieldName: string,
   warnings: LlmProcessingResult<unknown>["warnings"],
+  maxEntries: number = MAX_ARRAY_FIELD_ENTRIES,
+  maxLength: number = MAX_STRING_FIELD_LENGTH,
 ): value is string[] {
   if (!Array.isArray(value) || value.length === 0 || !value.every((v) => typeof v === "string")) {
     warnings.push({ code: `invalid_${fieldName}`, message: `LLM output has invalid ${fieldName}` })
+    return false
+  }
+  if (value.length > maxEntries || value.some((v) => v.length > maxLength)) {
+    warnings.push({ code: `oversized_${fieldName}`, message: `LLM output ${fieldName} exceeds bounds` })
     return false
   }
   return true
