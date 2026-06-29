@@ -7,6 +7,9 @@ import { areExternalActionsEnabled } from "../../../../../lib/security/externalA
 import type { TenantId } from "../../../../../lib/tenant/types.ts"
 import { canCreatePreview } from "../../../../../lib/security/tenantAccess.ts"
 import { verifyApprovalPreviewBinding } from "../../../../../lib/security/approvalPreviewBinding.ts"
+import { validateCsrfOrigin } from "../../../../../lib/security/csrfProtection.ts"
+import { readBoundedJsonObject } from "../../../../../lib/security/requestBody.ts"
+import { checkRateLimit, getTrustedClientIp } from "../../../../../lib/security/rateLimitGate.ts"
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -54,6 +57,9 @@ export async function POST(
   const { id: workUnitId } = await params
   const requestId = `dry-run:${workUnitId}:${Date.now()}`
 
+  const csrf = validateCsrfOrigin(request)
+  if (!csrf.ok) return errorResponse(requestId, csrf.reason, 403)
+
   audit("execution_dry_run_requested", requestId, { workUnitId })
 
   // ── 1. Session ───────────────────────────────────────────────
@@ -67,13 +73,17 @@ export async function POST(
     )
   }
   const session = sessionResult.session
+  if (!checkRateLimit({ tenantId: session.tenantId, actorUserId: session.userId, clientIp: getTrustedClientIp(request), routeFamily: "execution_dry_run" }).ok) {
+    return errorResponse(requestId, "rate_limited", 429)
+  }
 
   // ── 2. Parse body ────────────────────────────────────────────
-  let body: Record<string, unknown>
-  try { body = await request.json() } catch {
-    audit("execution_dry_run_failed", requestId, { reason: "invalid_json" })
-    return errorResponse(requestId, "invalid_request", 400)
+  const bodyResult = await readBoundedJsonObject(request, { maxBytes: 16 * 1024, maxArrayLength: 20, maxNodes: 200 })
+  if (!bodyResult.ok) {
+    audit("execution_dry_run_failed", requestId, { reason: bodyResult.reason })
+    return errorResponse(requestId, "invalid_request", bodyResult.reason === "payload_too_large" ? 413 : 400)
   }
+  const body = bodyResult.value
 
   // ── 3. Validate shape ────────────────────────────────────────
   if (typeof body.workUnitId !== "string" || body.workUnitId !== workUnitId) {
@@ -86,14 +96,17 @@ export async function POST(
     return errorResponse(requestId, "invalid_request", 400)
   }
 
-  const previewRefs: Array<{ actionId: string; previewId: string }> =
-    Array.isArray(body.previewRefs)
-      ? (body.previewRefs as unknown[]).filter(
-          (ref): ref is { actionId: string; previewId: string } =>
-            typeof (ref as Record<string, unknown>).actionId === "string" &&
-            typeof (ref as Record<string, unknown>).previewId === "string",
-        )
-      : []
+  if (!Array.isArray(body.previewRefs) || body.previewRefs.length > 20 || !body.previewRefs.every(isValidPreviewRef)) {
+    audit("execution_dry_run_failed", requestId, { reason: "invalid_preview_refs" })
+    return errorResponse(requestId, "invalid_request", 400)
+  }
+  const previewRefs = body.previewRefs as Array<{ actionId: string; previewId: string }>
+  const previewIds = previewRefs.map((ref) => ref.previewId)
+  const actionIds = previewRefs.map((ref) => ref.actionId)
+  if (new Set(previewIds).size !== previewIds.length || new Set(actionIds).size !== actionIds.length) {
+    audit("execution_dry_run_failed", requestId, { reason: "duplicate_preview_refs" })
+    return errorResponse(requestId, "invalid_request", 400)
+  }
 
   const requestedActionType: string | null =
     typeof body.requestedActionType === "string" ? body.requestedActionType : null
@@ -117,7 +130,6 @@ export async function POST(
   } = repoResult.bundle
 
   // ── 6. Load stored previews + approvals ──────────────────────
-  const previewIds = previewRefs.map((ref) => ref.previewId)
   if (previewIds.length === 0) {
     audit("execution_dry_run_blocked", requestId, { reason: "preview_ref_required" })
     return successResponse(workUnitId, previewRefs.length, requestedActionType, "not_ready", "A stored preview reference is required before dry-run verification.", requestId)
@@ -128,7 +140,7 @@ export async function POST(
   // the approval bound to THAT exact preview (by actionPreviewId, tenant-scoped)
   // and verify the pair. The request is ready only if some referenced preview has
   // a fully-bound, valid approval.
-  let verified = false
+  let allVerified = true
   let firstFailure: ReturnType<typeof verifyApprovalPreviewBinding> | null = null
   const now = new Date().toISOString()
 
@@ -143,13 +155,13 @@ export async function POST(
       preview,
     )
     if (outcome.ok) {
-      verified = true
-      break
+      continue
     }
+    allVerified = false
     if (!firstFailure) firstFailure = outcome
   }
 
-  if (!verified) {
+  if (!allVerified) {
     const failure = firstFailure ?? { ok: false as const, disposition: "not_ready" as const, reason: "No approval found for this preview." }
     if (failure.ok === false && failure.disposition === "forbidden") {
       audit("execution_dry_run_failed", requestId, { reason: "tenant_mismatch" })
@@ -180,6 +192,13 @@ export async function POST(
   })
 
   return successResponse(workUnitId, previewRefs.length, requestedActionType, "verified", "Execution would be allowed.", requestId)
+}
+
+function isValidPreviewRef(value: unknown): value is { actionId: string; previewId: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const ref = value as Record<string, unknown>
+  return typeof ref.actionId === "string" && ref.actionId.length > 0 && ref.actionId.length <= 256
+    && typeof ref.previewId === "string" && ref.previewId.length > 0 && ref.previewId.length <= 256
 }
 
 // ─── Response builder ──────────────────────────────────────────

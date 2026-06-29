@@ -7,6 +7,7 @@ import { join } from "node:path"
 import { POST } from "../app/api/workunit/tools/route.ts"
 
 const SRC_ROUTE = readFileSync(join(import.meta.dirname!, "../app/api/workunit/tools/route.ts"), "utf-8")
+const POST_ROUTE = SRC_ROUTE.slice(SRC_ROUTE.indexOf("export async function POST"))
 
 // ─── CSRF / Origin route-level tests ─────────────────────────
 
@@ -54,16 +55,16 @@ test("route imports rate limit", () => {
 
 test("route calls CSRF before session", () => {
   // Match call sites (with open paren), not import statements which appear earlier.
-  const csrfIdx = SRC_ROUTE.indexOf("validateCsrfOrigin(")
-  const sessionIdx = SRC_ROUTE.indexOf("requireSession(")
+  const csrfIdx = POST_ROUTE.indexOf("validateCsrfOrigin(")
+  const sessionIdx = POST_ROUTE.indexOf("requireSession(")
   assert.ok(csrfIdx > 0, "validateCsrfOrigin( call site must exist")
   assert.ok(sessionIdx > 0, "requireSession( call site must exist")
   assert.ok(csrfIdx < sessionIdx, "CSRF must run before session")
 })
 
 test("route calls rate limit before RBAC", () => {
-  const rateIdx = SRC_ROUTE.indexOf("checkRateLimit(")
-  const rbacIdx = SRC_ROUTE.indexOf("hasPermission(")
+  const rateIdx = POST_ROUTE.indexOf("checkRateLimit(")
+  const rbacIdx = POST_ROUTE.indexOf("hasPermission(")
   assert.ok(rateIdx > 0 && rbacIdx > 0 && rateIdx < rbacIdx, "Rate limit must run before RBAC")
 })
 

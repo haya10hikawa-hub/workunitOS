@@ -13,15 +13,15 @@ export class D1WorkUnitFeedbackRepository implements WorkUnitFeedbackRepository 
   async create(_ctx: TenantDbContext, row: WorkUnitFeedbackRow): Promise<WorkUnitFeedbackRow> {
     await this.db.prepare(
       "INSERT INTO workunit_feedback (id,tenant_id,work_unit_id,feedback,actor_user_id,created_at) VALUES (?,?,?,?,?,?)",
-    ).bind(row.id, row.tenantId, row.workUnitId, row.feedback, row.actorUserId ?? null, row.createdAt).run()
-    return row
+    ).bind(row.id, _ctx.tenantId, row.workUnitId, row.feedback, row.actorUserId ?? null, row.createdAt).run()
+    return { ...row, tenantId: _ctx.tenantId }
   }
 
   async findByWorkUnitId(_ctx: TenantDbContext, workUnitId: string): Promise<WorkUnitFeedbackRow[]> {
     const rows = await this.db.prepare(
-      "SELECT * FROM workunit_feedback WHERE work_unit_id = ? ORDER BY created_at DESC",
-    ).bind(workUnitId).all<Record<string, unknown>>()
-    return (rows.results ?? []).map(mapFeedback).filter((row) => row.tenantId === _ctx.tenantId)
+      "SELECT * FROM workunit_feedback WHERE tenant_id = ? AND work_unit_id = ? ORDER BY created_at DESC",
+    ).bind(_ctx.tenantId, workUnitId).all<Record<string, unknown>>()
+    return (rows.results ?? []).map(mapFeedback)
   }
 }
 

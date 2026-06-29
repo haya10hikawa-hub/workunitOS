@@ -5,6 +5,9 @@ import { writeAuditLog, type AuditEventKind } from "../../../../lib/security/aud
 import { resolveRouteRepositories } from "../../../../lib/persistence/routeRepositories.ts"
 import type { TenantId } from "../../../../lib/tenant/types.ts"
 import { canApprovePreview, canCreatePreview } from "../../../../lib/security/tenantAccess.ts"
+import { validateCsrfOrigin } from "../../../../lib/security/csrfProtection.ts"
+import { readBoundedJsonObject } from "../../../../lib/security/requestBody.ts"
+import { checkRateLimit, getTrustedClientIp } from "../../../../lib/security/rateLimitGate.ts"
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -35,6 +38,9 @@ export async function POST(
   const { id: workUnitId } = await params
   const requestId = resolveRequestId(request)
 
+  const csrf = validateCsrfOrigin(request)
+  if (!csrf.ok) return errorResponse(requestId, csrf.reason, 403)
+
   audit("approval_create_requested", requestId, { workUnitId })
 
   // ── Session ──────────────────────────────────────────────────
@@ -48,6 +54,9 @@ export async function POST(
     )
   }
   const session = sessionResult.session
+  if (!checkRateLimit({ tenantId: session.tenantId, actorUserId: session.userId, clientIp: getTrustedClientIp(request), routeFamily: "approval_decision" }).ok) {
+    return errorResponse(requestId, "rate_limited", 429)
+  }
 
   // ── Resolve repositories ────────────────────────────────────
   const repoResult = await resolveRouteRepositories(session.tenantId as TenantId)
@@ -58,11 +67,12 @@ export async function POST(
   const { actionPreviews: previewRepo, approvalRecords: approvalRepo, ctx } = repoResult.bundle
 
   // ── Parse body ───────────────────────────────────────────────
-  let body: Record<string, unknown>
-  try { body = await request.json() } catch {
-    audit("approval_create_failed", requestId, { reason: "invalid_json" })
-    return errorResponse(requestId, "invalid_request", 400)
+  const bodyResult = await readBoundedJsonObject(request, { maxBytes: 4 * 1024, maxDepth: 4, maxNodes: 30 })
+  if (!bodyResult.ok) {
+    audit("approval_create_failed", requestId, { reason: bodyResult.reason })
+    return errorResponse(requestId, "invalid_request", bodyResult.reason === "payload_too_large" ? 413 : 400)
   }
+  const body = bodyResult.value
 
   // ── Validate ─────────────────────────────────────────────────
   const actionPreviewId = typeof body.actionPreviewId === "string" ? body.actionPreviewId : null
@@ -95,10 +105,20 @@ export async function POST(
     audit("approval_create_failed", requestId, { actionPreviewId, reason: "workunit_mismatch" })
     return errorResponse(requestId, "invalid_request", 400)
   }
+  if (preview.status !== "preview" || !preview.expiresAt || Date.parse(preview.expiresAt) <= Date.now()) {
+    audit("approval_create_failed", requestId, { actionPreviewId, reason: "preview_expired_or_inactive" })
+    return errorResponse(requestId, "invalid_request", 400)
+  }
+
+  const existingDecision = await approvalRepo.findByPreviewId(ctx, actionPreviewId)
+  if (existingDecision) {
+    audit("approval_create_failed", requestId, { actionPreviewId, reason: "decision_already_exists" })
+    return errorResponse(requestId, "conflict", 409)
+  }
 
   // ── Create approval (hashes from stored preview) ─────────────
   const now = new Date().toISOString()
-  const approvalId = `approval:${workUnitId}:${preview.actionType}:${Date.now()}`
+  const approvalId = `approval:${actionPreviewId}`
 
   const approvalRow = {
     id: approvalId,
@@ -167,7 +187,20 @@ export async function GET(
   const { actionPreviews: previewRepo, ctx } = repoResult.bundle
   const rows = await previewRepo.findByWorkUnitId(ctx, workUnitId)
 
-  return NextResponse.json({ ok: true, previews: rows })
+  return NextResponse.json({
+    ok: true,
+    previews: rows.map((row) => ({
+      id: row.id,
+      workUnitId: row.workUnitId,
+      actionType: row.actionType,
+      targetPreview: row.targetPreview,
+      payloadPreview: row.payloadPreview,
+      requiresApproval: row.requiresApproval === 1,
+      status: row.status,
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt ?? null,
+    })),
+  })
 }
 
 function hasClientOwnedFields(body: Record<string, unknown>): boolean {

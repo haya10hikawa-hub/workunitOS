@@ -51,6 +51,7 @@ export async function resolveSession(
 
     const tenant = await repos.bundle.tenants.findById(repos.bundle.ctx, membership.tenantId)
     if (!tenant) return { ok: false, reason: "invalid_tenant" }
+    if (tenant.status !== "active") return { ok: false, reason: "forbidden" }
 
     return {
       ok: true,

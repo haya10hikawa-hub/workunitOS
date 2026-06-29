@@ -35,6 +35,8 @@ export type BoundPreviewFacts = {
   readonly workUnitId: string
   readonly targetHash: string
   readonly payloadHash: string
+  readonly status?: string
+  readonly expiresAt?: string
 }
 
 /** Trusted, server-derived verification context. */
@@ -103,6 +105,10 @@ export function verifyApprovalPreviewBinding(
   if (preview.workUnitId !== ctx.workUnitId) return { ok: false, disposition: "invalid_request" }
   // The approval must reference exactly this preview.
   if (preview.id !== approval.actionPreviewId) return { ok: false, disposition: "invalid_request" }
+  if (preview.status && preview.status !== "preview") return notReady("Action preview is not active.")
+  if (!preview.expiresAt || !isValidFutureTimestamp(preview.expiresAt, ctx.now)) {
+    return notReady("Action preview has expired.")
+  }
 
   // ── Server-side hash binding (against stored preview) ──────────
   if (approval.targetHash !== preview.targetHash || approval.payloadHash !== preview.payloadHash) {
@@ -115,4 +121,10 @@ export function verifyApprovalPreviewBinding(
   }
 
   return { ok: true, status: "verified", approvalId: approval.id }
+}
+
+function isValidFutureTimestamp(value: string, now: string): boolean {
+  const expiresAt = Date.parse(value)
+  const current = Date.parse(now)
+  return Number.isFinite(expiresAt) && Number.isFinite(current) && expiresAt > current
 }

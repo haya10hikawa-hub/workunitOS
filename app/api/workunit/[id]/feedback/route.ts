@@ -5,6 +5,9 @@ import { resolveRouteRepositories } from "../../../../lib/persistence/routeRepos
 import type { TenantId } from "../../../../lib/tenant/types.ts"
 import type { AuditLogRow } from "../../../../lib/persistence/types.ts"
 import { canCreateFeedback } from "../../../../lib/security/tenantAccess.ts"
+import { validateCsrfOrigin } from "../../../../lib/security/csrfProtection.ts"
+import { readBoundedJsonObject } from "../../../../lib/security/requestBody.ts"
+import { checkRateLimit, getTrustedClientIp } from "../../../../lib/security/rateLimitGate.ts"
 
 const VALID_FEEDBACK = new Set(["useful", "not_useful", "later", "done"])
 
@@ -19,6 +22,9 @@ export async function POST(
   const { id: workUnitId } = await params
   const requestId = `fb:${workUnitId}:${Date.now()}`
 
+  const csrf = validateCsrfOrigin(request)
+  if (!csrf.ok) return errorResponse(requestId, csrf.reason, 403)
+
   const sessionResult = await requireSession(request)
   if (!sessionResult.ok) {
     return errorResponse(
@@ -29,11 +35,14 @@ export async function POST(
   }
   const session = sessionResult.session
   if (!canCreateFeedback(session)) return errorResponse(requestId, "forbidden", 403)
+  if (!checkRateLimit({ tenantId: session.tenantId, actorUserId: session.userId, clientIp: getTrustedClientIp(request), routeFamily: "workunit_feedback" }).ok) {
+    return errorResponse(requestId, "rate_limited", 429)
+  }
   const tenantId = session.tenantId as TenantId
 
-  let body: unknown
-  try { body = await request.json() } catch { return errorResponse(requestId, "invalid_request", 400) }
-  const feedback = (body as Record<string, unknown>)?.feedback as string | undefined
+  const bodyResult = await readBoundedJsonObject(request, { maxBytes: 2 * 1024, maxDepth: 2, maxNodes: 10 })
+  if (!bodyResult.ok) return errorResponse(requestId, "invalid_request", bodyResult.reason === "payload_too_large" ? 413 : 400)
+  const feedback = bodyResult.value.feedback as string | undefined
   if (!feedback || !VALID_FEEDBACK.has(feedback)) return errorResponse(requestId, "invalid_request", 400)
 
   const repoResult = await resolveRouteRepositories(tenantId)
@@ -41,6 +50,8 @@ export async function POST(
 
   const { workUnitFeedback: fbRepo, workUnits: wuRepo, auditLogs: auditRepo, usage, ctx } = repoResult.bundle
   const now = new Date().toISOString()
+
+  if (!await wuRepo.findById(ctx, workUnitId)) return errorResponse(requestId, "invalid_request", 400)
 
   await fbRepo.create(ctx, {
     id: `fb:${workUnitId}:${Date.now()}`,

@@ -5,11 +5,12 @@ import { areExternalActionsEnabled, isExternalOperation } from "../../../lib/sec
 import { getSafeErrorStatus, safeError, toSafeErrorCode } from "../../../lib/security/safeErrors.ts"
 import { getSessionErrorStatus, requireSession } from "../../../lib/security/session.ts"
 import { validateCsrfOrigin } from "../../../lib/security/csrfProtection.ts"
-import { checkRateLimit } from "../../../lib/security/rateLimitGate.ts"
+import { checkRateLimit, getTrustedClientIp } from "../../../lib/security/rateLimitGate.ts"
 import { hasPermission } from "../../../lib/security/rbac.ts"
 import { writeAuditLog, type AuditEventKind } from "../../../lib/security/auditLog.ts"
 import type { WorkUnitPermission } from "../../../lib/security/policy.ts"
 import type { ToolBackendOperation } from "../../../types/toolBackend.ts"
+import { readBoundedJsonObject } from "../../../lib/security/requestBody.ts"
 
 // LLM pipeline imports
 import { processWorkSignal } from "../../../lib/llm/processWorkSignal.ts"
@@ -64,7 +65,18 @@ function errorResponse(requestId: string, code: ReturnType<typeof safeError>["er
 
 // ─── GET ────────────────────────────────────────────────────────
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
+  const sessionResult = await requireSession(request)
+  if (!sessionResult.ok) {
+    return errorResponse(
+      "tools-list-na",
+      (sessionResult.reason === "forbidden" || sessionResult.reason === "invalid_tenant") ? "forbidden" : "unauthorized",
+      getSessionErrorStatus(sessionResult.reason),
+    )
+  }
+  if (!hasPermission(sessionResult.session, "workunit.read")) {
+    return errorResponse("tools-list-na", "forbidden", 403)
+  }
   return NextResponse.json({
     adapters: listToolBackendAdapters().map(({ source, operations }) => ({ source, operations })),
   })
@@ -98,7 +110,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const session = sessionResult.session
 
   // ── 4. Rate limit gate ──────────────────────────────────────
-  const clientIp = request.headers.get("CF-Connecting-IP") ?? request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ?? "unknown"
+  const clientIp = getTrustedClientIp(request)
   const rateResult = checkRateLimit({
     tenantId: session.tenantId,
     actorUserId: session.userId,
@@ -111,13 +123,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   // ── 5. Parse JSON as unknown ────────────────────────────────
-  let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    audit("tool_request_rejected", requestId, { reason: "invalid_json" })
-    return errorResponse(requestId, "invalid_request", 400)
+  const bodyResult = await readBoundedJsonObject(request)
+  if (!bodyResult.ok) {
+    audit("tool_request_rejected", requestId, { reason: bodyResult.reason })
+    return errorResponse(requestId, "invalid_request", bodyResult.reason === "payload_too_large" ? 413 : 400)
   }
+  const body: unknown = bodyResult.value
 
   // ── 4. Runtime validation ─────────────────────────────────────
   const validation = validateToolBackendRequest(body)

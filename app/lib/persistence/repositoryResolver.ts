@@ -137,14 +137,22 @@ let inMemoryActionPreviewRepo: ActionPreviewRepository | null = null
 function createInMemoryActionPreviewRepo(): ActionPreviewRepository {
   if (!inMemoryActionPreviewRepo) {
     const store = new Map<string, Record<string, unknown>>()
+    const keyFor = (tenantId: string, id: string) => `${tenantId}:${id}`
     inMemoryActionPreviewRepo = {
-      async create(_ctx, row) { store.set(row.id, { ...row, id: row.id, tenantId: row.tenantId ?? _ctx.tenantId }); return row },
+      async create(_ctx, row) {
+        const tenantId = _ctx.tenantId
+        store.set(keyFor(tenantId, row.id), { ...row, id: row.id, tenantId })
+        return { ...row, tenantId }
+      },
       async findById(_ctx, id) {
-        const row = store.get(id); if (!row) return null
+        const row = store.get(keyFor(_ctx.tenantId, id)); if (!row) return null
         return { id: row.id, tenantId: row.tenantId, workUnitId: row.workUnitId, actionType: row.actionType, targetPreview: row.targetPreview ?? "{}", payloadPreview: row.payloadPreview ?? "{}", requiresApproval: row.requiresApproval ?? 1, status: row.status ?? "preview", targetHash: row.targetHash ?? "", payloadHash: row.payloadHash ?? "", createdAt: row.createdAt ?? "", expiresAt: row.expiresAt } as Awaited<ReturnType<ActionPreviewRepository["findById"]>>
       },
       async findByWorkUnitId(_ctx, wuId) {
-        const results: unknown[] = []; store.forEach((v) => { if ((v as Record<string, unknown>).workUnitId === wuId) results.push(v) })
+        const results: unknown[] = []
+        store.forEach((v) => {
+          if (v.tenantId === _ctx.tenantId && v.workUnitId === wuId) results.push(v)
+        })
         return results as Awaited<ReturnType<ActionPreviewRepository["findByWorkUnitId"]>>
       },
     }

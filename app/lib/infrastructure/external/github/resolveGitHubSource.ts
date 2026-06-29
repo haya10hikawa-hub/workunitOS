@@ -7,13 +7,12 @@
 
 import type { GitHubApiClient, GitHubSourceMode } from "./client.ts"
 import { fakeGitHubClient } from "./fakeGitHubClient.ts"
-import { realGitHubClient } from "./realGitHubClient.ts"
 
 // ─── Config ─────────────────────────────────────────────────────
 
 export function resolveGitHubSourceMode(env?: Record<string, string | undefined>): GitHubSourceMode {
   const mode = env?.GITHUB_SOURCE_MODE ?? process.env.GITHUB_SOURCE_MODE ?? "fake"
-  if (mode === "real") return "real"
+  if (mode === "real") return "real_disabled"
   if (mode === "real_disabled") return "real_disabled"
   return "fake"
 }
@@ -42,7 +41,7 @@ export function resolveGitHubClient(
         }
         return { client: fakeGitHubClient, token: undefined }
       }
-      return { client: realGitHubClient, token: effectiveToken }
+      return { client: fakeGitHubClient, token: undefined }
     }
     case "real_disabled":
       return { client: fakeGitHubClient, token: undefined }
