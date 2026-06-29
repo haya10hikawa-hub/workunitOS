@@ -23,6 +23,12 @@ const CLIENT_OWNED_FIELDS: ReadonlySet<string> = new Set([
   "usedat",
   "createdby",
   "createdbyuserid",
+  // Security P1: the preview/approval creator is server-set only; a client must
+  // never supply it (these are matched case-insensitively, incl. snake_case).
+  "creatoruserid",
+  "created_by_user_id",
+  "requestedbyuserid",
+  "requested_by_user_id",
 ])
 
 /**

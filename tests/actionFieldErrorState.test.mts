@@ -10,7 +10,7 @@ import { SAFE_ERROR_CODES, type SafeErrorCode } from "../app/lib/security/safeEr
 
 const allCodes = Object.keys(SAFE_ERROR_CODES) as SafeErrorCode[]
 
-test("getActionFieldErrorState covers all 14 safe error codes", () => {
+test("getActionFieldErrorState covers all safe error codes", () => {
   for (const code of allCodes) {
     const state = getActionFieldErrorState(code)
     assert.ok(state, `Missing mapping for ${code}`)

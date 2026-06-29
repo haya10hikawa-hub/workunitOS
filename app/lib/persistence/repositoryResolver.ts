@@ -148,7 +148,7 @@ function createInMemoryActionPreviewRepo(): ActionPreviewRepository {
         // Tenant scoping (red-team A-3 / out-of-band parity): the store is keyed by
         // (tenantId, id), so a cross-tenant id can never resolve another tenant's row.
         const row = store.get(keyFor(_ctx.tenantId, id)); if (!row) return null
-        return { id: row.id, tenantId: row.tenantId, workUnitId: row.workUnitId, actionType: row.actionType, targetPreview: row.targetPreview ?? "{}", payloadPreview: row.payloadPreview ?? "{}", requiresApproval: row.requiresApproval ?? 1, status: row.status ?? "preview", targetHash: row.targetHash ?? "", payloadHash: row.payloadHash ?? "", createdAt: row.createdAt ?? "", expiresAt: row.expiresAt } as Awaited<ReturnType<ActionPreviewRepository["findById"]>>
+        return { id: row.id, tenantId: row.tenantId, workUnitId: row.workUnitId, actionType: row.actionType, targetPreview: row.targetPreview ?? "{}", payloadPreview: row.payloadPreview ?? "{}", requiresApproval: row.requiresApproval ?? 1, status: row.status ?? "preview", targetHash: row.targetHash ?? "", payloadHash: row.payloadHash ?? "", createdAt: row.createdAt ?? "", expiresAt: row.expiresAt, creatorUserId: row.creatorUserId } as Awaited<ReturnType<ActionPreviewRepository["findById"]>>
       },
       async findByWorkUnitId(_ctx, wuId) {
         const results: unknown[] = []

@@ -9,6 +9,7 @@ import { validateCsrfOrigin } from "../../../../lib/security/csrfProtection.ts"
 import { readBoundedJsonObject } from "../../../../lib/security/requestBody.ts"
 import { checkRateLimit, getTrustedClientIp } from "../../../../lib/security/rateLimitGate.ts"
 import { hasClientOwnedFields, isPreviewExpired, resolveRequestId } from "../../../../lib/security/routeGuards.ts"
+import { recordAuditEvent } from "../../../../lib/security/auditPersistence.ts"
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ export async function POST(
     audit("approval_create_failed", requestId, { reason: "persistence_not_available" })
     return errorResponse(requestId, "integration_missing", 503)
   }
-  const { actionPreviews: previewRepo, approvalRecords: approvalRepo, ctx } = repoResult.bundle
+  const { actionPreviews: previewRepo, approvalRecords: approvalRepo, auditLogs, ctx } = repoResult.bundle
 
   // ── Parse body ───────────────────────────────────────────────
   const bodyResult = await readBoundedJsonObject(request, { maxBytes: 4 * 1024, maxDepth: 4, maxNodes: 30 })
@@ -105,6 +106,19 @@ export async function POST(
     return errorResponse(requestId, "invalid_request", 400)
   }
 
+  // ── Four-eyes (Security P1): the approver must differ from the preview creator ──
+  // Fail closed: a missing creator (pre-P1 / unknown) cannot prove distinct actors,
+  // so it is rejected too. The creator is server-set, never client-supplied.
+  if (!preview.creatorUserId || preview.creatorUserId === session.userId) {
+    const reason = preview.creatorUserId ? "self_approval" : "missing_creator"
+    audit("self_approval_forbidden", requestId, { actionPreviewId, reason })
+    await recordAuditEvent(auditLogs, ctx, {
+      kind: "self_approval_forbidden", timestamp: new Date().toISOString(), requestId,
+      actorId: session.userId, workUnitId, reason, metadata: { actionPreviewId },
+    })
+    return errorResponse(requestId, "self_approval_forbidden", 403)
+  }
+
   const existingDecision = await approvalRepo.findByPreviewId(ctx, actionPreviewId)
   if (existingDecision) {
     audit("approval_create_failed", requestId, { actionPreviewId, reason: "decision_already_exists" })
@@ -139,6 +153,13 @@ export async function POST(
   }
 
   await approvalRepo.create(ctx, approvalRow)
+
+  // ── Persist (tenant-scoped, fail-open, redacted) ─────────────
+  await recordAuditEvent(auditLogs, ctx, {
+    kind: decision === "approve" ? "approval_created" : "approval_rejected",
+    timestamp: now, requestId, actorId: session.userId, workUnitId,
+    metadata: { actionPreviewId, approvalId, actionType: preview.actionType, decision },
+  })
 
   // ── Audit ────────────────────────────────────────────────────
   audit(decision === "approve" ? "approval_created" : "approval_rejected", requestId, {

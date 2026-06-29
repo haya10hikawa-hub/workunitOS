@@ -18,6 +18,7 @@ export const SAFE_ERROR_CODES = {
   tenant_boundary_violation:    { status: 403, message: "tenant_boundary_violation" },
   external_actions_disabled:    { status: 403, message: "external_actions_disabled" },
   approval_required:            { status: 403, message: "approval_required" },
+  self_approval_forbidden:      { status: 403, message: "self_approval_forbidden" },
   approval_expired:             { status: 403, message: "approval_expired" },
   approval_used:                { status: 409, message: "approval_used" },
   approval_payload_mismatch:    { status: 409, message: "approval_payload_mismatch" },
