@@ -16,8 +16,8 @@ const INSERT_SQL = `
   INSERT INTO action_previews
     (id, tenant_id, work_unit_id, action_type,
      target_preview, payload_preview, requires_approval, status,
-     target_hash, payload_hash, created_at, expires_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     target_hash, payload_hash, created_at, expires_at, created_by_user_id)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 const FIND_BY_ID_SQL = `
@@ -52,6 +52,8 @@ export class D1ActionPreviewRepository implements ActionPreviewRepository {
         row.payloadHash,
         row.createdAt ?? nowISO(),
         row.expiresAt ?? null,
+        // Security P1: server-set creator for four-eyes enforcement.
+        row.creatorUserId ?? null,
       )
       .run()
     return row
@@ -103,6 +105,8 @@ export class D1ActionPreviewRepository implements ActionPreviewRepository {
       payloadHash: (row.payload_hash as string) ?? "",
       createdAt: (row.created_at as string) ?? nowISO(),
       expiresAt: (row.expires_at as string) ?? undefined,
+      // Security P1: read the server-set creator (NULL on pre-P1 rows → undefined).
+      creatorUserId: (row.created_by_user_id as ActionPreviewRow["creatorUserId"]) ?? undefined,
     }
   }
 }

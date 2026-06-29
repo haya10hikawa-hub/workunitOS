@@ -61,6 +61,7 @@ export type AuditEventKind =
   | "approval_rejected"
   | "approval_create_failed"
   | "approval_lookup_failed"
+  | "self_approval_forbidden"
   // Approval status endpoint
   | "approval_status_requested"
   | "approval_status_returned"

@@ -28,6 +28,7 @@ const ERROR_STATE_MAP: Record<SafeErrorCode, ActionFieldErrorState> = {
   tenant_boundary_violation: "permission_denied",
   external_actions_disabled: "policy_disabled",
   approval_required: "approval_needed",
+  self_approval_forbidden: "permission_denied",
   approval_expired: "approval_expired_state",
   approval_used: "approval_used_state",
   approval_payload_mismatch: "approval_invalidated",

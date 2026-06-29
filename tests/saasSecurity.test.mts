@@ -127,9 +127,11 @@ test("safeError responses never leak internals", () => {
   }
 })
 
-test("all 16 safe error codes exist with correct HTTP statuses", () => {
-  // Phase 5A added csrf_failed and invalid_origin (both 403) to the canonical set.
-  assert.equal(Object.keys(SAFE_ERROR_CODES).length, 16)
+test("all 17 safe error codes exist with correct HTTP statuses", () => {
+  // Phase 5A added csrf_failed and invalid_origin (both 403); Security P1 added
+  // self_approval_forbidden (403) to the canonical set.
+  assert.equal(Object.keys(SAFE_ERROR_CODES).length, 17)
+  assert.equal(getSafeErrorStatus("self_approval_forbidden"), 403)
   assert.equal(getSafeErrorStatus("invalid_request"), 400)
   assert.equal(getSafeErrorStatus("unauthorized"), 401)
   assert.equal(getSafeErrorStatus("forbidden"), 403)

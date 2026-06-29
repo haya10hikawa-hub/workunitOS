@@ -101,8 +101,17 @@ test("approval is single-decision, rejects expired previews, and GET omits inter
       { params: Promise.resolve({ id: workUnitId }) },
     )
     assert.equal(previewResponse.status, 201)
-    const previewBody = await previewResponse.json()
-    const actionPreviewId = previewBody.preview.id as string
+
+    // Four-eyes (Security P1): the approver must differ from the creator, so approve
+    // a preview created by a DIFFERENT user. (Self-approval is covered separately.)
+    const actionPreviewId = "preview:single-decision"
+    await bundle.actionPreviews.create(bundle.ctx, {
+      id: actionPreviewId, tenantId, workUnitId, actionType: "slack_reply",
+      targetPreview: "{}", payloadPreview: "{}", requiresApproval: 1, status: "preview",
+      targetHash: "t", payloadHash: "p", createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      creatorUserId: "another-user",
+    } as Parameters<typeof bundle.actionPreviews.create>[1])
 
     const approvalRequest = () => request(`/api/workunit/${workUnitId}/approval`, { actionPreviewId, decision: "approve" })
     assert.equal((await decideApproval(approvalRequest(), { params: Promise.resolve({ id: workUnitId }) })).status, 201)

@@ -136,6 +136,12 @@ export type ActionPreviewRow = {
   payloadHash: string
   createdAt: string
   expiresAt?: string
+  /**
+   * Server-set creator (session.userId) of this preview. Used by the approval
+   * route to enforce four-eyes (approver must differ from creator). Optional for
+   * backward compatibility with pre-P1 rows; a missing creator fails closed.
+   */
+  creatorUserId?: UserId
 }
 
 export type ApprovalRecordRow = {

@@ -11,6 +11,7 @@ import { validateCsrfOrigin } from "../../../../lib/security/csrfProtection.ts"
 import { readBoundedJsonObject } from "../../../../lib/security/requestBody.ts"
 import { checkRateLimit, getTrustedClientIp } from "../../../../lib/security/rateLimitGate.ts"
 import { hasClientOwnedFields, resolveRequestId } from "../../../../lib/security/routeGuards.ts"
+import { recordAuditEvent } from "../../../../lib/security/auditPersistence.ts"
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ export async function POST(
     audit("action_preview_create_failed", requestId, { reason: "persistence_not_available" })
     return errorResponse(requestId, "integration_missing", 503)
   }
-  const { actionPreviews: repos, workUnits, ctx } = repoResult.bundle
+  const { actionPreviews: repos, workUnits, auditLogs, ctx } = repoResult.bundle
 
   // ── Parse body ───────────────────────────────────────────────
   const bodyResult = await readBoundedJsonObject(request, { maxBytes: 32 * 1024, maxArrayLength: 50 })
@@ -120,9 +121,17 @@ export async function POST(
     payloadHash,
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+    // Security P1: creator is ALWAYS the server-side session user (never client-supplied).
+    creatorUserId: session.userId,
   }
 
   await repos.create(ctx, previewRow)
+
+  // ── Persist (tenant-scoped, fail-open, redacted) ─────────────
+  await recordAuditEvent(auditLogs, ctx, {
+    kind: "action_preview_created", timestamp: previewRow.createdAt, requestId,
+    actorId: session.userId, workUnitId, metadata: { actionPreviewId: previewId, actionType },
+  })
 
   audit("action_preview_created", requestId, {
     workUnitId, actionPreviewId: previewId, actionType, targetHash, payloadHash,
@@ -150,6 +159,8 @@ const FORBIDDEN_PREVIEW_KEYS = new Set([
   "approvedbypm", "role", "status", "usedat", "rawpayload", "rawbody", "providerpayload",
   "sendablebody", "approvedoutboundbody", "approvedoutboundpayload", "authorization", "cookie",
   "password", "secret", "token", "accesstoken", "refreshtoken", "apikey",
+  // Security P1: creator/actor ownership keys must never appear in preview content.
+  "creatoruserid", "createdbyuserid", "requestedbyuserid",
 ])
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
