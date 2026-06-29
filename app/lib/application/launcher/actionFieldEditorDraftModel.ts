@@ -23,18 +23,29 @@ export type LauncherReadinessCard = {
 
 const EDITABLE_LABEL = "AI-generated draft — editable"
 
-export function deriveActionFieldEditorDraft(workUnit: LauncherWorkUnit | null): ActionFieldEditorDraft {
+export type ActionFieldSelectedNode = {
+  readonly id: string
+  readonly label: string
+}
+
+export function deriveActionFieldEditorDraft(
+  workUnit: LauncherWorkUnit | null,
+  selectedNode?: ActionFieldSelectedNode | null,
+): ActionFieldEditorDraft {
+  const title = workUnit?.title ?? "Quarterly review presentation"
+  const objective = workUnit?.objective
+    ?? "Deliver a clear, data-driven quarterly review to the executive team and obtain approval to proceed with Q3 initiatives as planned."
+  const focusLabel = selectedNode?.label && selectedNode.id !== workUnit?.id ? selectedNode.label : null
   return {
     id: formatDraftId(workUnit?.id ?? "roi-79"),
     version: "Draft v4",
-    title: workUnit?.id === "roi-79" || !workUnit ? "Quarterly review presentation" : workUnit.title,
-    objective: workUnit?.id === "roi-79" || !workUnit
-      ? "Deliver a clear, data-driven quarterly review to the executive team and obtain approval to proceed with Q3 initiatives as planned."
-      : workUnit.objective,
+    title,
+    objective,
     editableLabel: EDITABLE_LABEL,
-    body: buildDraftBody(),
+    body: buildDraftBody(workUnit, focusLabel),
     notes: "",
-    verificationState: "Local draft only. Preview and approval remain outside this phase.",
+    verificationState:
+      "Local draft only. Human review required. Preview and approval remain outside this phase.",
     editable: true,
     aiGenerated: true,
   }
@@ -80,7 +91,18 @@ export function deriveLauncherReadinessCards(workUnit: LauncherWorkUnit | null):
   ]
 }
 
-function buildDraftBody(): string {
+function buildDraftBody(workUnit: LauncherWorkUnit | null, focusLabel: string | null): string {
+  if (workUnit) {
+    return [
+      `## Candidate context`,
+      workUnit.summary,
+      ``,
+      focusLabel ? `## Focused node\n${focusLabel}` : `## Proposed next step (candidate only)`,
+      focusLabel ? `` : workUnit.nextStep ?? "Review and decide the next PM-owned step.",
+      ``,
+      `_Human review required. This is a candidate draft for local review only._`,
+    ].join("\n")
+  }
   return [
     "## 1. Executive Summary",
     "Q2 performance exceeded targets across key metrics. Customer satisfaction improved, and operational efficiency gains offset cost increases.",

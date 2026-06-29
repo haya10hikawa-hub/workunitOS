@@ -17,6 +17,16 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
+import { candidateWorkUnitBridge } from "../app/lib/application/candidate/candidateWorkUnitBridge.ts"
+import { runDevGatedLlmCandidatePipeline } from "../app/lib/application/candidate/devGatedLlmCandidatePipeline.ts"
+import { candidatesToLauncherWorkUnits } from "../app/lib/application/launcher/candidateToLauncherWorkUnit.ts"
+import { deriveWorkUnitTreeMap } from "../app/lib/application/launcher/workUnitTreeModel.ts"
+import { deriveWorkspaceModel } from "../app/lib/application/launcher/deriveWorkspaceModel.ts"
+import { deriveActionFieldEditorDraft } from "../app/lib/application/launcher/actionFieldEditorDraftModel.ts"
+import { FORBIDDEN_CANDIDATE_FIELDS } from "../app/lib/application/candidate/safeWorkUnitCandidate.ts"
 
 const dashboardComponent = "app/components/workunit-os/adopted/AdoptedWorkUnitDashboard.tsx"
 const dashboardPanel = "app/components/workunit-os/adopted/AdoptedActionFieldPanel.tsx"
@@ -293,4 +303,106 @@ test("alpha flow: executionReadinessModel uses externalExecutionEnabled gate", a
 test("alpha flow: dry-run route respects kill switch", async () => {
   const source = await readFile(dryRunRoute, "utf8")
   assert.equal(source.includes("areExternalActionsEnabled"), true)
+})
+
+// ─── Phase 2B/2C: candidate-only launcher flow (end to end) ────
+//
+// mock/manual Signal → SafeWorkUnitCandidate → Command Palette → Workspace → Action Field.
+// No execution, no approval, no provider call, no forbidden fields.
+
+const candidateRuntimeFiles = [
+  "app/lib/application/candidate/safeWorkUnitCandidate.ts",
+  "app/lib/application/candidate/candidateWorkUnitBridge.ts",
+  "app/lib/application/candidate/devGatedLlmCandidatePipeline.ts",
+  "app/lib/application/launcher/candidateToLauncherWorkUnit.ts",
+  "app/lib/application/launcher/deriveWorkspaceModel.ts",
+]
+
+const launcherComponentFiles = [
+  "app/components/workunit-os/launcher/WorkUnitLauncher.tsx",
+  "app/components/workunit-os/launcher/ActionFieldView.tsx",
+  "app/components/workunit-os/launcher/WorkUnitTreeMap.tsx",
+  "app/components/workunit-os/launcher/ActionFieldEditor.tsx",
+  "app/components/workunit-os/launcher/CommandPaletteView.tsx",
+]
+
+function deepForbiddenKeys(value: unknown): string[] {
+  const found: string[] = []
+  const walk = (node: unknown) => {
+    if (Array.isArray(node)) return node.forEach(walk)
+    if (node && typeof node === "object") {
+      for (const key of Object.keys(node as Record<string, unknown>)) {
+        if ((FORBIDDEN_CANDIDATE_FIELDS as readonly string[]).includes(key)) found.push(key)
+        walk((node as Record<string, unknown>)[key])
+      }
+    }
+  }
+  walk(value)
+  return found
+}
+
+test("candidate flow: mock signal becomes candidate-only WorkUnit", () => {
+  const bridge = candidateWorkUnitBridge()
+  assert.equal(bridge.mode, "candidate_only")
+  assert.equal(bridge.source, "mock_candidate_pipeline")
+  assert.equal(bridge.safety.externalExecutionEnabled, false)
+  assert.equal(bridge.safety.approvalCreationEnabled, false)
+  assert.equal(bridge.safety.providerCallsEnabled, false)
+  assert.ok(bridge.workUnits.length > 0)
+  for (const wu of bridge.workUnits) {
+    assert.equal(wu.candidateOnly, true)
+    assert.equal(wu.humanReviewRequired, true)
+  }
+})
+
+test("candidate flow: candidate adapts into launcher → workspace → action field", () => {
+  const launcher = candidatesToLauncherWorkUnits(candidateWorkUnitBridge().workUnits)
+  assert.ok(launcher.length > 0)
+  const treeMap = deriveWorkUnitTreeMap(launcher[0]!)
+  const workspace = deriveWorkspaceModel(launcher[0]!, treeMap)
+  assert.equal(workspace.rootCard?.title, launcher[0]!.title)
+  const draft = deriveActionFieldEditorDraft(launcher[0]!, null)
+  assert.equal(draft.editable, true)
+  assert.equal(draft.title, launcher[0]!.title)
+})
+
+test("candidate flow: no forbidden fields appear across the whole flow", () => {
+  const launcher = candidatesToLauncherWorkUnits(candidateWorkUnitBridge().workUnits)
+  const treeMap = deriveWorkUnitTreeMap(launcher[0]!)
+  assert.deepEqual(deepForbiddenKeys(candidateWorkUnitBridge()), [])
+  assert.deepEqual(deepForbiddenKeys(launcher), [])
+  assert.deepEqual(deepForbiddenKeys(deriveWorkspaceModel(launcher[0]!, treeMap)), [])
+  assert.deepEqual(deepForbiddenKeys(deriveActionFieldEditorDraft(launcher[0]!, null)), [])
+  assert.deepEqual(deepForbiddenKeys(runDevGatedLlmCandidatePipeline()), [])
+})
+
+test("candidate flow: dev-gated path is fail-closed and provider-disabled", () => {
+  const result = runDevGatedLlmCandidatePipeline()
+  assert.equal(result.safety.providerCallsEnabled, false)
+  assert.equal(result.providerConnected, false)
+  assert.equal(result.fellBackToMock, true)
+  assert.ok(result.boundaryBlockedReasons.length > 0)
+})
+
+test("candidate flow: runtime + adapter import no provider, fetch, env, or tools route", () => {
+  for (const file of candidateRuntimeFiles) {
+    const src = readFileSync(join(process.cwd(), file), "utf-8")
+    for (const sdk of ["openai", "@anthropic-ai", "deepseekProvider", "createDeepseek", "gemini", "ollama"]) {
+      assert.equal(src.includes(sdk), false, `${file} must not reference ${sdk}`)
+    }
+    assert.equal(src.includes("fetch("), false, `${file} must not call fetch(`)
+    assert.equal(src.includes("process.env"), false, `${file} must not read process.env`)
+    assert.equal(src.includes("/api/workunit/tools"), false, `${file} must not call tools route`)
+  }
+})
+
+test("candidate flow: launcher components never call the tools route or providers", () => {
+  for (const file of launcherComponentFiles) {
+    const src = readFileSync(join(process.cwd(), file), "utf-8")
+    assert.equal(src.includes("/api/workunit/tools"), false, `${file} tools route`)
+    assert.equal(src.includes("fetch("), false, `${file} fetch(`)
+    for (const sdk of ["openai", "@anthropic-ai", "deepseekProvider"]) {
+      assert.equal(src.includes(sdk), false, `${file} provider ${sdk}`)
+    }
+  }
 })

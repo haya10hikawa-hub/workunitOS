@@ -76,8 +76,11 @@ export async function processWorkSignal(
   const sanitized = sanitizeForLlm(signal)
   allRiskFlags.push(...sanitized.riskFlags)
 
-  if (sanitized.riskFlags.includes("prompt_injection_detected")) {
-    allWarnings.push({ code: "unsafe_input", message: "Prompt injection detected", riskFlag: "prompt_injection_detected" })
+  const blockingInputRisk = sanitized.riskFlags.find((flag) =>
+    flag === "prompt_injection_detected" || flag === "source_content_includes_instruction" || flag === "sensitive_data_detected"
+  )
+  if (blockingInputRisk) {
+    allWarnings.push({ code: "unsafe_input", message: "Unsafe source content detected", riskFlag: blockingInputRisk })
     return { ok: false, error: "unsafe_input", stage: "sanitize_signal", warnings: allWarnings, riskFlags: allRiskFlags }
   }
 

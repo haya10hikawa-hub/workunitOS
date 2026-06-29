@@ -25,6 +25,7 @@ const store = new Map<string, RateLimitEntry>()
 
 const MAX_REQUESTS = 60 // per window
 const WINDOW_MS = 60_000 // 1 minute
+const MAX_STORE_ENTRIES = 10_000
 
 function buildKey(key: RateLimitKey): string {
   return `${key.routeFamily}:${key.tenantId}:${key.actorUserId}:${key.clientIp}`
@@ -33,6 +34,7 @@ function buildKey(key: RateLimitKey): string {
 export function checkRateLimit(key: RateLimitKey): RateLimitResult {
   const k = buildKey(key)
   const now = Date.now()
+  pruneExpiredEntries(now)
   const entry = store.get(k)
 
   if (!entry || now - entry.windowStart > WINDOW_MS) {
@@ -46,6 +48,23 @@ export function checkRateLimit(key: RateLimitKey): RateLimitResult {
 
   entry.count++
   return { ok: true }
+}
+
+export function getTrustedClientIp(request: Request): string {
+  const cloudflareIp = request.headers.get("CF-Connecting-IP")?.trim()
+  if (cloudflareIp && cloudflareIp.length <= 64 && /^[0-9a-f:.]+$/i.test(cloudflareIp)) return cloudflareIp
+  return "unknown"
+}
+
+function pruneExpiredEntries(now: number): void {
+  if (store.size < MAX_STORE_ENTRIES) return
+  for (const [key, entry] of store) {
+    if (now - entry.windowStart > WINDOW_MS) store.delete(key)
+  }
+  if (store.size >= MAX_STORE_ENTRIES) {
+    const oldest = [...store.entries()].sort((a, b) => a[1].windowStart - b[1].windowStart)
+    for (let index = 0; index < Math.ceil(oldest.length / 10); index += 1) store.delete(oldest[index][0])
+  }
 }
 
 /** Returns current entry count for testing (non-production use). */

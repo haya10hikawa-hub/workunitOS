@@ -1,149 +1,130 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import {
-  deriveActionFieldEditorDraft,
-  deriveLauncherReadinessCards,
-} from "@/lib/application/launcher/actionFieldEditorDraftModel"
-import { getLauncherKeyIntent, nextLauncherIndex, resolveLauncherEscapeAction } from "@/lib/application/launcher/keyboardNavigationModel"
-import { deriveWorkUnitTreeMap } from "@/lib/application/launcher/workUnitTreeModel"
+import { AtraWorkspace } from "@/components/atra/AtraWorkspace"
+import { deriveAtraWorkspaceViewModel } from "@/lib/application/atra/deriveAtraWorkspaceViewModel"
+import { candidateWorkUnitBridge } from "@/lib/application/candidate/candidateWorkUnitBridge"
+import { candidatesToLauncherWorkUnits } from "@/lib/application/launcher/candidateToLauncherWorkUnit"
 import {
   clampLauncherActiveIndex,
-  fallbackLauncherWorkUnits,
   filterLauncherWorkUnits,
   getActiveLauncherWorkUnit,
   type LauncherWorkUnit,
 } from "@/lib/application/launcher/workUnitSelectionModel"
-import { ActionFieldView } from "./ActionFieldView"
+import {
+  getLauncherKeyIntent,
+  nextLauncherIndex,
+  resolveLauncherEscapeAction,
+} from "@/lib/application/launcher/keyboardNavigationModel"
 import { CommandPaletteView } from "./CommandPaletteView"
-import { SourceAppIcon } from "./SourceAppIcon"
-import styles from "./WorkUnitLauncher.module.css"
+import launcherStyles from "./WorkUnitLauncher.module.css"
 
+// Retained for compatibility with the launcher mode contract. The Atra workspace
+// shows the Node Canvas and Action Field together; the palette opens as an overlay.
 export type WorkUnitLauncherMode = "palette" | "action-field"
 
 export function WorkUnitLauncher() {
-  const [isOpen, setIsOpen] = useState(true)
-  const [mode, setMode] = useState<WorkUnitLauncherMode>("palette")
+  // Candidate-only data source: SafeWorkUnitCandidate (mock_candidate_pipeline)
+  // adapted into LauncherWorkUnit. Swapping to the live candidate bridge later
+  // requires no UI change.
+  const workUnits = useMemo<LauncherWorkUnit[]>(
+    () => candidatesToLauncherWorkUnits(candidateWorkUnitBridge().workUnits),
+    [],
+  )
+  const defaultWorkUnitId = useMemo(
+    () => workUnits.find((unit) => /quarterly/i.test(unit.title))?.id ?? workUnits[0]?.id ?? "",
+    [workUnits],
+  )
+
+  const [selectedWorkUnitId, setSelectedWorkUnitId] = useState(defaultWorkUnitId)
+  // Node selection is scoped to its WorkUnit; switching WorkUnit falls back to the
+  // default focus stage without a reset effect.
+  const [nodeSelection, setNodeSelection] = useState<{ readonly workUnitId: string; readonly nodeId: string } | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [query, setQuery] = useState("")
-  const workUnits = useMemo<LauncherWorkUnit[]>(() => fallbackLauncherWorkUnits(), [])
-  const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | null>(workUnits[0]?.id ?? null)
   const [activeIndex, setActiveIndex] = useState(0)
 
-  const filteredWorkUnits = useMemo(
-    () => filterLauncherWorkUnits(workUnits, query),
-    [query, workUnits],
+  const selectedWorkUnit = workUnits.find((unit) => unit.id === selectedWorkUnitId) ?? workUnits[0] ?? null
+  const effectiveNodeId =
+    nodeSelection && nodeSelection.workUnitId === selectedWorkUnitId ? nodeSelection.nodeId : null
+  const workspace = useMemo(
+    () => deriveAtraWorkspaceViewModel({ workUnit: selectedWorkUnit, selectedNodeId: effectiveNodeId }),
+    [selectedWorkUnit, effectiveNodeId],
   )
+
+  const filteredWorkUnits = useMemo(() => filterLauncherWorkUnits(workUnits, query), [workUnits, query])
   const clampedActiveIndex = clampLauncherActiveIndex(activeIndex, filteredWorkUnits.length)
-  const activeWorkUnit = getActiveLauncherWorkUnit(filteredWorkUnits, clampedActiveIndex)
-  const selectedWorkUnit = workUnits.find((workUnit) => workUnit.id === selectedWorkUnitId) ?? activeWorkUnit ?? null
-  const treeMap = useMemo(() => deriveWorkUnitTreeMap(selectedWorkUnit), [selectedWorkUnit])
-  const draft = useMemo(() => deriveActionFieldEditorDraft(selectedWorkUnit), [selectedWorkUnit])
-  const readinessCards = useMemo(() => deriveLauncherReadinessCards(selectedWorkUnit), [selectedWorkUnit])
+
+  const handleSelectNode = (nodeId: string) => {
+    if (selectedWorkUnitId) setNodeSelection({ workUnitId: selectedWorkUnitId, nodeId })
+  }
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const intent = getLauncherKeyIntent(event)
       if (intent === "open_palette") {
         event.preventDefault()
-        setIsOpen(true)
-        setMode("palette")
+        setPaletteOpen(true)
         return
       }
-      if (!isOpen) return
+      if (!paletteOpen) return
       if (intent === "close") {
         event.preventDefault()
-        // In the palette, Escape clears a non-empty query first; a second Escape
-        // (empty query) closes. Action Field always closes.
-        if (mode === "palette" && resolveLauncherEscapeAction(query) === "clear_query") {
+        if (resolveLauncherEscapeAction(query) === "clear_query") {
           setQuery("")
           setActiveIndex(0)
           return
         }
-        setIsOpen(false)
-        setMode("palette")
+        setPaletteOpen(false)
         return
       }
-      if (intent === "confirm" && mode === "palette") {
+      if (intent === "confirm") {
         const active = getActiveLauncherWorkUnit(filteredWorkUnits, clampedActiveIndex)
         if (!active) return
         event.preventDefault()
         setSelectedWorkUnitId(active.id)
-        setMode("action-field")
+        setPaletteOpen(false)
+        return
       }
-      if (intent === "next" && mode === "palette") {
+      if (intent === "next") {
         event.preventDefault()
         setActiveIndex((current) => nextLauncherIndex(current, "next", filteredWorkUnits.length))
+        return
       }
-      if (intent === "previous" && mode === "palette") {
+      if (intent === "previous") {
         event.preventDefault()
         setActiveIndex((current) => nextLauncherIndex(current, "previous", filteredWorkUnits.length))
       }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [clampedActiveIndex, filteredWorkUnits, isOpen, mode, query])
+  }, [paletteOpen, query, filteredWorkUnits, clampedActiveIndex])
 
   return (
-    <main className={styles.root}>
-      <header className={styles.backgroundBrand}>
-        <span className={styles.logoMark} />
-        <strong>WorkUnit OS</strong>
-      </header>
-      <div className={styles.backgroundBoard} aria-hidden="true">
-        {workUnits.map((workUnit) => (
-          <span key={workUnit.id}>
-            <SourceAppIcon icon={workUnit.sourceIcon} size="sm" />
-            {workUnit.title}
-          </span>
-        ))}
-      </div>
-      {!isOpen ? (
-        <button
-          type="button"
-          className={styles.primaryButton}
-          onClick={() => {
-            setIsOpen(true)
-            setMode("palette")
-          }}
-        >
-          Open Command Palette
-        </button>
-      ) : null}
-      {isOpen ? (
-        <div className={styles.overlay}>
-          {mode === "palette" ? (
-            <CommandPaletteView
-              query={query}
-              workUnits={filteredWorkUnits}
-              selectedWorkUnitId={selectedWorkUnitId}
-              activeIndex={clampedActiveIndex}
-              onQueryChange={(nextQuery) => {
-                setQuery(nextQuery)
-                setActiveIndex(0)
-              }}
-              onActiveIndexChange={setActiveIndex}
-              onSelectWorkUnit={setSelectedWorkUnitId}
-              onOpenActionField={() => setMode("action-field")}
-              onClose={() => {
-                setIsOpen(false)
-                setMode("palette")
-              }}
-            />
-          ) : (
-            <ActionFieldView
-              workUnit={selectedWorkUnit}
-              treeMap={treeMap}
-              draft={draft}
-              readinessCards={readinessCards}
-              onBackToPalette={() => setMode("palette")}
-              onClose={() => {
-                setIsOpen(false)
-                setMode("palette")
-              }}
-            />
-          )}
+    <>
+      <AtraWorkspace
+        workspace={workspace}
+        onSelectNode={handleSelectNode}
+        onOpenPalette={() => setPaletteOpen(true)}
+      />
+      {paletteOpen ? (
+        <div className={launcherStyles.overlay}>
+          <CommandPaletteView
+            query={query}
+            workUnits={filteredWorkUnits}
+            selectedWorkUnitId={selectedWorkUnitId}
+            activeIndex={clampedActiveIndex}
+            onQueryChange={(next) => {
+              setQuery(next)
+              setActiveIndex(0)
+            }}
+            onActiveIndexChange={setActiveIndex}
+            onSelectWorkUnit={setSelectedWorkUnitId}
+            onOpenActionField={() => setPaletteOpen(false)}
+            onClose={() => setPaletteOpen(false)}
+          />
         </div>
       ) : null}
-    </main>
+    </>
   )
 }

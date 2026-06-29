@@ -64,6 +64,15 @@ test("expired token returns invalid_credentials", async () => {
   })
 })
 
+test("token without exp returns invalid_credentials", async () => {
+  await withEnv("JWT_AUTH_SECRET", "test-secret", async () => {
+    const token = await signHs256Jwt({ sub: "jwt-user", email: "jwt@example.local" }, "test-secret", false)
+    const result = await new JwtAuthAdapter().verify(new Request("http://localhost", { headers: { Authorization: `Bearer ${token}` } }))
+    assert.equal(result.ok, false)
+    if (!result.ok) assert.equal(result.reason, "invalid_credentials")
+  })
+})
+
 test("missing sub or email returns invalid_credentials", async () => {
   await withEnv("JWT_AUTH_SECRET", "test-secret", async () => {
     const missingSub = await signHs256Jwt({ email: "jwt@example.local" }, "test-secret")
@@ -101,5 +110,29 @@ test("token is not included in error output", async () => {
     const result = await new JwtAuthAdapter().verify(new Request("http://localhost", { headers: { Authorization: `Bearer ${token}` } }))
     assert.equal(result.ok, false)
     assert.equal(JSON.stringify(result).includes(token), false)
+  })
+})
+
+test("invalid base64 and oversized bearer tokens fail closed without throwing", async () => {
+  await withEnv("JWT_AUTH_SECRET", "test-secret", async () => {
+    for (const token of ["abc.%.sig", "eyJhbGciOiJIUzI1NiJ9.!!!!.x", `${"a".repeat(20_000)}.e30.x`]) {
+      const result = await new JwtAuthAdapter().verify(new Request("http://localhost", { headers: { Authorization: `Bearer ${token}` } }))
+      assert.equal(result.ok, false)
+      if (!result.ok) assert.equal(result.reason, "invalid_credentials")
+    }
+  })
+})
+
+test("production JWT adapter requires strong secret, issuer, and audience", async () => {
+  await withEnv("NODE_ENV", "production", async () => {
+    await withEnv("JWT_AUTH_SECRET", "short-secret", async () => {
+      await withEnv("JWT_AUTH_ISSUER", undefined, async () => {
+        await withEnv("JWT_AUTH_AUDIENCE", undefined, async () => {
+          const result = await new JwtAuthAdapter().verify(new Request("http://localhost", { headers: { Authorization: "Bearer abc.def.ghi" } }))
+          assert.equal(result.ok, false)
+          if (!result.ok) assert.equal(result.reason, "adapter_not_configured")
+        })
+      })
+    })
   })
 })

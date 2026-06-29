@@ -7,6 +7,8 @@ import styles from "./WorkUnitLauncher.module.css"
 
 type Props = {
   readonly treeMap: WorkUnitTreeMapView
+  readonly selectedNodeId?: string | null
+  readonly onSelectNode?: (id: string) => void
 }
 
 const GROUP_CLASS: Record<WorkUnitTreeGroupId, string> = {
@@ -18,7 +20,7 @@ const GROUP_CLASS: Record<WorkUnitTreeGroupId, string> = {
   approval_context: "treeGroupApproval",
 }
 
-export function WorkUnitTreeMap({ treeMap }: Props) {
+export function WorkUnitTreeMap({ treeMap, selectedNodeId, onSelectNode }: Props) {
   const [query, setQuery] = useState("")
   const [focusDepth, setFocusDepth] = useState("2")
   const [autoFocus, setAutoFocus] = useState(true)
@@ -65,11 +67,15 @@ export function WorkUnitTreeMap({ treeMap }: Props) {
           <path d="M56 50 C65 42 72 40 78 40" />
           <path d="M56 57 C65 68 71 71 77 72" />
         </svg>
-        <div className={styles.centerNode}>
-          <strong>Quarterly review presentation</strong>
-          <span>ROI-79</span>
+        <button
+          type="button"
+          className={styles.centerNode}
+          aria-pressed={selectedNodeId === treeMap.center.id}
+          onClick={() => onSelectNode?.(treeMap.center.id)}
+        >
+          <strong>{treeMap.center.label}</strong>
           <small>(WorkUnit)</small>
-        </div>
+        </button>
         {groups.map((group) => (
           <section key={group.id} className={`${styles.treeGroupCard} ${styles[GROUP_CLASS[group.id]]}`}>
             <header>
@@ -79,8 +85,16 @@ export function WorkUnitTreeMap({ treeMap }: Props) {
             <ul>
               {group.nodes.map((node) => (
                 <li key={node.id}>
-                  <SourceAppIcon icon={node.sourceIcon} size="sm" />
-                  {node.label}
+                  <button
+                    type="button"
+                    className={styles.treeNodeButton}
+                    aria-pressed={selectedNodeId === node.id}
+                    data-selected={selectedNodeId === node.id ? "true" : "false"}
+                    onClick={() => onSelectNode?.(node.id)}
+                  >
+                    <SourceAppIcon icon={node.sourceIcon} size="sm" />
+                    {node.label}
+                  </button>
                 </li>
               ))}
             </ul>

@@ -7,6 +7,7 @@ import type { ColdMemoryPolicyResult } from "../memory/types.ts"
 import type { SourceRef } from "../../domain/types.ts"
 import { classifyDecompositionCandidate } from "./decompositionClassifier.ts"
 import { createStaticMockDecompositionLlm, validateMockDecompositionLlmOutput, type MockDecompositionLlm } from "./mockDecompositionLlm.ts"
+import { evaluateLlmProviderBoundary, type LlmProviderRuntimeControls } from "../llmProvider/llmProviderBoundary.ts"
 import { runRuleGate, type RuleGateResult } from "./ruleGate.ts"
 import type { DecompositionResult, DecompositionTarget } from "./types.ts"
 
@@ -30,6 +31,21 @@ type DecompositionOrchestrationBlockedReason =
   | "invalid_mock_llm_output"
   | "forbidden_mock_llm_output"
   | "p0_violation"
+  | "real_provider_requires_readiness_gate"
+
+// Nothing in the candidate-only phase wires real-LLM runtime controls. The
+// enforcement seam evaluates the provider boundary with every control closed, so a
+// non-mock provider always fails closed before it can generate anything.
+const NO_GO_RUNTIME_CONTROLS: LlmProviderRuntimeControls = {
+  featureFlagEnabled: false,
+  globalKillSwitchOpen: false,
+  tenantAllowlisted: false,
+  budgetLimitAvailable: false,
+  redactionApplied: false,
+  auditLoggingEnabled: false,
+  p0ScannerEnabled: false,
+  contextAllowlistApplied: false,
+}
 
 type SummaryBoundaryFinding = {
   readonly path: string
@@ -91,6 +107,16 @@ export function runDecompositionOrchestrator(input: DecompositionOrchestratorInp
   })
   if (!context.ok) return blocked("forbidden_context", false, context.findings)
   const provider = input.mockLlm ?? createStaticMockDecompositionLlm({ text: input.safeInputSummary })
+  // Phase 2A enforcement seam: the mock boundary is the only path allowed to
+  // generate decomposition candidates. Any non-mock provider must be routed through
+  // the real-LLM provider boundary first, which fails closed (readiness gate +
+  // runtime controls). The provider is never asked to generate, so no real provider
+  // can run without the Phase 1E readiness gate.
+  const providerKind: string = provider.kind
+  if (providerKind !== "mock") {
+    const boundary = evaluateLlmProviderBoundary({ request: { contextPack: context.pack }, controls: NO_GO_RUNTIME_CONTROLS })
+    return blocked("real_provider_requires_readiness_gate", false, boundary.blockedReasons)
+  }
   const mockOutput = validateMockDecompositionLlmOutput(provider.generate({ contextPack: context.pack }))
   if (!mockOutput.ok) return blocked(mockOutput.reason, true)
   const decomposition = classifyDecompositionCandidate({

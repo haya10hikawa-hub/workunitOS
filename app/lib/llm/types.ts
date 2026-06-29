@@ -59,6 +59,7 @@ export type RiskFlag =
   | "missing_source_evidence"
   | "input_too_long"
   | "unexpected_output_structure"
+  | "sensitive_data_detected"
 
 // ─── LLM Warnings ────────────────────────────────────────────────
 

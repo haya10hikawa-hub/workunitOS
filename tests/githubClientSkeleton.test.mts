@@ -20,8 +20,8 @@ test("resolveGitHubSourceMode returns fake for fake", () => {
   assert.equal(resolveGitHubSourceMode({ GITHUB_SOURCE_MODE: "fake" }), "fake")
 })
 
-test("resolveGitHubSourceMode returns real for real", () => {
-  assert.equal(resolveGitHubSourceMode({ GITHUB_SOURCE_MODE: "real" }), "real")
+test("resolveGitHubSourceMode keeps real mode disabled", () => {
+  assert.equal(resolveGitHubSourceMode({ GITHUB_SOURCE_MODE: "real" }), "real_disabled")
 })
 
 test("resolveGitHubSourceMode returns real_disabled", () => {
@@ -49,10 +49,10 @@ test("resolveGitHubClient returns fake when mode is fake", () => {
   assert.equal(client, fakeGitHubClient)
 })
 
-test("resolveGitHubClient returns real with token", () => {
+test("resolveGitHubClient keeps real mode disabled even with token", () => {
   const { client, token } = resolveGitHubClient("real", "test-token")
-  assert.equal(client, realGitHubClient)
-  assert.equal(token, "test-token")
+  assert.equal(client, fakeGitHubClient)
+  assert.equal(token, undefined)
 })
 
 test("resolveGitHubClient falls back to fake when real but no token", () => {

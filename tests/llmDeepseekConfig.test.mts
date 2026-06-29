@@ -4,13 +4,13 @@ import { resolveLlmProviderConfig, resolveLlmProvider } from "../app/lib/llm/pro
 
 // ─── Provider Config: DeepSeek ──────────────────────────────────
 
-test("production with deepseek config: mode is real", () => {
+test("production with deepseek config: live provider remains disabled", () => {
   const config = resolveLlmProviderConfig({
     NODE_ENV: "production",
     LLM_PROVIDER: "deepseek",
     DEEPSEEK_API_KEY: "sk-test",
   })
-  assert.equal(config.mode, "real")
+  assert.equal(config.mode, "disabled")
   assert.equal(config.allowMock, false)
   assert.equal(config.isProduction, true)
 })
@@ -52,13 +52,13 @@ test("development: mock takes priority over deepseek", () => {
   assert.equal(config.mode, "mock")
 })
 
-test("development with deepseek config (no mock): mode is real", () => {
+test("development with deepseek config (no mock): live provider remains disabled", () => {
   const config = resolveLlmProviderConfig({
     NODE_ENV: "development",
     LLM_PROVIDER: "deepseek",
     DEEPSEEK_API_KEY: "sk-test",
   })
-  assert.equal(config.mode, "real")
+  assert.equal(config.mode, "disabled")
   assert.equal(config.allowMock, false)
   assert.equal(config.isProduction, false)
 })
@@ -84,6 +84,15 @@ test("resolveLlmProvider returns null without key in dev", () => {
 test("resolveLlmProvider returns null when disabled", () => {
   const result = resolveLlmProvider({
     NODE_ENV: "development",
+  })
+  assert.equal(result, null)
+})
+
+test("resolveLlmProvider cannot activate deepseek with a key", () => {
+  const result = resolveLlmProvider({
+    NODE_ENV: "production",
+    LLM_PROVIDER: "deepseek",
+    DEEPSEEK_API_KEY: "sk-test",
   })
   assert.equal(result, null)
 })

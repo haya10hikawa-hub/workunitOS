@@ -3,7 +3,7 @@ import type { D1DatabaseLike } from "../../../persistence/d1/types.ts"
 import type { TenantId } from "../../../tenant/types.ts"
 import type { ControlTenantRow } from "./types.ts"
 
-const INSERT_SQL = `INSERT INTO tenants (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
+const INSERT_SQL = `INSERT INTO tenants (id, name, slug, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
 const FIND_BY_ID_SQL = `SELECT * FROM tenants WHERE id = ?`
 const FIND_BY_SLUG_SQL = `SELECT * FROM tenants WHERE slug = ?`
 
@@ -15,8 +15,8 @@ export class ControlTenantRepository {
   }
 
   async create(_ctx: ControlDbContext, row: ControlTenantRow): Promise<ControlTenantRow> {
-    await this.db.prepare(INSERT_SQL).bind(row.id, row.name, row.slug, row.createdAt, row.updatedAt).run()
-    return row
+    await this.db.prepare(INSERT_SQL).bind(row.id, row.name, row.slug, row.status ?? "active", row.createdAt, row.updatedAt).run()
+    return { ...row, status: row.status ?? "active" }
   }
 
   async findById(_ctx: ControlDbContext, id: TenantId): Promise<ControlTenantRow | null> {
@@ -31,10 +31,14 @@ export class ControlTenantRepository {
 }
 
 function mapTenant(row: Record<string, unknown>): ControlTenantRow {
+  const status = row.status === "active" || row.status === "suspended" || row.status === "deleted"
+    ? row.status
+    : "deleted"
   return {
     id: String(row.id) as TenantId,
     name: String(row.name ?? ""),
     slug: String(row.slug ?? ""),
+    status,
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? ""),
   }

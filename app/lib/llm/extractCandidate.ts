@@ -53,6 +53,13 @@ export async function extractSourceCandidate(
   if (!parsed) {
     return { ok: false, error: "invalid_llm_output", warnings, stage: "extract_candidate" }
   }
+  const blockingOutputRisk = parsed.riskFlags.find((flag) =>
+    flag === "prompt_injection_detected" || flag === "source_content_includes_instruction" || flag === "sensitive_data_detected"
+  )
+  if (blockingOutputRisk) {
+    warnings.push({ code: "unsafe_input", message: "Unsafe LLM output detected", riskFlag: blockingOutputRisk })
+    return { ok: false, error: "unsafe_input", warnings, stage: "extract_candidate" }
+  }
 
   const candidate: SourceCandidate = {
     id: `candidate:${signal.id}`,

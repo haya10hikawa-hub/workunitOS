@@ -30,17 +30,20 @@ export function validateCsrfOrigin(request: Request): CsrfCheckResult {
     const url = new URL(originValue)
     const originHost = `${url.protocol}//${url.host}`
 
-    if (ALLOWED_ORIGINS.includes(originHost)) {
-      return { ok: true }
-    }
-
-    // Also check host+port match
-    if (ALLOWED_ORIGINS.some((allowed) => originValue.startsWith(allowed))) {
+    if (ALLOWED_ORIGINS.some((allowed) => normalizeOrigin(allowed) === originHost)) {
       return { ok: true }
     }
 
     return { ok: false, reason: "invalid_origin" }
   } catch {
     return { ok: false, reason: "invalid_origin" }
+  }
+}
+
+function normalizeOrigin(value: string): string | null {
+  try {
+    return new URL(value).origin
+  } catch {
+    return null
   }
 }

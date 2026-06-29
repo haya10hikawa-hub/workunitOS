@@ -13,6 +13,7 @@
  */
 
 import { readFileSync } from "node:fs"
+import { evaluateElectronDependencyPolicy } from "./electronDependencyPolicy.mjs"
 
 const failures = []
 const checks = []
@@ -104,7 +105,22 @@ check("preview-verification-authoritative", /ActionPreview verification remains.
 check("dry-run-not-consuming", matrix.dryRunConsumesApproval === false, "dry-run must not consume approvals")
 
 // ── Dependency boundaries ───────────────────────────────────────
-check("no-electron-dep", !("electron" in deps), "package.json must not depend on electron")
+// Electron dependency policy (Phase E0.5): Electron may exist ONLY as a
+// devDependency, and only while the safe-shell guards exist (electron:build:check
+// script + Electron security-invariant test). It must never be a runtime/optional/
+// peer dependency, and packaging/updater/signing dependencies remain forbidden. This
+// replaces the previous blanket ban; allowing the dev dependency does not package or
+// release Electron.
+const electronPolicy = evaluateElectronDependencyPolicy(pkgJson, {
+  buildCheckScriptOk: (pkgJson.scripts ?? {})["electron:build:check"] === "node scripts/electron-build-check.mjs",
+  invariantTestExists: read("tests/electronSecurityInvariants.test.mts") !== null,
+})
+check("electron-dependency-policy", electronPolicy.ok,
+  `electron dependency policy violated: ${electronPolicy.failures.join(", ")}`)
+// Backstop: if Electron appears in the merged dependency surface at all, it must be
+// exactly the devDependency form (never a runtime/optional/peer dependency).
+check("electron-devdep-only", !("electron" in deps) || ("electron" in (pkgJson.devDependencies ?? {})),
+  "electron may appear only as a devDependency")
 const providerSdks = ["openai", "@anthropic-ai/sdk", "cohere-ai", "@google/generative-ai", "ollama", "mistralai"]
 check("no-provider-sdk-dep", !providerSdks.some((s) => s in deps), "package.json must not add a provider SDK dependency")
 

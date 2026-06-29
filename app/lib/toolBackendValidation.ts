@@ -29,6 +29,8 @@ const OPERATIONS_BY_SOURCE: Record<ToolBackendRequest["source"], readonly ToolBa
 
 const MAX_STRING_LENGTH = 10_000
 const MAX_ARRAY_LENGTH = 500
+const MAX_DEPTH = 20
+const MAX_NODES = 2_000
 
 export type ValidationResult =
   | { ok: true; request: ToolBackendRequest }
@@ -75,7 +77,7 @@ export function validateToolBackendRequest(input: unknown): ValidationResult {
     if (typeof event.source !== "string" || event.source !== source) {
       return { ok: false, error: "invalid_request" }
     }
-    if (!passesStringLengthLimits(event) || !passesArrayLengthLimits(event)) {
+    if (!passesPayloadLimits(event)) {
       return { ok: false, error: "invalid_request" }
     }
   }
@@ -92,13 +94,13 @@ export function validateToolBackendRequest(input: unknown): ValidationResult {
     if (typeof draft.title !== "string" || draft.title.length > MAX_STRING_LENGTH) {
       return { ok: false, error: "invalid_request" }
     }
-    if (!passesStringLengthLimits(draft) || !passesArrayLengthLimits(draft)) {
+    if (!passesPayloadLimits(draft)) {
       return { ok: false, error: "invalid_request" }
     }
   }
 
   // --- global payload string/array length guard ---
-  if (!passesStringLengthLimits(body) || !passesArrayLengthLimits(body)) {
+  if (!passesPayloadLimits(body)) {
     return { ok: false, error: "invalid_request" }
   }
 
@@ -126,18 +128,28 @@ function isValidOperation(value: string): value is ToolBackendOperation {
   return (VALID_OPERATIONS as readonly string[]).includes(value)
 }
 
-function passesStringLengthLimits(obj: Record<string, unknown>): boolean {
-  return Object.entries(obj).every(([, v]) => {
-    if (typeof v === "string" && v.length > MAX_STRING_LENGTH) return false
-    if (v && typeof v === "object" && !Array.isArray(v)) return passesStringLengthLimits(v as Record<string, unknown>)
-    return true
-  })
-}
+function passesPayloadLimits(root: Record<string, unknown>): boolean {
+  const stack: Array<{ value: unknown; depth: number }> = [{ value: root, depth: 0 }]
+  const seen = new WeakSet<object>()
+  let nodes = 0
 
-function passesArrayLengthLimits(obj: Record<string, unknown>): boolean {
-  return Object.entries(obj).every(([, v]) => {
-    if (Array.isArray(v) && v.length > MAX_ARRAY_LENGTH) return false
-    if (v && typeof v === "object" && !Array.isArray(v)) return passesArrayLengthLimits(v as Record<string, unknown>)
-    return true
-  })
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    nodes += 1
+    if (nodes > MAX_NODES || current.depth > MAX_DEPTH) return false
+    if (typeof current.value === "string" && current.value.length > MAX_STRING_LENGTH) return false
+    if (!current.value || typeof current.value !== "object") continue
+    if (seen.has(current.value)) return false
+    seen.add(current.value)
+
+    if (Array.isArray(current.value)) {
+      if (current.value.length > MAX_ARRAY_LENGTH) return false
+      for (const item of current.value) stack.push({ value: item, depth: current.depth + 1 })
+      continue
+    }
+    for (const value of Object.values(current.value as Record<string, unknown>)) {
+      stack.push({ value, depth: current.depth + 1 })
+    }
+  }
+  return true
 }

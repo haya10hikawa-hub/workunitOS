@@ -14,6 +14,7 @@ export type ControlTenantRow = {
   id: TenantId
   name: string
   slug: string
+  status?: "active" | "suspended" | "deleted"
   createdAt: string
   updatedAt: string
 }

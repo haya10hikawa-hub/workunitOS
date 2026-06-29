@@ -48,7 +48,7 @@ function approval(over: Partial<BoundApprovalFacts> = {}): BoundApprovalFacts {
 }
 
 function preview(over: Partial<BoundPreviewFacts> = {}): BoundPreviewFacts {
-  return { id: previewId, tenantId, workUnitId, targetHash: "t-hash", payloadHash: "p-hash", ...over }
+  return { id: previewId, tenantId, workUnitId, targetHash: "t-hash", payloadHash: "p-hash", status: "preview", expiresAt: future, ...over }
 }
 
 function ctx(over: Partial<ApprovalPreviewBindingContext> = {}): ApprovalPreviewBindingContext {

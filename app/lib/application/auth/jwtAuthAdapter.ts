@@ -18,13 +18,25 @@ export class JwtAuthAdapter implements AuthAdapter {
   async verify(request: Request): Promise<AuthAdapterResult> {
     const secret = process.env.JWT_AUTH_SECRET
     if (!secret) return { ok: false, reason: "adapter_not_configured" }
+    if (process.env.NODE_ENV === "production") {
+      if (new TextEncoder().encode(secret).byteLength < 32) return { ok: false, reason: "adapter_not_configured" }
+      if (!process.env.JWT_AUTH_ISSUER || !process.env.JWT_AUTH_AUDIENCE) {
+        return { ok: false, reason: "adapter_not_configured" }
+      }
+    }
 
     const authHeader = request.headers.get("authorization")
     if (!authHeader) return { ok: false, reason: "missing_credentials" }
     const match = authHeader.match(/^Bearer\s+(.+)$/i)
     if (!match) return { ok: false, reason: "invalid_credentials" }
+    if (match[1].length > 16_384) return { ok: false, reason: "invalid_credentials" }
 
-    const claims = await verifyJwt(match[1], secret)
+    let claims: JwtClaims | null
+    try {
+      claims = await verifyJwt(match[1], secret)
+    } catch {
+      return { ok: false, reason: "invalid_credentials" }
+    }
     if (!claims) return { ok: false, reason: "invalid_credentials" }
 
     const identity = toVerifiedIdentity(claims)
@@ -65,8 +77,8 @@ function toVerifiedIdentity(claims: JwtClaims): VerifiedAuthIdentity | null {
 
 function claimsAreValid(claims: JwtClaims): boolean {
   const now = Math.floor(Date.now() / 1000)
-  if (typeof claims.exp === "number" && now >= claims.exp) return false
-  if (typeof claims.nbf === "number" && now < claims.nbf) return false
+  if (!Number.isSafeInteger(claims.exp) || now >= (claims.exp as number)) return false
+  if (claims.nbf !== undefined && (!Number.isSafeInteger(claims.nbf) || now < (claims.nbf as number))) return false
   if (process.env.JWT_AUTH_ISSUER && claims.iss !== process.env.JWT_AUTH_ISSUER) return false
   const audience = process.env.JWT_AUTH_AUDIENCE
   if (audience) {

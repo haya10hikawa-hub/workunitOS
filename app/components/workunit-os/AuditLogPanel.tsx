@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { fetchRecentAuditLogs, type DashboardAuditLog } from "@/lib/application/dashboard/dashboardStatusClient"
+import { deriveAuditActorLabel, redactAuditMetadata } from "@/lib/application/audit/auditLogDisplayModel"
 
 export function AuditLogPanel({ className = "" }: { className?: string }) {
   const [state, setState] = useState<{ status: "loading" | "loaded" | "error"; auditLogs: DashboardAuditLog[]; error?: string }>({ status: "loading", auditLogs: [] })
@@ -27,6 +28,8 @@ export function AuditLogPanel({ className = "" }: { className?: string }) {
 }
 
 function AuditRow({ row }: { row: DashboardAuditLog }) {
+  // Active surface: never render the raw actor id — show a safe derived label.
+  const actorLabel = deriveAuditActorLabel(row)
   return (
     <div className="rounded-[7px] border border-[var(--ai-border)] bg-black px-3 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -34,10 +37,10 @@ function AuditRow({ row }: { row: DashboardAuditLog }) {
           <div className="truncate text-[12px] font-semibold text-[var(--ai-text-strong)]">{row.eventKind}</div>
           <div className="mt-1 text-[10px] text-[var(--ai-text-muted)]">{row.createdAt}</div>
         </div>
-        {row.actorUserId ? <div className="text-[10px] text-[var(--ai-text-muted)]">{row.actorUserId}</div> : null}
+        {actorLabel ? <div className="text-[10px] text-[var(--ai-text-muted)]">{actorLabel}</div> : null}
       </div>
       {(row.targetType || row.targetId) ? <div className="mt-2 text-[11px] text-[var(--ai-text)]">Target: {[row.targetType, row.targetId].filter(Boolean).join(" / ")}</div> : null}
-      {renderMetadataSummary(row.metadata)}
+      {renderMetadataSummary(redactAuditMetadata(row.metadata))}
     </div>
   )
 }

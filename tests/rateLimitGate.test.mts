@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
   checkRateLimit,
+  getTrustedClientIp,
   resetRateLimitStore,
   type RateLimitKey,
 } from "../app/lib/security/rateLimitGate.ts"
@@ -47,6 +48,23 @@ test("different tenant/user/IP keys are independent", () => {
   for (let i = 0; i < 60; i++) checkRateLimit(key)
   const other: RateLimitKey = { tenantId: "t2", actorUserId: "u2", clientIp: "10.0.0.1", routeFamily: "workunit_tools" }
   assert.equal(checkRateLimit(other).ok, true)
+})
+
+test("trusted client ip uses CF-Connecting-IP only", () => {
+  const request = new Request("https://example.test", {
+    headers: {
+      "CF-Connecting-IP": "203.0.113.10",
+      "X-Forwarded-For": "198.51.100.20",
+    },
+  })
+  assert.equal(getTrustedClientIp(request), "203.0.113.10")
+})
+
+test("trusted client ip ignores spoofable forwarded headers", () => {
+  const request = new Request("https://example.test", {
+    headers: { "X-Forwarded-For": "198.51.100.20" },
+  })
+  assert.equal(getTrustedClientIp(request), "unknown")
 })
 
 // ─── Source scans ─────────────────────────────────────────────

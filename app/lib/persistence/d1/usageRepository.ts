@@ -14,29 +14,29 @@ export class D1UsageRepository implements UsageRepository {
   async recordEvent(_ctx: TenantDbContext, row: UsageEventRow): Promise<UsageEventRow> {
     await this.db.prepare(
       "INSERT INTO usage_events (id,tenant_id,event_type,quantity,resource_type,resource_id,metadata_json,created_at) VALUES (?,?,?,?,?,?,?,?)",
-    ).bind(row.id, row.tenantId, row.eventType, row.quantity, row.resourceType ?? null, row.resourceId ?? null, row.metadataJson ?? null, row.createdAt).run()
+    ).bind(row.id, _ctx.tenantId, row.eventType, row.quantity, row.resourceType ?? null, row.resourceId ?? null, row.metadataJson ?? null, row.createdAt).run()
 
     // Upsert daily summary
     const date = row.createdAt.slice(0, 10)
     const now = nowISO()
     await this.db.prepare(
       `INSERT INTO usage_daily_summary (tenant_id,date,event_type,quantity,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(tenant_id,date,event_type) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at`,
-    ).bind(row.tenantId, date, row.eventType, row.quantity, now).run()
+    ).bind(_ctx.tenantId, date, row.eventType, row.quantity, now).run()
 
-    return row
+    return { ...row, tenantId: _ctx.tenantId }
   }
 
   async getDailySummary(_ctx: TenantDbContext, _tenantId: string, date: string): Promise<UsageDailySummaryRow[]> {
     const rows = await this.db.prepare(
-      "SELECT * FROM usage_daily_summary WHERE date = ?",
-    ).bind(date).all<Record<string, unknown>>()
-    return (rows.results ?? []).map(mapSummary).filter((row) => row.tenantId === _tenantId)
+      "SELECT * FROM usage_daily_summary WHERE tenant_id = ? AND date = ?",
+    ).bind(_ctx.tenantId, date).all<Record<string, unknown>>()
+    return (rows.results ?? []).map(mapSummary)
   }
 
   async getCurrentUsage(_ctx: TenantDbContext, tenantId: string, eventType: string): Promise<number> {
     const rows = await this.db.prepare(
-      "SELECT * FROM usage_events WHERE tenant_id = ?",
-    ).bind(tenantId).all<Record<string, unknown>>()
+      "SELECT * FROM usage_events WHERE tenant_id = ? AND event_type = ?",
+    ).bind(_ctx.tenantId, eventType).all<Record<string, unknown>>()
     return (rows.results ?? [])
       .filter((row) => String(row.event_type) === eventType)
       .reduce((total, row) => total + Number(row.quantity ?? 0), 0)

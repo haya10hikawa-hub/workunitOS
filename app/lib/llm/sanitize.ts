@@ -9,6 +9,23 @@ import type { ExternalSignal } from "../domain/types.ts"
 import type { SanitizedSignal, RiskFlag } from "./types.ts"
 
 const MAX_CONTENT_LENGTH = 4_000
+const FORBIDDEN_METADATA_KEYS = new Set([
+  "approvalid", "targethash", "payloadhash", "tenantid", "userid", "actoruserid", "role",
+  "rawcontent", "rawpayload", "rawbody", "providerpayload", "sendablebody",
+  "approvedoutboundpayload", "approvedoutboundbody", "body", "html", "text", "filecontent",
+  "pagebody", "message", "authorization", "cookie", "password", "secret", "token", "apikey",
+])
+const ALLOWED_TEXT_METADATA_KEYS = new Set([
+  "title", "actor", "actors", "timestamp", "subject", "summary", "description", "notes",
+  "repository", "status", "eventtype", "intent", "nextaction", "reason", "evidence",
+])
+const SENSITIVE_VALUE_PATTERNS = [
+  /\bBearer\s+[A-Za-z0-9._~+/-]{12,}/i,
+  /\bsk-[A-Za-z0-9_-]{8,}/,
+  /\bgh[pousr]_[A-Za-z0-9]{12,}/,
+  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+  /\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[:=]\s*[^\s,;]{8,}/i,
+]
 const PROMPT_INJECTION_PATTERNS = [
   /ignore (all )?(previous|prior|above) instructions/i,
   /you are now/i,
@@ -36,6 +53,9 @@ export function sanitizeForLlm(signal: ExternalSignal): SanitizedSignal {
   const metadata = extractMetadata(signal)
   const textContent = buildTextContent(signal, metadata)
   const riskFlags = detectRiskFlags(textContent, signal)
+  if (metadataContainsSensitiveData(signal.metadata) && !riskFlags.includes("sensitive_data_detected")) {
+    riskFlags.push("sensitive_data_detected")
+  }
 
   const truncated = textContent.length > MAX_CONTENT_LENGTH
   const sanitizedContent = truncated ? textContent.slice(0, MAX_CONTENT_LENGTH) : textContent
@@ -60,8 +80,8 @@ export function sanitizeForLlm(signal: ExternalSignal): SanitizedSignal {
 function extractMetadata(signal: ExternalSignal): SanitizedSignal["metadata"] {
   const meta = signal.metadata ?? {}
   return {
-    title: typeof meta.title === "string" ? meta.title : undefined,
-    actor: typeof meta.actor === "string" ? meta.actor : typeof meta.actors === "string" ? meta.actors : undefined,
+    title: safeMetadataText(meta.title),
+    actor: safeMetadataText(meta.actor) ?? safeMetadataText(meta.actors),
     timestamp: typeof meta.timestamp === "string" ? meta.timestamp : signal.receivedAt,
     labels: Array.isArray(meta.labels) ? meta.labels.filter((l): l is string => typeof l === "string") : undefined,
   }
@@ -75,20 +95,34 @@ function buildTextContent(signal: ExternalSignal, metadata: SanitizedSignal["met
   parts.push(`Source: ${signal.sourceType}`)
 
   // Build safe content from metadata — never include rawContentRef body text
-  const safe = { ...signal.metadata }
-  // Explicitly exclude known dangerous keys
-  const dangerousKeys = ["rawContent", "body", "html", "text", "fileContent", "pageBody", "message", "secret", "token", "api_key"]
-  for (const key of dangerousKeys) {
-    delete safe[key]
-  }
-
-  const remaining = Object.entries(safe)
-    .filter(([, v]) => typeof v === "string" && v.length > 0)
+  const remaining = Object.entries(signal.metadata ?? {})
+    .filter(([key, value]) => isAllowedMetadataKey(key) && typeof value === "string" && value.length > 0 && !containsSensitiveData(value))
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n")
 
   if (remaining) parts.push(remaining)
   return parts.join("\n")
+}
+
+function isForbiddenMetadataKey(key: string): boolean {
+  return FORBIDDEN_METADATA_KEYS.has(key.toLowerCase().replace(/[^a-z0-9]/g, ""))
+}
+
+function isAllowedMetadataKey(key: string): boolean {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "")
+  return !isForbiddenMetadataKey(key) && ALLOWED_TEXT_METADATA_KEYS.has(normalized)
+}
+
+function safeMetadataText(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 && !containsSensitiveData(value) ? value : undefined
+}
+
+function metadataContainsSensitiveData(metadata: Record<string, unknown> | undefined): boolean {
+  return Object.values(metadata ?? {}).some((value) => typeof value === "string" && containsSensitiveData(value))
+}
+
+function containsSensitiveData(value: string): boolean {
+  return SENSITIVE_VALUE_PATTERNS.some((pattern) => pattern.test(value))
 }
 
 function detectRiskFlags(text: string, _signal: ExternalSignal): RiskFlag[] {
