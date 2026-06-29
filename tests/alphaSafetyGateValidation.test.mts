@@ -52,9 +52,14 @@ test("13. doc includes Phase 7C handoff", async () => { assert.ok((await doc()).
 // ─── Gate script properties (14-29) ─────────────────────────────
 
 test("14. alpha safety gate script exists", async () => { assert.ok((await gate()).length > 0) })
-test("15. gate is dependency-free (only node: builtins imported)", async () => {
+test("15. gate is dependency-free (node: builtins or local relative modules only)", async () => {
+  // "Dependency-free" means no npm/third-party packages: every import must be a
+  // node: builtin or a local relative module (e.g. ./electronDependencyPolicy.mjs).
+  // A bare specifier (an npm dependency) is forbidden.
   const imports = [...(await gate()).matchAll(/^import .*from ["']([^"']+)["']/gm)].map((m) => m[1])
-  for (const i of imports) assert.ok(i.startsWith("node:"), `non-builtin import: ${i}`)
+  for (const i of imports) {
+    assert.ok(i.startsWith("node:") || i.startsWith("./") || i.startsWith("../"), `npm dependency import forbidden in gate: ${i}`)
+  }
 })
 test("16. gate does not read .env", async () => {
   // No actual .env file access (mentioning it in the doc comment is fine).
