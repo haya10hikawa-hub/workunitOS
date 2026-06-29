@@ -11,7 +11,9 @@
     "alpha:safety-gate": "node scripts/alpha-safety-gate.mjs",
     "cf:build": "opennextjs-cloudflare build",
     "cf:dev": "opennextjs-cloudflare build && wrangler dev",
-    "cf:deploy": "opennextjs-cloudflare build && wrangler deploy"
+    "cf:deploy": "opennextjs-cloudflare build && wrangler deploy",
+    "electron:dev": "ATRA_ELECTRON_START_URL=http://localhost:3000 NODE_OPTIONS=--experimental-strip-types electron electron/main.ts",
+    "electron:build:check": "node scripts/electron-build-check.mjs"
   },
   "dependencies": {
     "next": "^16.2.9",
