@@ -6,14 +6,9 @@ import { resolveRouteRepositories } from "../../../../lib/persistence/routeRepos
 import type { TenantId } from "../../../../lib/tenant/types.ts"
 import { canApprovePreview, canCreatePreview } from "../../../../lib/security/tenantAccess.ts"
 import { validateCsrfOrigin } from "../../../../lib/security/csrfProtection.ts"
+import { hasClientOwnedFields, isPreviewExpired, resolveRequestId } from "../../../../lib/security/routeGuards.ts"
 
 // ─── Helpers ────────────────────────────────────────────────────
-
-const REQUEST_ID_HEADER = "x-request-id"
-
-function resolveRequestId(request: Request): string {
-  return request.headers.get(REQUEST_ID_HEADER) ?? `req:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
-}
 
 function audit(kind: AuditEventKind, requestId: string, extras?: Record<string, unknown>) {
   writeAuditLog({ kind, timestamp: new Date().toISOString(), requestId, ...extras })
@@ -100,6 +95,13 @@ export async function POST(
     return errorResponse(requestId, "invalid_request", 400)
   }
 
+  // Reject approvals built on an expired preview (red-team B-1). Without this a
+  // stale preview could mint a fresh 30-minute approval window.
+  if (isPreviewExpired(preview.expiresAt)) {
+    audit("approval_create_failed", requestId, { actionPreviewId, reason: "preview_expired" })
+    return errorResponse(requestId, "invalid_request", 400)
+  }
+
   // ── Create approval (hashes from stored preview) ─────────────
   const now = new Date().toISOString()
   const approvalId = `approval:${workUnitId}:${preview.actionType}:${Date.now()}`
@@ -172,17 +174,4 @@ export async function GET(
   const rows = await previewRepo.findByWorkUnitId(ctx, workUnitId)
 
   return NextResponse.json({ ok: true, previews: rows })
-}
-
-function hasClientOwnedFields(body: Record<string, unknown>): boolean {
-  return [
-    "targetHash",
-    "payloadHash",
-    "tenantId",
-    "userId",
-    "approvedByUserId",
-    "approvedByPm",
-    "status",
-    "usedAt",
-  ].some((key) => key in body)
 }
