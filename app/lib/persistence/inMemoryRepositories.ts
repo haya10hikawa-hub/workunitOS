@@ -116,7 +116,12 @@ export function createInMemoryApprovalRecordRepository(): ApprovalRecordReposito
   const records = new Map<string, ApprovalRecordRow>()
   return {
     async create(_ctx, row) { records.set(row.id, { ...row }); return { ...row } },
-    async findById(_ctx, id) { return records.get(id) ?? null },
+    async findById(_ctx, id) {
+      // Tenant scoping (red-team A-2/B-4): never return a record belonging to
+      // another tenant, matching the D1 repository's `WHERE tenant_id = ?`.
+      const row = records.get(id)
+      return row && row.tenantId === _ctx.tenantId ? { ...row } : null
+    },
     async findByPreviewId(ctx, pid) {
       for (const row of records.values()) { if (row.actionPreviewId === pid && row.tenantId === ctx.tenantId) return { ...row } }
       return null
