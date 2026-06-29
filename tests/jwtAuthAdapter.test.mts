@@ -64,6 +64,15 @@ test("expired token returns invalid_credentials", async () => {
   })
 })
 
+test("token without exp returns invalid_credentials", async () => {
+  await withEnv("JWT_AUTH_SECRET", "test-secret", async () => {
+    const token = await signHs256Jwt({ sub: "jwt-user", email: "jwt@example.local" }, "test-secret", false)
+    const result = await new JwtAuthAdapter().verify(new Request("http://localhost", { headers: { Authorization: `Bearer ${token}` } }))
+    assert.equal(result.ok, false)
+    if (!result.ok) assert.equal(result.reason, "invalid_credentials")
+  })
+})
+
 test("missing sub or email returns invalid_credentials", async () => {
   await withEnv("JWT_AUTH_SECRET", "test-secret", async () => {
     const missingSub = await signHs256Jwt({ email: "jwt@example.local" }, "test-secret")

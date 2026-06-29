@@ -5,6 +5,7 @@ import { resolveRouteRepositories } from "../../../../lib/persistence/routeRepos
 import type { TenantId } from "../../../../lib/tenant/types.ts"
 import type { AuditLogRow } from "../../../../lib/persistence/types.ts"
 import { canCreateFeedback } from "../../../../lib/security/tenantAccess.ts"
+import { validateCsrfOrigin } from "../../../../lib/security/csrfProtection.ts"
 
 const VALID_FEEDBACK = new Set(["useful", "not_useful", "later", "done"])
 
@@ -18,6 +19,9 @@ export async function POST(
 ): Promise<NextResponse> {
   const { id: workUnitId } = await params
   const requestId = `fb:${workUnitId}:${Date.now()}`
+
+  const csrf = validateCsrfOrigin(request)
+  if (!csrf.ok) return errorResponse(requestId, csrf.reason, 403)
 
   const sessionResult = await requireSession(request)
   if (!sessionResult.ok) {

@@ -65,8 +65,8 @@ function toVerifiedIdentity(claims: JwtClaims): VerifiedAuthIdentity | null {
 
 function claimsAreValid(claims: JwtClaims): boolean {
   const now = Math.floor(Date.now() / 1000)
-  if (typeof claims.exp === "number" && now >= claims.exp) return false
-  if (typeof claims.nbf === "number" && now < claims.nbf) return false
+  if (!Number.isSafeInteger(claims.exp) || now >= (claims.exp as number)) return false
+  if (claims.nbf !== undefined && (!Number.isSafeInteger(claims.nbf) || now < (claims.nbf as number))) return false
   if (process.env.JWT_AUTH_ISSUER && claims.iss !== process.env.JWT_AUTH_ISSUER) return false
   const audience = process.env.JWT_AUTH_AUDIENCE
   if (audience) {

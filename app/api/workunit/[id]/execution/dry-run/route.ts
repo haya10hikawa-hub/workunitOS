@@ -7,6 +7,7 @@ import { areExternalActionsEnabled } from "../../../../../lib/security/externalA
 import type { TenantId } from "../../../../../lib/tenant/types.ts"
 import { canCreatePreview } from "../../../../../lib/security/tenantAccess.ts"
 import { verifyApprovalPreviewBinding } from "../../../../../lib/security/approvalPreviewBinding.ts"
+import { validateCsrfOrigin } from "../../../../../lib/security/csrfProtection.ts"
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -53,6 +54,9 @@ export async function POST(
 ): Promise<NextResponse> {
   const { id: workUnitId } = await params
   const requestId = `dry-run:${workUnitId}:${Date.now()}`
+
+  const csrf = validateCsrfOrigin(request)
+  if (!csrf.ok) return errorResponse(requestId, csrf.reason, 403)
 
   audit("execution_dry_run_requested", requestId, { workUnitId })
 

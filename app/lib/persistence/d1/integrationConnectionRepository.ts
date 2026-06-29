@@ -4,7 +4,7 @@
 
 import type { TenantDbContext, IntegrationConnectionRow } from "../types.ts"
 import type { IntegrationConnectionRepository } from "../repositories.ts"
-import type { D1DatabaseLike } from "./types.ts"
+import { D1RepositoryError, type D1DatabaseLike } from "./types.ts"
 import { nowISO } from "./rowHelpers.ts"
 
 export class D1IntegrationConnectionRepository implements IntegrationConnectionRepository {
@@ -12,12 +12,15 @@ export class D1IntegrationConnectionRepository implements IntegrationConnectionR
   constructor(db: D1DatabaseLike) { this.db = db }
 
   async upsert(_ctx: TenantDbContext, row: IntegrationConnectionRow): Promise<IntegrationConnectionRow> {
-    void _ctx
+    const owner = await this.db.prepare("SELECT tenant_id FROM integration_connections WHERE id = ?").bind(row.id).first<{ tenant_id?: unknown }>()
+    if (owner && String(owner.tenant_id) !== String(_ctx.tenantId)) {
+      throw new D1RepositoryError("tenant_boundary_violation")
+    }
     const now = nowISO()
     await this.db.prepare(
-      `INSERT INTO integration_connections (id,tenant_id,provider,status,mode,display_name,external_account_id,scopes_json,metadata_json,connected_at,disconnected_at,last_sync_at,last_error_code,last_error_message,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,mode=excluded.mode,display_name=excluded.display_name,external_account_id=excluded.external_account_id,scopes_json=excluded.scopes_json,metadata_json=excluded.metadata_json,connected_at=excluded.connected_at,disconnected_at=excluded.disconnected_at,last_sync_at=excluded.last_sync_at,last_error_code=excluded.last_error_code,last_error_message=excluded.last_error_message,updated_at=excluded.updated_at`,
-    ).bind(row.id, row.tenantId, row.provider, row.status, row.mode, row.displayName ?? null, row.externalAccountId ?? null, row.scopesJson ?? null, row.metadataJson ?? null, row.connectedAt ?? null, row.disconnectedAt ?? null, row.lastSyncAt ?? null, row.lastErrorCode ?? null, row.lastErrorMessage ?? null, row.createdAt, now).run()
-    return { ...row, updatedAt: now }
+      `INSERT INTO integration_connections (id,tenant_id,provider,status,mode,display_name,external_account_id,scopes_json,metadata_json,connected_at,disconnected_at,last_sync_at,last_error_code,last_error_message,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,mode=excluded.mode,display_name=excluded.display_name,external_account_id=excluded.external_account_id,scopes_json=excluded.scopes_json,metadata_json=excluded.metadata_json,connected_at=excluded.connected_at,disconnected_at=excluded.disconnected_at,last_sync_at=excluded.last_sync_at,last_error_code=excluded.last_error_code,last_error_message=excluded.last_error_message,updated_at=excluded.updated_at WHERE integration_connections.tenant_id = excluded.tenant_id`,
+    ).bind(row.id, _ctx.tenantId, row.provider, row.status, row.mode, row.displayName ?? null, row.externalAccountId ?? null, row.scopesJson ?? null, row.metadataJson ?? null, row.connectedAt ?? null, row.disconnectedAt ?? null, row.lastSyncAt ?? null, row.lastErrorCode ?? null, row.lastErrorMessage ?? null, row.createdAt, now).run()
+    return { ...row, tenantId: _ctx.tenantId, updatedAt: now }
   }
 
   async findByProvider(_ctx: TenantDbContext, provider: string): Promise<IntegrationConnectionRow | null> {

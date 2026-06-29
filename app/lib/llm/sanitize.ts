@@ -9,6 +9,12 @@ import type { ExternalSignal } from "../domain/types.ts"
 import type { SanitizedSignal, RiskFlag } from "./types.ts"
 
 const MAX_CONTENT_LENGTH = 4_000
+const FORBIDDEN_METADATA_KEYS = new Set([
+  "approvalid", "targethash", "payloadhash", "tenantid", "userid", "actoruserid", "role",
+  "rawcontent", "rawpayload", "rawbody", "providerpayload", "sendablebody",
+  "approvedoutboundpayload", "approvedoutboundbody", "body", "html", "text", "filecontent",
+  "pagebody", "message", "authorization", "cookie", "password", "secret", "token", "apikey",
+])
 const PROMPT_INJECTION_PATTERNS = [
   /ignore (all )?(previous|prior|above) instructions/i,
   /you are now/i,
@@ -75,20 +81,17 @@ function buildTextContent(signal: ExternalSignal, metadata: SanitizedSignal["met
   parts.push(`Source: ${signal.sourceType}`)
 
   // Build safe content from metadata — never include rawContentRef body text
-  const safe = { ...signal.metadata }
-  // Explicitly exclude known dangerous keys
-  const dangerousKeys = ["rawContent", "body", "html", "text", "fileContent", "pageBody", "message", "secret", "token", "api_key"]
-  for (const key of dangerousKeys) {
-    delete safe[key]
-  }
-
-  const remaining = Object.entries(safe)
-    .filter(([, v]) => typeof v === "string" && v.length > 0)
+  const remaining = Object.entries(signal.metadata ?? {})
+    .filter(([key, value]) => !isForbiddenMetadataKey(key) && typeof value === "string" && value.length > 0)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n")
 
   if (remaining) parts.push(remaining)
   return parts.join("\n")
+}
+
+function isForbiddenMetadataKey(key: string): boolean {
+  return FORBIDDEN_METADATA_KEYS.has(key.toLowerCase().replace(/[^a-z0-9]/g, ""))
 }
 
 function detectRiskFlags(text: string, _signal: ExternalSignal): RiskFlag[] {

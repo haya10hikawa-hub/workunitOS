@@ -173,6 +173,14 @@ test("18b. workUnit updateStatus does NOT mutate a wrong-tenant row", async () =
   assert.equal((await repo.findById(ctx(TA, db), "wu-1"))?.status, "completed")
 })
 
+test("18c. workUnit upsert cannot overwrite another tenant with the same id", async () => {
+  const db = new FakeD1Database(); const repo = new D1WorkUnitRepository(db)
+  await repo.create(ctx(TA, db), workUnitRow(TA, { title: "tenant-a-title" }))
+  await assert.rejects(repo.upsert(ctx(TB, db), workUnitRow(TB, { title: "attacker-title" })), /tenant_boundary_violation/)
+  assert.equal((await repo.findById(ctx(TA, db), "wu-1"))?.title, "tenant-a-title")
+  assert.equal(await repo.findById(ctx(TB, db), "wu-1"), null)
+})
+
 // ─── Source guards (19-28) ──────────────────────────────────────
 
 const APPROVAL_REPO = "app/lib/persistence/d1/approvalRecordRepository.ts"

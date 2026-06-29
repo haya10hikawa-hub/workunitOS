@@ -5,6 +5,7 @@ import { writeAuditLog, type AuditEventKind } from "../../../../lib/security/aud
 import { resolveRouteRepositories } from "../../../../lib/persistence/routeRepositories.ts"
 import type { TenantId } from "../../../../lib/tenant/types.ts"
 import { canApprovePreview, canCreatePreview } from "../../../../lib/security/tenantAccess.ts"
+import { validateCsrfOrigin } from "../../../../lib/security/csrfProtection.ts"
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -34,6 +35,9 @@ export async function POST(
 ): Promise<NextResponse> {
   const { id: workUnitId } = await params
   const requestId = resolveRequestId(request)
+
+  const csrf = validateCsrfOrigin(request)
+  if (!csrf.ok) return errorResponse(requestId, csrf.reason, 403)
 
   audit("approval_create_requested", requestId, { workUnitId })
 

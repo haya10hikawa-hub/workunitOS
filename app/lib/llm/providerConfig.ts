@@ -5,18 +5,16 @@
  * module rather than embedding env checks directly.
  *
  * RULES:
- *   - PRODUCTION: mock is NEVER allowed. Real provider (DeepSeek) is
- *     used when LLM_PROVIDER=deepseek and DEEPSEEK_API_KEY is set.
+ *   - PRODUCTION: all providers are disabled until the guarded real-provider
+ *     boundary is approved and wired end to end.
  *   - DEVELOPMENT: mock is allowed when ALLOW_MOCK_LLM=true.
- *     Real provider when LLM_PROVIDER=deepseek and key exists.
- *     Otherwise disabled.
+ *     Real providers remain disabled.
  *   - Legacy fallback: when mode is "disabled" and the legacy ingest
  *     path is available, the route may fall through. Controlled by
  *     ALLOW_LEGACY_INGEST_FALLBACK.
  */
 
 import { createMockLlmProvider } from "./mockProvider.ts"
-import { createDeepSeekProviderFromEnv } from "./deepseekProvider.ts"
 import type { LlmProvider } from "./types.ts"
 
 // ─── Mode ────────────────────────────────────────────────────────
@@ -45,32 +43,21 @@ export function resolveLlmProviderConfig(
   const isProduction = env.NODE_ENV === "production"
   const allowMock = env.ALLOW_MOCK_LLM === "true"
   const allowLegacyFallback = env.ALLOW_LEGACY_INGEST_FALLBACK === "true"
-  const hasRealProvider = env.LLM_PROVIDER === "deepseek" && !!env.DEEPSEEK_API_KEY
-
-  // Production: mock NEVER allowed; real only if configured
+  // Production: all provider execution is blocked until the readiness gate is wired.
   if (isProduction) {
     return {
-      mode: hasRealProvider ? "real" : "disabled",
+      mode: "disabled",
       allowMock: false,
       allowLegacyFallback,
       isProduction: true,
     }
   }
 
-  // Development: mock takes priority, then real, then disabled
+  // Development: mock is the only executable provider.
   if (allowMock) {
     return {
       mode: "mock",
       allowMock: true,
-      allowLegacyFallback,
-      isProduction: false,
-    }
-  }
-
-  if (hasRealProvider) {
-    return {
-      mode: "real",
-      allowMock: false,
       allowLegacyFallback,
       isProduction: false,
     }
@@ -95,11 +82,8 @@ export function resolveLlmProvider(
   switch (config.mode) {
     case "mock":
       return { provider: createMockLlmProvider(), mode: "mock" }
-    case "real": {
-      const provider = createDeepSeekProviderFromEnv(env as Record<string, string | undefined>)
-      if (!provider) return null
-      return { provider, mode: "real" }
-    }
+    case "real":
+      return null
     case "disabled":
       return null
   }

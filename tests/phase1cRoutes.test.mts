@@ -175,7 +175,7 @@ test("feedback route records feedback usage, updates status for later, and appen
     const response = await feedbackPost(
       new Request("http://localhost/api/workunit/wu-feedback/feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Origin: "http://localhost:3000" },
         body: JSON.stringify({ feedback: "later" }),
       }),
       { params: Promise.resolve({ id: "wu-feedback" }) },
@@ -286,7 +286,7 @@ test("feedback route ignores client actor and tenant overrides", async () => {
     const response = await feedbackPost(
       new Request("http://localhost/api/workunit/wu-feedback-override/feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Origin: "http://localhost:3000" },
         body: JSON.stringify({
           feedback: "useful",
           actorUserId: "evil-user",
@@ -311,7 +311,7 @@ test("feedback route rejects viewer role even in explicit dev session", async ()
     const response = await feedbackPost(
       new Request("http://localhost/api/workunit/wu-viewer/feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Origin: "http://localhost:3000" },
         body: JSON.stringify({ feedback: "useful" }),
       }),
       { params: Promise.resolve({ id: "wu-viewer" }) },
@@ -357,7 +357,7 @@ test("feedback route works with jwt auth and sufficient role, but viewer is reje
       sourceProvider: "calendar", reason: "Needs follow-up", evidence: "Quarterly review due", nextAction: "Reply later", status: "open", createdAt: now, updatedAt: now,
     })
     const response = await feedbackPost(new Request("http://localhost/api/workunit/wu-jwt-feedback/feedback", {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: authHeader }, body: JSON.stringify({ feedback: "useful", actorUserId: "evil-user", tenantId: "evil-tenant" }),
+      method: "POST", headers: { "Content-Type": "application/json", Origin: "http://localhost:3000", Authorization: authHeader }, body: JSON.stringify({ feedback: "useful", actorUserId: "evil-user", tenantId: "evil-tenant" }),
     }), { params: Promise.resolve({ id: "wu-jwt-feedback" }) })
     assert.equal(response.status, 200)
     const feedbackRows = await repoResult.bundle.workUnitFeedback.findByWorkUnitId(repoResult.bundle.ctx, "wu-jwt-feedback")
@@ -366,7 +366,7 @@ test("feedback route works with jwt auth and sufficient role, but viewer is reje
   })
   await withJwtRoutePersistence("viewer", async (_db, authHeader) => {
     const response = await feedbackPost(new Request("http://localhost/api/workunit/wu-jwt-feedback-viewer/feedback", {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: authHeader }, body: JSON.stringify({ feedback: "useful" }),
+      method: "POST", headers: { "Content-Type": "application/json", Origin: "http://localhost:3000", Authorization: authHeader }, body: JSON.stringify({ feedback: "useful" }),
     }), { params: Promise.resolve({ id: "wu-jwt-feedback-viewer" }) })
     assert.equal(response.status, 403)
   })
@@ -437,7 +437,7 @@ test("feedback route works with jwt identity and editor role, but viewer cannot 
     })
     const response = await feedbackPost(new Request("http://localhost/api/workunit/wu-jwt-feedback/feedback", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: authHeader },
+      headers: { "Content-Type": "application/json", Origin: "http://localhost:3000", Authorization: authHeader },
       body: JSON.stringify({ feedback: "useful" }),
     }), { params: Promise.resolve({ id: "wu-jwt-feedback" }) })
     assert.equal(response.status, 200)
@@ -446,7 +446,7 @@ test("feedback route works with jwt identity and editor role, but viewer cannot 
   await withJwtRoutePersistence("viewer", async (_db, authHeader) => {
     const response = await feedbackPost(new Request("http://localhost/api/workunit/wu-jwt-viewer/feedback", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: authHeader },
+      headers: { "Content-Type": "application/json", Origin: "http://localhost:3000", Authorization: authHeader },
       body: JSON.stringify({ feedback: "useful" }),
     }), { params: Promise.resolve({ id: "wu-jwt-viewer" }) })
     assert.equal(response.status, 403)

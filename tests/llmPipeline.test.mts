@@ -75,6 +75,24 @@ test("sanitizeForLlm truncates long content", () => {
   assert.ok(result.truncatedLength <= 4000)
 })
 
+test("sanitizeForLlm excludes approval, tenant, identity, and payload metadata", () => {
+  const signal = createExternalSignal({
+    id: "sig-forbidden-metadata",
+    tenantId,
+    sourceType: "slack",
+    sourceRef: { source: "slack", externalId: "msg-forbidden", capturedAt: new Date().toISOString() },
+    metadata: {
+      title: "Safe title", approvalId: "approval-secret", target_hash: "target-secret",
+      payloadHash: "payload-secret", tenantId: "other-tenant", userId: "other-user",
+      role: "owner", rawPayload: "raw-secret", sendableBody: "send-secret",
+    },
+  })
+  const content = sanitizeForLlm(signal).sanitizedContent
+  for (const secret of ["approval-secret", "target-secret", "payload-secret", "other-tenant", "other-user", "owner", "raw-secret", "send-secret"]) {
+    assert.equal(content.includes(secret), false)
+  }
+})
+
 test("sanitized content remains untrusted", () => {
   const signal = createExternalSignal({
     id: "sig-5",

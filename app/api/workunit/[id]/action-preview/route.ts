@@ -7,6 +7,7 @@ import { resolveRouteRepositories } from "../../../../lib/persistence/routeRepos
 import type { TenantId } from "../../../../lib/tenant/types.ts"
 import type { ApprovalActionType } from "../../../../lib/domain/types.ts"
 import { canCreatePreview } from "../../../../lib/security/tenantAccess.ts"
+import { validateCsrfOrigin } from "../../../../lib/security/csrfProtection.ts"
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -36,6 +37,9 @@ export async function POST(
 ): Promise<NextResponse> {
   const { id: workUnitId } = await params
   const requestId = resolveRequestId(request)
+
+  const csrf = validateCsrfOrigin(request)
+  if (!csrf.ok) return errorResponse(requestId, csrf.reason, 403)
 
   audit("action_preview_create_requested", requestId, { workUnitId })
 

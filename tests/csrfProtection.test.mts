@@ -33,6 +33,13 @@ test("cross-site Origin is blocked", () => {
   if (!r.ok) assert.equal(r.reason, "invalid_origin")
 })
 
+test("allowed-origin prefix confusion is blocked", () => {
+  const req = new Request("http://localhost:3000", { headers: { Origin: "http://localhost:3000.evil.test" } })
+  const result = validateCsrfOrigin(req)
+  assert.equal(result.ok, false)
+  if (!result.ok) assert.equal(result.reason, "invalid_origin")
+})
+
 test("malformed Origin is blocked", () => {
   const req = new Request("http://localhost:3000", { headers: { Origin: "not-a-url!!!" } })
   const r = validateCsrfOrigin(req)
