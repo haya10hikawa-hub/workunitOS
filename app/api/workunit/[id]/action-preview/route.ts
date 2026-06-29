@@ -10,14 +10,9 @@ import { canCreatePreview } from "../../../../lib/security/tenantAccess.ts"
 import { validateCsrfOrigin } from "../../../../lib/security/csrfProtection.ts"
 import { readBoundedJsonObject } from "../../../../lib/security/requestBody.ts"
 import { checkRateLimit, getTrustedClientIp } from "../../../../lib/security/rateLimitGate.ts"
+import { hasClientOwnedFields, resolveRequestId } from "../../../../lib/security/routeGuards.ts"
 
 // ─── Helpers ────────────────────────────────────────────────────
-
-const REQUEST_ID_HEADER = "x-request-id"
-
-function resolveRequestId(request: Request): string {
-  return request.headers.get(REQUEST_ID_HEADER) ?? `req:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
-}
 
 function audit(kind: AuditEventKind, requestId: string, extras?: Record<string, unknown>) {
   writeAuditLog({ kind, timestamp: new Date().toISOString(), requestId, ...extras })
@@ -148,10 +143,6 @@ export async function POST(
       expiresAt: previewRow.expiresAt,
     },
   }, 201)
-}
-
-function hasClientOwnedFields(body: Record<string, unknown>): boolean {
-  return ["targetHash", "payloadHash", "tenantId", "approvedByUserId", "status", "usedAt"].some((key) => key in body)
 }
 
 const FORBIDDEN_PREVIEW_KEYS = new Set([
