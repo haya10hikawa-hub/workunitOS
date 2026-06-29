@@ -8,7 +8,8 @@ import { validateCsrfOrigin } from "../../../lib/security/csrfProtection.ts"
 import { resolveRequestId } from "../../../lib/security/routeGuards.ts"
 import { checkRateLimit, getTrustedClientIp } from "../../../lib/security/rateLimitGate.ts"
 import { hasPermission } from "../../../lib/security/rbac.ts"
-import { writeAuditLog, type AuditEventKind } from "../../../lib/security/auditLog.ts"
+import { writeAuditLog, type AuditEventKind, type AuditEvent } from "../../../lib/security/auditLog.ts"
+import { recordAuditEvent } from "../../../lib/security/auditPersistence.ts"
 import type { WorkUnitPermission } from "../../../lib/security/policy.ts"
 import type { ToolBackendOperation } from "../../../types/toolBackend.ts"
 import { readBoundedJsonObject } from "../../../lib/security/requestBody.ts"
@@ -48,6 +49,20 @@ function audit(kind: AuditEventKind, requestId: string, extras?: Partial<Paramet
     requestId,
     ...extras,
   })
+}
+
+// Security P2: persist a security-relevant tools-route audit event, tenant-scoped
+// and fail-open. The repository bundle is resolved on demand because these calls
+// run only on terminal blocked/guarded paths. Metadata is redacted and requestId
+// sanitized inside recordAuditEvent; this helper never throws.
+async function persistAuditEvent(tenantId: string, event: AuditEvent): Promise<void> {
+  try {
+    const repoResult = await resolveRouteRepositories(tenantId as TenantId)
+    if (!repoResult.ok) return
+    await recordAuditEvent(repoResult.bundle.auditLogs, repoResult.bundle.ctx, event)
+  } catch {
+    // Fail-open: audit persistence must never break the request path.
+  }
 }
 
 function json(body: unknown, status: number): NextResponse {
@@ -142,6 +157,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       tenantId: session.tenantId,
       reason: `missing_permission:${requiredPermission}`,
     })
+    // Security P2: persist the RBAC denial (tenant-scoped, redacted, fail-open).
+    await persistAuditEvent(session.tenantId, {
+      kind: "rbac_denied",
+      timestamp: new Date().toISOString(),
+      requestId,
+      actorId: session.userId,
+      reason: `missing_permission:${requiredPermission}`,
+      metadata: { operation: validated.operation },
+    })
     return errorResponse(requestId, "forbidden", 403)
   }
 
@@ -207,6 +231,16 @@ export async function POST(request: Request): Promise<NextResponse> {
       audit("external_action_blocked", requestId, {
         operation: validated.operation,
         reason: "kill_switch_off",
+      })
+      // Security P2: persist the blocked external-action attempt (tenant-scoped,
+      // redacted, fail-open). External execution remains disabled — this only logs.
+      await persistAuditEvent(session.tenantId, {
+        kind: "external_action_blocked",
+        timestamp: new Date().toISOString(),
+        requestId,
+        actorId: session.userId,
+        reason: "kill_switch_off",
+        metadata: { operation: validated.operation },
       })
       return errorResponse(requestId, "external_actions_disabled", 403)
     }
