@@ -5,6 +5,7 @@ import { areExternalActionsEnabled, isExternalOperation } from "../../../lib/sec
 import { getSafeErrorStatus, safeError, toSafeErrorCode } from "../../../lib/security/safeErrors.ts"
 import { getSessionErrorStatus, requireSession } from "../../../lib/security/session.ts"
 import { validateCsrfOrigin } from "../../../lib/security/csrfProtection.ts"
+import { resolveRequestId } from "../../../lib/security/routeGuards.ts"
 import { checkRateLimit, getTrustedClientIp } from "../../../lib/security/rateLimitGate.ts"
 import { hasPermission } from "../../../lib/security/rbac.ts"
 import { writeAuditLog, type AuditEventKind } from "../../../lib/security/auditLog.ts"
@@ -39,12 +40,6 @@ const OPERATION_PERMISSION: Record<ToolBackendOperation, WorkUnitPermission> = {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
-
-const REQUEST_ID_HEADER = "x-request-id"
-
-function resolveRequestId(request: Request): string {
-  return request.headers.get(REQUEST_ID_HEADER) ?? `req:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
-}
 
 function audit(kind: AuditEventKind, requestId: string, extras?: Partial<Parameters<typeof writeAuditLog>[0]>) {
   writeAuditLog({

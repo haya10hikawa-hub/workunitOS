@@ -7,6 +7,7 @@
 
 import type { ExternalSignal } from "../domain/types.ts"
 import type { SanitizedSignal, RiskFlag } from "./types.ts"
+import { normalizeForSecurityScan } from "../security/textNormalize.ts"
 
 const MAX_CONTENT_LENGTH = 4_000
 const FORBIDDEN_METADATA_KEYS = new Set([
@@ -27,13 +28,16 @@ const SENSITIVE_VALUE_PATTERNS = [
   /\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[:=]\s*[^\s,;]{8,}/i,
 ]
 const PROMPT_INJECTION_PATTERNS = [
-  /ignore (all )?(previous|prior|above) instructions/i,
+  /ignore (all )?(previous|prior|above) (instructions|rules|messages)/i,
+  /forget (all |everything )?(previous|prior|above)?/i,
   /you are now/i,
+  /new instructions/i,
   /system prompt/i,
   /developer message/i,
   /override your (rules|behavior|instructions)/i,
   /disregard (all )?(previous|above) (instructions|rules)/i,
   /act as (if )?you are/i,
+  /exfiltrate|data ?leak|reveal (the )?(system|secret|api ?key|token)/i,
 ]
 
 /**
@@ -105,7 +109,10 @@ function buildTextContent(signal: ExternalSignal, metadata: SanitizedSignal["met
 }
 
 function isForbiddenMetadataKey(key: string): boolean {
-  return FORBIDDEN_METADATA_KEYS.has(key.toLowerCase().replace(/[^a-z0-9]/g, ""))
+  // Canonicalize first so Unicode homoglyphs (e.g. Cyrillic `ѕеcret`) and
+  // zero-width separators cannot smuggle a forbidden key past the filter.
+  const canonical = normalizeForSecurityScan(key).toLowerCase().replace(/[^a-z0-9]/g, "")
+  return FORBIDDEN_METADATA_KEYS.has(canonical)
 }
 
 function isAllowedMetadataKey(key: string): boolean {
@@ -129,15 +136,19 @@ function detectRiskFlags(text: string, _signal: ExternalSignal): RiskFlag[] {
   void _signal;
   const flags: RiskFlag[] = []
 
+  // Canonicalize before pattern matching: homoglyphs and zero-width characters
+  // otherwise let `іgnore previous instructions` slip past every regex.
+  const scanText = normalizeForSecurityScan(text)
+
   for (const pattern of PROMPT_INJECTION_PATTERNS) {
-    if (pattern.test(text)) {
+    if (pattern.test(scanText)) {
       flags.push("prompt_injection_detected")
       break
     }
   }
 
   // Check if source content contains system-like instructions
-  if (/you (must|should|need to|have to) (respond|reply|answer|output|return|generate|create|send|post)/i.test(text)) {
+  if (/you (must|should|need to|have to) (respond|reply|answer|output|return|generate|create|send|post)/i.test(scanText)) {
     if (!flags.includes("prompt_injection_detected")) {
       flags.push("source_content_includes_instruction")
     }

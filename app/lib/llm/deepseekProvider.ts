@@ -30,6 +30,39 @@ export const DEEPSEEK_DEFAULTS = {
 } as const
 
 /**
+ * Reject provider base URLs that point at internal / link-local / metadata
+ * endpoints (red-team C-06: `DEEPSEEK_BASE_URL` was used unvalidated, enabling
+ * SSRF to e.g. http://169.254.169.254 with the API key attached). HTTPS is
+ * required; plain HTTP is only tolerated for localhost during development.
+ */
+export function isSafeProviderBaseUrl(value: string, opts: { allowLocalhost?: boolean } = {}): boolean {
+  let url: URL
+  try { url = new URL(value) } catch { return false }
+
+  const host = url.hostname.toLowerCase()
+  const isLoopback = host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]"
+
+  if (url.protocol !== "https:") {
+    if (!(url.protocol === "http:" && isLoopback && opts.allowLocalhost)) return false
+  }
+  if (isLoopback) return Boolean(opts.allowLocalhost)
+
+  // Block private / link-local IPv4 literals and the cloud metadata address.
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+    const [a, b] = host.split(".").map((n) => parseInt(n, 10))
+    if (a === 10 || a === 127 || a === 0) return false
+    if (a === 169 && b === 254) return false           // link-local incl. 169.254.169.254
+    if (a === 172 && b >= 16 && b <= 31) return false
+    if (a === 192 && b === 168) return false
+  }
+  // Block IPv6 private/link-local literals.
+  if (host.startsWith("[")) {
+    if (host.startsWith("[fe80") || host.startsWith("[fc") || host.startsWith("[fd") || host === "[::]") return false
+  }
+  return true
+}
+
+/**
  * Create a DeepSeek provider from config.
  */
 export function createDeepSeekProvider(config: DeepSeekProviderConfig): LlmProvider {
@@ -110,9 +143,14 @@ export function createDeepSeekProviderFromEnv(env: {
   const apiKey = env.DEEPSEEK_API_KEY
   if (!apiKey) return null
 
+  const baseUrl = env.DEEPSEEK_BASE_URL ?? DEEPSEEK_DEFAULTS.baseUrl
+  // SSRF guard: refuse to construct a provider pointed at an unsafe base URL.
+  const allowLocalhost = (env as { NODE_ENV?: string }).NODE_ENV !== "production"
+  if (!isSafeProviderBaseUrl(baseUrl, { allowLocalhost })) return null
+
   return createDeepSeekProvider({
     apiKey,
-    baseUrl: env.DEEPSEEK_BASE_URL ?? DEEPSEEK_DEFAULTS.baseUrl,
+    baseUrl,
     defaultModel: env.DEEPSEEK_DEFAULT_MODEL ?? DEEPSEEK_DEFAULTS.defaultModel,
     timeoutMs: parseTimeout(env.LLM_TIMEOUT_MS, DEEPSEEK_DEFAULTS.timeoutMs),
   })
