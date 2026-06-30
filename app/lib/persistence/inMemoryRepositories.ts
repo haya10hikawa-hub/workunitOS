@@ -115,7 +115,15 @@ export function createInMemoryApprovalRecordRepository(): ApprovalRecordReposito
 } {
   const records = new Map<string, ApprovalRecordRow>()
   return {
-    async create(_ctx, row) { records.set(row.id, { ...row }); return { ...row } },
+    async create(_ctx, row) {
+      // Security P2: derive tenantId from the repository context, never trust the
+      // caller-supplied row.tenantId. This prevents a caller from writing an
+      // approval into another tenant by spoofing row.tenantId (reads are already
+      // tenant-scoped). Parity with the D1 repo, which binds ctx.tenantId on INSERT.
+      const stored = { ...row, tenantId: _ctx.tenantId }
+      records.set(stored.id, stored)
+      return { ...stored }
+    },
     async findById(_ctx, id) {
       // Tenant scoping (red-team A-2/B-4): never return a record belonging to
       // another tenant, matching the D1 repository's `WHERE tenant_id = ?`.
